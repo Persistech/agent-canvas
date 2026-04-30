@@ -6,7 +6,14 @@ const AGENT_SERVER_INFO_TIMEOUT_MS = 5000;
 
 const SEMVER_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 
-const getServerVersion = (serverInfo: ServerInfo): string => serverInfo.version;
+const getServerVersion = (serverInfo: ServerInfo): string => {
+  // Fall back to sdk_version when version is unknown/missing
+  // (common in dev builds or when build metadata isn't injected)
+  if (serverInfo.version && serverInfo.version !== "unknown") {
+    return serverInfo.version;
+  }
+  return serverInfo.sdk_version ?? serverInfo.version;
+};
 
 const parseSemver = (
   version: string | null,
