@@ -12,6 +12,7 @@ vi.mock("react-i18next", async (importOriginal) =>
 import OptionService from "#/api/option-service/option-service.api";
 import {
   AGENT_SERVER_UI_SCOPE_SELECTOR,
+  AgentServerUIRoot,
   AgentServerUIProviders,
   DEFAULT_AGENT_SERVER_ANALYTICS,
   getDefaultI18n,
@@ -222,5 +223,33 @@ describe("AgentServerUIProviders", () => {
     );
 
     expect(document.querySelector(AGENT_SERVER_UI_SCOPE_SELECTOR)).toBeNull();
+  });
+
+  it("exposes a standalone style root for host-controlled customization", () => {
+    render(
+      <AgentServerUIRoot
+        className="outer-shell"
+        contentClassName="inner-shell"
+        theme="light"
+        styleOverrides={{ "--oh-color-primary": "#abcdef" }}
+      >
+        <div data-testid="root-child">child</div>
+      </AgentServerUIRoot>,
+    );
+
+    const scopeRoot = document.querySelector<HTMLDivElement>(
+      AGENT_SERVER_UI_SCOPE_SELECTOR,
+    );
+
+    expect(scopeRoot).toHaveClass("outer-shell");
+    expect(scopeRoot?.style.getPropertyValue("--oh-color-primary")).toBe(
+      "#abcdef",
+    );
+
+    const themedContainer =
+      scopeRoot?.firstElementChild as HTMLDivElement | null;
+    expect(themedContainer).toHaveAttribute("data-theme", "light");
+    expect(themedContainer).toHaveClass("light", "inner-shell");
+    expect(themedContainer).toContainElement(screen.getByTestId("root-child"));
   });
 });

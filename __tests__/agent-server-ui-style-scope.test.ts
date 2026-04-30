@@ -25,6 +25,19 @@ describe("transformAgentServerUISelector", () => {
     ).toBe(AGENT_SERVER_UI_SCOPE_SELECTOR);
   });
 
+  it.each([":root", "body", "html"])(
+    "maps %s selectors directly to the scoped root",
+    (selector) => {
+      expect(
+        transformAgentServerUISelector(
+          AGENT_SERVER_UI_SCOPE_SELECTOR,
+          selector,
+          `${AGENT_SERVER_UI_SCOPE_SELECTOR} ${selector}`,
+        ),
+      ).toBe(AGENT_SERVER_UI_SCOPE_SELECTOR);
+    },
+  );
+
   it("does not double-prefix selectors that are already scoped", () => {
     const selector = `${AGENT_SERVER_UI_SCOPE_SELECTOR} .xterm`;
 

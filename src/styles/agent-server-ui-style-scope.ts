@@ -66,6 +66,8 @@ export type AgentServerUIStyleOverrides = Partial<
   Record<AgentServerUICssVariableName, string>
 >;
 
+const GLOBAL_SCOPE_SELECTORS = new Set([":root", "body", "html"]);
+
 export function transformAgentServerUISelector(
   prefix: string,
   selector: string,
@@ -77,6 +79,10 @@ export function transformAgentServerUISelector(
 
   if (selector.includes(":host")) {
     return selector.replaceAll(":host", prefix);
+  }
+
+  if (GLOBAL_SCOPE_SELECTORS.has(selector.trim())) {
+    return prefix;
   }
 
   return prefixedSelector;
