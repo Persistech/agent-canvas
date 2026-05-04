@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -49,7 +50,7 @@ describe("buildSafeDevConfig", () => {
     expect(config.backendHost).toBe("127.0.0.1:18000");
     expect(config.workingDir).toBe(config.workspacesPath);
     expect(config.stateDir).toBe(
-      path.resolve(cwd, ".openhands-dev", "safe-dev-18000"),
+      path.join(homedir(), ".openhands", "agent-server-gui"),
     );
     expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
     expect(config.conversationsPath).toBe(
