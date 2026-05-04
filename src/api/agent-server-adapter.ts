@@ -1,11 +1,9 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Settings } from "#/types/settings";
 import { V1ExecutionStatus } from "#/types/v1/core";
 import {
   getAgentServerBaseUrl,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
-  getConfiguredWorkerUrls,
 } from "./agent-server-config";
 import {
   GetHooksResponse,
@@ -44,12 +42,7 @@ export interface DirectConversationInfo {
   } | null;
 }
 
-const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
-const BROWSER_TOOL_SET_NAME = "browser_tool_set";
 
-function browserToolsEnabled() {
-  return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
-}
 
 export function toConversationUrl(conversationId: string): string {
   return `${getAgentServerBaseUrl()}/api/conversations/${conversationId}`;
@@ -122,255 +115,52 @@ export function toV1ConversationPage(data: {
   };
 }
 
-type SettingsRecord = Record<string, unknown>;
-
-const AGENT_SETTINGS_METADATA_KEYS = new Set([
-  "schema_version",
-  "agent_kind",
-  "agent",
-]);
-
-const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
-  "schema_version",
-  "agent_settings",
-  "workspace",
-  "conversation_id",
-  "initial_message",
-  "plugins",
-]);
-
-function toRecord(value: unknown): SettingsRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return structuredClone(value as SettingsRecord);
-}
-
-function normalizeSecretString(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function getConversationConfirmationPolicy(
-  conversationSettings: SettingsRecord,
-) {
-  if (conversationSettings.confirmation_mode !== true) {
-    return { kind: "NeverConfirm" };
-  }
-
-  if (conversationSettings.security_analyzer === "llm") {
-    return { kind: "ConfirmRisky", threshold: "HIGH", confirm_unknown: true };
-  }
-
-  return { kind: "AlwaysConfirm" };
-}
-
-function getConversationSecurityAnalyzer(conversationSettings: SettingsRecord) {
-  switch (conversationSettings.security_analyzer) {
-    case "llm":
-      return { kind: "LLMSecurityAnalyzer" };
-    case "pattern":
-      return { kind: "PatternSecurityAnalyzer" };
-    case "policy_rail":
-      return { kind: "PolicyRailSecurityAnalyzer" };
-    default:
-      return undefined;
-  }
-}
-
-function getAgentTools() {
-  const tools = DEFAULT_TOOL_NAMES.map((name) => ({ name, params: {} }));
-  if (browserToolsEnabled()) {
-    tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
-  }
-  return tools;
-}
-
-function buildInitialMessage(
-  query?: string,
-  conversationInstructions?: string,
-) {
-  const parts = [query?.trim(), conversationInstructions?.trim()].filter(
-    Boolean,
-  );
-  if (parts.length === 0) {
-    return null;
-  }
-
-  return {
-    role: "user",
-    content: [{ type: "text", text: parts.join("\n\n") }],
-  };
-}
-
-function buildCondenserConfig(
-  llm: SettingsRecord,
-  rawCondenser: unknown,
-): SettingsRecord | undefined {
-  const condenser = toRecord(rawCondenser);
-
-  if (condenser.enabled !== true) {
-    return undefined;
-  }
-
-  const condenserLlm = {
-    ...llm,
-    usage_id: "condenser",
-  };
-
-  const config: SettingsRecord = {
-    kind: "LLMSummarizingCondenser",
-    llm: condenserLlm,
-  };
-
-  if (typeof condenser.max_size === "number") {
-    config.max_size = condenser.max_size;
-  }
-
-  return config;
-}
-
-function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
-  const agentSettings = toRecord(settings.agent_settings);
-  const llm = toRecord(agentSettings.llm);
-
-  llm.model =
-    typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
-
-  // Note: We intentionally do NOT send api_key in the start conversation request.
-  // The agent-server will fill it in from persisted settings via server-side merge.
-  // This avoids exposing secrets in the request payload.
-  delete llm.api_key;
-
-  const baseUrl = normalizeSecretString(llm.base_url);
-  if (baseUrl) {
-    llm.base_url = baseUrl;
-  } else {
-    delete llm.base_url;
-  }
-
-  const condenser = buildCondenserConfig(llm, agentSettings.condenser);
-
-  AGENT_SETTINGS_METADATA_KEYS.forEach((key) => delete agentSettings[key]);
-
-  const mcpConfig = toRecord(agentSettings.mcp_config);
-  if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
-    delete agentSettings.mcp_config;
-  }
-
-  if (condenser) {
-    agentSettings.condenser = condenser;
-  } else {
-    delete agentSettings.condenser;
-  }
-
-  return {
-    ...agentSettings,
-    llm,
-    tools: getAgentTools(),
-  };
-}
-
-function createAgentFromSettings(agentSettings: SettingsRecord) {
-  return {
-    kind: "Agent",
-    ...agentSettings,
-  };
-}
-
-function buildConfiguredConversationSettings(options: {
-  settings: Settings;
-  query?: string;
-  conversationInstructions?: string;
-  plugins?: PluginSpec[];
-  workingDir?: string;
-}): SettingsRecord {
-  const { settings, query, conversationInstructions, plugins, workingDir } =
-    options;
-  const conversationSettings = toRecord(settings.conversation_settings);
-  const initialMessage = buildInitialMessage(query, conversationInstructions);
-
-  CONVERSATION_SETTINGS_METADATA_KEYS.forEach(
-    (key) => delete conversationSettings[key],
-  );
-
-  return {
-    ...conversationSettings,
-    workspace: {
-      kind: "LocalWorkspace",
-      working_dir: workingDir ?? getAgentServerWorkingDir(),
-    },
-    ...(initialMessage ? { initial_message: initialMessage } : {}),
-    ...(plugins?.length
-      ? {
-          plugins: plugins.map((plugin) => ({
-            source: plugin.source,
-            ...(plugin.ref ? { ref: plugin.ref } : {}),
-            ...(plugin.repo_path ? { repo_path: plugin.repo_path } : {}),
-          })),
-        }
-      : {}),
-  };
-}
-
+/**
+ * Build a minimal start conversation request payload.
+ *
+ * The agent-server fills in all configuration from persisted settings via
+ * server-side merge (_merge_request_with_persisted_settings). We only send:
+ * - initial_message: The user's query (if any)
+ * - plugins: Any plugins to load (if any)
+ * - conversation_id: Optional explicit ID
+ *
+ * All other settings (agent/LLM config, tools, workspace, confirmation_policy,
+ * max_iterations, condenser, MCP config, security_analyzer) come from
+ * server-side persisted settings.
+ */
 export function buildStartConversationRequest(options: {
-  settings: Settings;
   query?: string;
   conversationInstructions?: string;
   plugins?: PluginSpec[];
   conversationId?: string;
-  workingDir?: string;
 }) {
-  const agentSettings = buildConfiguredAgentSettings(options.settings);
-  const agent = createAgentFromSettings(agentSettings);
-  const conversationSettings = buildConfiguredConversationSettings(options);
+  const payload: Record<string, unknown> = {};
 
-  const payload: Record<string, unknown> = {
-    agent,
-    workspace: conversationSettings.workspace,
-    confirmation_policy:
-      getConversationConfirmationPolicy(conversationSettings),
-    max_iterations:
-      typeof conversationSettings.max_iterations === "number"
-        ? conversationSettings.max_iterations
-        : 500,
-    stuck_detection: true,
-    autotitle: true,
-  };
-
+  // Add conversation ID if specified
   if (options.conversationId) {
     payload.conversation_id = options.conversationId;
   }
 
-  const securityAnalyzer =
-    getConversationSecurityAnalyzer(conversationSettings);
-  if (securityAnalyzer) {
-    payload.security_analyzer = securityAnalyzer;
+  // Build initial message from query and instructions
+  const messageParts = [
+    options.query?.trim(),
+    options.conversationInstructions?.trim(),
+  ].filter(Boolean);
+
+  if (messageParts.length > 0) {
+    payload.initial_message = {
+      role: "user",
+      content: [{ type: "text", text: messageParts.join("\n\n") }],
+    };
   }
 
-  if (conversationSettings.initial_message) {
-    payload.initial_message = conversationSettings.initial_message;
-  }
-
-  if (conversationSettings.plugins) {
-    payload.plugins = conversationSettings.plugins;
-  }
-
-  if (conversationSettings.hook_config) {
-    payload.hook_config = conversationSettings.hook_config;
-  }
-
-  if (conversationSettings.tool_module_qualnames) {
-    payload.tool_module_qualnames = conversationSettings.tool_module_qualnames;
-  }
-
-  if (conversationSettings.agent_definitions) {
-    payload.agent_definitions = conversationSettings.agent_definitions;
+  // Add plugins if specified
+  if (options.plugins?.length) {
+    payload.plugins = options.plugins.map((plugin) => ({
+      source: plugin.source,
+      ...(plugin.ref ? { ref: plugin.ref } : {}),
+      ...(plugin.repo_path ? { repo_path: plugin.repo_path } : {}),
+    }));
   }
 
   return payload;
