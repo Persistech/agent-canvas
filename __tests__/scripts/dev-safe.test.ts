@@ -16,7 +16,6 @@ const repoRoot = path.resolve(
   "../..",
 );
 
-
 describe("formatMissingAgentServerGuidance", () => {
   it("includes install, PATH, README, and fallback workflow hints", () => {
     const guidance = formatMissingAgentServerGuidance(
@@ -48,13 +47,16 @@ describe("buildSafeDevConfig", () => {
     expect(config.vscodePort).toBe(18001);
     expect(config.backendBaseUrl).toBe("http://127.0.0.1:18000");
     expect(config.backendHost).toBe("127.0.0.1:18000");
-    expect(config.workingDir).toBe(cwd);
+    expect(config.workingDir).toBe(config.workspacesPath);
     expect(config.stateDir).toBe(
       path.resolve(cwd, ".openhands-dev", "safe-dev-18000"),
     );
     expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
     expect(config.conversationsPath).toBe(
       path.join(config.stateDir, "conversations"),
+    );
+    expect(config.workspacesPath).toBe(
+      path.join(config.stateDir, "workspaces"),
     );
     expect(config.bashEventsDir).toBe(
       path.join(config.stateDir, "bash_events"),
