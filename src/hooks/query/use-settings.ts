@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsScope, SettingsValue } from "#/types/settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import {
   pickFirstBoolean,
   pickFirstNumber,
@@ -128,7 +129,11 @@ export const useSettings = (scope: SettingsScope = "personal") => {
     // Include the active backend identity so switching backends or orgs
     // produces a fresh query — the `staleTime` cache for one backend
     // never serves another's data.
-    queryKey: ["settings", scope, active.backend.id, active.orgId],
+    queryKey: [
+      ...SETTINGS_QUERY_KEYS.byScope(scope),
+      active.backend.id,
+      active.orgId,
+    ],
     queryFn: () => getSettingsQueryFn(scope),
     retry: (_, error) => getErrorStatus(error) !== 404,
     refetchOnWindowFocus: false,
