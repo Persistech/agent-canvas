@@ -146,69 +146,29 @@ export async function fetchCloudSettings(): Promise<Partial<Settings>> {
   } as Partial<Settings>;
 }
 
-/**
- * Flatten an `{ agent_settings, conversation_settings }` diff into the
- * cloud's POST `/api/v1/settings` payload shape. Only the well-known
- * top-level fields are mapped; structured fields are also passed through
- * verbatim so schema-driven nested settings round-trip.
- */
-function flattenSettingsDiff(diff: {
-  agent_settings_diff?: Record<string, SettingsValue>;
-  conversation_settings_diff?: Record<string, SettingsValue>;
-}): Record<string, unknown> {
-  const flat: Record<string, unknown> = {};
-  const agent = diff.agent_settings_diff ?? {};
-  const conversation = diff.conversation_settings_diff ?? {};
-
-  const llm = agent.llm as Record<string, SettingsValue> | undefined;
-  if (llm) {
-    if (typeof llm.model === "string") flat.llm_model = llm.model;
-    if (typeof llm.base_url === "string") flat.llm_base_url = llm.base_url;
-    if (typeof llm.api_key === "string") flat.llm_api_key = llm.api_key;
-  }
-  const condenser = agent.condenser as
-    | Record<string, SettingsValue>
-    | undefined;
-  if (condenser) {
-    if (typeof condenser.enabled === "boolean") {
-      flat.enable_default_condenser = condenser.enabled;
-    }
-    if (typeof condenser.max_size === "number") {
-      flat.condenser_max_size = condenser.max_size;
-    }
-  }
-  if (typeof agent.agent === "string") flat.agent = agent.agent;
-
-  if (typeof conversation.confirmation_mode === "boolean") {
-    flat.confirmation_mode = conversation.confirmation_mode;
-  }
-  if (
-    typeof conversation.security_analyzer === "string" ||
-    conversation.security_analyzer === null
-  ) {
-    flat.security_analyzer = conversation.security_analyzer;
-  }
-  if (typeof conversation.max_iterations === "number") {
-    flat.max_iterations = conversation.max_iterations;
-  }
-
-  if (Object.keys(agent).length > 0) flat.agent_settings = agent;
-  if (Object.keys(conversation).length > 0) {
-    flat.conversation_settings = conversation;
-  }
-  return flat;
-}
-
 export async function saveCloudSettings(diff: {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
 }): Promise<void> {
   const backend = getActiveCloudBackend();
+  const body: Record<string, unknown> = {};
+  if (
+    diff.agent_settings_diff &&
+    Object.keys(diff.agent_settings_diff).length > 0
+  ) {
+    body.agent_settings_diff = diff.agent_settings_diff;
+  }
+  if (
+    diff.conversation_settings_diff &&
+    Object.keys(diff.conversation_settings_diff).length > 0
+  ) {
+    body.conversation_settings_diff = diff.conversation_settings_diff;
+  }
   await callCloudProxy<unknown>({
     backend,
     method: "POST",
     path: "/api/v1/settings",
-    body: flattenSettingsDiff(diff),
+    body,
   });
 }
 

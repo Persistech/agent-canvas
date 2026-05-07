@@ -80,17 +80,18 @@ describe("cloud settings via local proxy", () => {
     expect(result.conversation_settings?.max_iterations).toBe(30);
   });
 
-  it("saveCloudSettings flattens diffs and POSTs through the proxy", async () => {
+  it("saveCloudSettings forwards diffs verbatim and omits the legacy keys the cloud rejects", async () => {
     vi.mocked(axios.post).mockResolvedValue({ data: {} });
 
+    const agentDiff = {
+      llm: { model: "openai/gpt-4o", base_url: "https://api.openai.com" },
+      agent: "CodeActAgent",
+    };
+    const conversationDiff = { max_iterations: 50 };
+
     await saveCloudSettings({
-      agent_settings_diff: {
-        llm: { model: "openai/gpt-4o", base_url: "https://api.openai.com" },
-        agent: "CodeActAgent",
-      },
-      conversation_settings_diff: {
-        max_iterations: 50,
-      },
+      agent_settings_diff: agentDiff,
+      conversation_settings_diff: conversationDiff,
     });
 
     const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
@@ -101,9 +102,30 @@ describe("cloud settings via local proxy", () => {
       path: "/api/v1/settings",
     });
     const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody.llm_model).toBe("openai/gpt-4o");
-    expect(proxiedBody.llm_base_url).toBe("https://api.openai.com");
-    expect(proxiedBody.agent).toBe("CodeActAgent");
-    expect(proxiedBody.max_iterations).toBe(50);
+    expect(proxiedBody).toEqual({
+      agent_settings_diff: agentDiff,
+      conversation_settings_diff: conversationDiff,
+    });
+    expect(proxiedBody).not.toHaveProperty("agent_settings");
+    expect(proxiedBody).not.toHaveProperty("conversation_settings");
+  });
+
+  it("saveCloudSettings omits an empty conversation_settings_diff (LLM-only save)", async () => {
+    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+    await saveCloudSettings({
+      agent_settings_diff: {
+        llm: { model: "anthropic/claude-sonnet-4-20250514" },
+      },
+      conversation_settings_diff: {},
+    });
+
+    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const proxiedBody = (body as { body: Record<string, unknown> }).body;
+    expect(proxiedBody).toEqual({
+      agent_settings_diff: {
+        llm: { model: "anthropic/claude-sonnet-4-20250514" },
+      },
+    });
   });
 });
