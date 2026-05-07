@@ -64,7 +64,8 @@ describe("useV1ResumeConversation", () => {
     const invalidateCalls = invalidateSpy.mock.calls.map((call) => call[0]);
     const conversationInvalidation = invalidateCalls.find(
       (call) =>
-        call?.queryKey?.[0] === "user" && call?.queryKey?.[1] === "conversation",
+        call?.queryKey?.[0] === "user" &&
+        call?.queryKey?.[1] === "conversation",
     );
 
     expect(conversationInvalidation).toBeDefined();

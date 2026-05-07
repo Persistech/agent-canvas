@@ -16,16 +16,23 @@ It uses `uvx` to run a temporary `agent-server` installation for this checkout o
 
 ### Agent server version selection
 
-By default, the latest released version from PyPI is used. You can override this:
+By default, the latest released version from PyPI is used. You can override this (highest precedence first):
 
 ```sh
-# Use a specific PyPI version
-OH_AGENT_SERVER_VERSION=1.18.0 npm run dev
+# Run against a local software-agent-sdk checkout. Workspace packages
+# (openhands-sdk, openhands-tools, openhands-workspace) are installed editable
+# so source edits there are picked up on restart. Highest precedence.
+OH_AGENT_SERVER_LOCAL_PATH=/abs/path/to/software-agent-sdk npm run dev
 
 # Use a git branch or commit (takes precedence over version)
 OH_AGENT_SERVER_GIT_REF=main npm run dev
 OH_AGENT_SERVER_GIT_REF=abc1234 npm run dev
+
+# Use a specific PyPI version
+OH_AGENT_SERVER_VERSION=1.18.0 npm run dev
 ```
+
+`OH_AGENT_SERVER_LOCAL_PATH` must be an absolute path to a `software-agent-sdk` checkout containing the `openhands-agent-server`, `openhands-sdk`, `openhands-tools`, and `openhands-workspace` workspace packages. The agent-server itself is rebuilt from local source on each `npm run dev` start (`uvx --reinstall`); the other workspace packages are installed editable, so their source changes take effect without a rebuild.
 
 ### Other useful overrides
 

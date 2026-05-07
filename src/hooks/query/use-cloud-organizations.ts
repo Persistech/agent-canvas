@@ -1,0 +1,46 @@
+import { useQueries } from "@tanstack/react-query";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { getCloudOrganizations } from "#/api/cloud/organization-service.api";
+import type { Backend } from "#/api/backend-registry/types";
+
+/**
+ * Fetch organizations for every registered cloud backend in parallel.
+ *
+ * Used by the BackendSelector to flatten each cloud backend into per-org
+ * rows. Each query is keyed by the backend ID so React Query caches
+ * responses independently and a switch (which clears the cache) refetches.
+ */
+export function useAllCloudOrganizations() {
+  const { backends } = useActiveBackendContext();
+  const cloudBackends = backends.filter((b) => b.kind === "cloud");
+
+  const queries = useQueries({
+    queries: cloudBackends.map((backend) => ({
+      queryKey: ["cloud-organizations", backend.id],
+      queryFn: () => getCloudOrganizations(backend),
+      staleTime: 1000 * 60 * 5,
+      retry: false,
+      meta: { disableToast: true },
+    })),
+  });
+
+  // Map backend id -> result to make consumers easy to read.
+  const byBackendId: Record<
+    string,
+    {
+      backend: Backend;
+      isLoading: boolean;
+      orgs: { id: string; name: string; is_personal?: boolean }[];
+    }
+  > = {};
+  cloudBackends.forEach((backend, index) => {
+    const q = queries[index];
+    byBackendId[backend.id] = {
+      backend,
+      isLoading: q.isLoading,
+      orgs: q.data?.items ?? [],
+    };
+  });
+
+  return byBackendId;
+}

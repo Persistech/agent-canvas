@@ -25,14 +25,22 @@ export const useNewConversationCommand = () => {
 
       const startTask = await V1ConversationService.createConversation();
 
-      if (!startTask.app_conversation_id) {
+      if (startTask.status === "ERROR") {
         throw new Error(
           startTask.detail || "Failed to create new conversation",
         );
       }
 
+      // Cloud SaaS returns a WORKING task (no app_conversation_id yet);
+      // navigate to /conversations/task-{id} so useTaskPolling drives it
+      // to READY. Local creates synchronously — app_conversation_id is
+      // already set, so we navigate straight to it.
+      const newConversationId = startTask.app_conversation_id
+        ? startTask.app_conversation_id
+        : `task-${startTask.id}`;
+
       return {
-        newConversationId: startTask.app_conversation_id,
+        newConversationId,
         oldConversationId: conversation.id,
       };
     },

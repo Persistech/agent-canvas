@@ -114,8 +114,9 @@ describe("useNewConversationCommand", () => {
     });
   });
 
-  it("throws when the new conversation id is missing", async () => {
+  it("throws when the start task ends in ERROR", async () => {
     const errorTask = makeStartTask({
+      status: "ERROR",
       detail: "Setup failed",
       app_conversation_id: null,
     });
@@ -129,6 +130,30 @@ describe("useNewConversationCommand", () => {
     });
 
     await expect(result.current.mutateAsync()).rejects.toThrow("Setup failed");
+  });
+
+  it("navigates to /conversations/task-{id} for a cloud WORKING task without app_conversation_id", async () => {
+    const workingTask = makeStartTask({
+      status: "WORKING",
+      detail: null,
+      app_conversation_id: null,
+    });
+
+    vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue(
+      workingTask as never,
+    );
+
+    const { result } = renderHook(() => useNewConversationCommand(), {
+      wrapper,
+    });
+
+    await result.current.mutateAsync();
+
+    await waitFor(() => {
+      // Format matches OpenHands' SaaS pattern: useTaskPolling unwraps
+      // `task-{uuid}` and polls until READY, then redirects.
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/task-task-789");
+    });
   });
 
   it("invalidates conversation list queries on success", async () => {

@@ -25,11 +25,7 @@ describe("getStatusCode", () => {
   });
 
   it("returns starting i18n key when task is running setup", () => {
-    const result = getStatusCode(
-      "OPEN",
-      null,
-      "STARTING_CONVERSATION",
-    );
+    const result = getStatusCode("OPEN", null, "STARTING_CONVERSATION");
     expect(result).toBe(I18nKey.CONVERSATION$STARTING_CONVERSATION);
   });
 

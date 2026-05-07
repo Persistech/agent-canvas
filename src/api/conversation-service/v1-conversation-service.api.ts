@@ -1,10 +1,20 @@
 import { Provider } from "#/types/settings";
-import { SuggestedTask } from "#/utils/types";
+import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
-  getAgentServerBaseUrl,
   getAgentServerWorkingDir,
 } from "../agent-server-config";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+} from "../backend-registry/active-store";
+import { callCloudProxy } from "../cloud/proxy";
+import {
+  batchGetCloudConversations,
+  createCloudAppConversation,
+  getCloudAppConversationStartTask,
+  searchCloudConversations,
+} from "../cloud/conversation-service.api";
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
@@ -15,7 +25,7 @@ import {
   toV1AppConversation,
   toV1ConversationPage,
 } from "../agent-server-adapter";
-import { ConversationTrigger, GetVSCodeUrlResponse } from "../open-hands.types";
+import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
   createHttpClient,
   createRemoteWorkspace,
@@ -63,6 +73,29 @@ class V1ConversationService {
     metadata?: ConversationMetadata | null,
     workingDirOverride?: string,
   ): Promise<V1AppConversationStartTask> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      // Cloud SaaS path mirrors OpenHands' frontend: build a flat
+      // V1AppConversationStartRequest, POST /api/v1/app-conversations
+      // (returns a WORKING task), and let the conversation route's
+      // useTaskPolling drive it to READY. NO encrypted-settings
+      // round-trip — the SaaS holds secrets server-side.
+      const request: V1AppConversationStartRequest = {
+        initial_message: initialUserMsg
+          ? {
+              role: "user",
+              content: [{ type: "text", text: initialUserMsg }],
+            }
+          : null,
+        title: conversationInstructions ?? null,
+        selected_repository: metadata?.selected_repository ?? null,
+        selected_branch: metadata?.selected_branch ?? null,
+        git_provider: metadata?.git_provider ?? null,
+        plugins: plugins ?? null,
+        parent_conversation_id: null,
+      };
+      return createCloudAppConversation(request);
+    }
+
     const settings = await SettingsService.getSettings();
     const conversationId = crypto.randomUUID();
     const workingDir =
@@ -97,7 +130,7 @@ class V1ConversationService {
       status: "READY",
       detail: null,
       app_conversation_id: data.id,
-      agent_server_url: getAgentServerBaseUrl(),
+      agent_server_url: getEffectiveLocalBackend().host,
       request: {
         initial_message: payload.initial_message as
           | V1AppConversationStartRequest["initial_message"]
@@ -110,8 +143,14 @@ class V1ConversationService {
   }
 
   static async getStartTask(
-    _taskId: string,
+    taskId: string,
   ): Promise<V1AppConversationStartTask | null> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return getCloudAppConversationStartTask(taskId);
+    }
+    // Local agent-server creates conversations synchronously — every
+    // local "task" is already READY when createConversation returns, so
+    // there's nothing to poll for.
     return null;
   }
 
@@ -123,12 +162,35 @@ class V1ConversationService {
 
   static async getVSCodeUrl(
     conversationId: string,
-    _conversationUrl: string | null | undefined,
+    conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<GetVSCodeUrlResponse> {
+    const active = getActiveBackend().backend;
+
+    // Cloud mode: route through the cloud-proxy to the runtime sandbox.
+    // The runtime exposes a SaaS-style endpoint at `/api/vscode/url`
+    // that returns `{ url }`; we map it back to `{ vscode_url }` to
+    // match the local response shape.
+    if (active.kind === "cloud" && conversationUrl) {
+      const data = await callCloudProxy<{ url: string | null }>({
+        backend: active,
+        method: "GET",
+        hostOverride: buildHttpBaseUrl(conversationUrl),
+        path: "/api/vscode/url",
+        authMode: "session-api-key",
+        sessionApiKey,
+      });
+      return { vscode_url: data?.url ?? null };
+    }
+
     const workspaceDir =
       await this.resolveConversationWorkingDir(conversationId);
-    const vscode_url = await createVSCodeClient({ sessionApiKey }).getUrl({
+    // Local mode: the typescript-client targets the local agent-server
+    // directly via the conversationUrl override.
+    const vscode_url = await createVSCodeClient({
+      conversationUrl,
+      sessionApiKey,
+    }).getUrl({
       baseUrl:
         typeof window !== "undefined" ? window.location.origin : undefined,
       workspaceDir,
@@ -187,6 +249,10 @@ class V1ConversationService {
     ids: string[],
   ): Promise<(V1AppConversation | null)[]> {
     if (ids.length === 0) return [];
+
+    if (getActiveBackend().backend.kind === "cloud") {
+      return batchGetCloudConversations(ids);
+    }
 
     const response = await createHttpClient().get<
       (DirectConversationInfo | null)[]
@@ -286,7 +352,9 @@ class V1ConversationService {
 
     return {
       id: data.id,
-      title: data.title?.trim() ? data.title : getDefaultConversationTitle(data.id),
+      title: data.title?.trim()
+        ? data.title
+        : getDefaultConversationTitle(data.id),
       metrics: data.metrics
         ? {
             accumulated_cost: data.metrics.accumulated_cost ?? null,
@@ -323,6 +391,10 @@ class V1ConversationService {
     limit: number = 20,
     pageId?: string,
   ): Promise<V1AppConversationPage> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return searchCloudConversations(limit, pageId);
+    }
+
     const response = await createHttpClient().get<{
       items: DirectConversationInfo[];
       next_page_id: string | null;
