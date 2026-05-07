@@ -134,6 +134,27 @@ export async function deleteCloudConversation(
 }
 
 /**
+ * Toggle the public-sharing flag on a cloud v1 app-conversation. Mirrors
+ * OpenHands' `V1ConversationService.updateConversationPublicFlag` —
+ * routes through the bundled agent-server's cloud proxy and hits
+ * `PATCH /api/v1/app-conversations/{id}` with `{ public }`, returning
+ * the updated conversation.
+ */
+export async function updateCloudConversationPublicFlag(
+  conversationId: string,
+  isPublic: boolean,
+): Promise<V1AppConversation> {
+  const backend = getActiveCloudBackend();
+  const data = await callCloudProxy<V1AppConversation>({
+    backend,
+    method: "PATCH",
+    path: `/api/v1/app-conversations/${conversationId}`,
+    body: { public: isPublic },
+  });
+  return data;
+}
+
+/**
  * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
  * OpenHands' `SandboxService.pauseSandbox` — routes through the
  * bundled agent-server's cloud proxy and hits

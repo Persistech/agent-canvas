@@ -17,6 +17,7 @@ import {
   getCloudAppConversationStartTask,
   readCloudConversationFile,
   searchCloudConversations,
+  updateCloudConversationPublicFlag,
 } from "../cloud/conversation-service.api";
 import {
   DirectConversationInfo,
@@ -289,10 +290,12 @@ class V1ConversationService {
 
   static async updateConversationPublicFlag(
     conversationId: string,
-    _isPublic: boolean,
+    isPublic: boolean,
   ): Promise<V1AppConversation> {
-    const results = await this.batchGetAppConversations([conversationId]);
-    return results[0] as V1AppConversation;
+    if (getActiveBackend().backend.kind !== "cloud") {
+      throw new Error("Public sharing requires a cloud backend.");
+    }
+    return updateCloudConversationPublicFlag(conversationId, isPublic);
   }
 
   static async updateConversationRepository(
