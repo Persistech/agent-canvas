@@ -3,8 +3,8 @@ import { renderHook, act } from "@testing-library/react";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
 import { useEventStore } from "#/stores/use-event-store";
 import type { OpenHandsAction } from "#/types/core/actions";
-import type { ActionEvent, MessageEvent } from "#/types/v1/core";
-import { SecurityRisk } from "#/types/v1/core";
+import type { ActionEvent, MessageEvent } from "#/types/agent-server/core";
+import { SecurityRisk } from "#/types/agent-server/core";
 
 // --- V0 event factories ---
 
@@ -53,7 +53,7 @@ function createV0SystemEvent(id: number): OpenHandsAction {
 
 // --- V1 event factories ---
 
-function createV1UserMessage(id: string): MessageEvent {
+function createAgentServerUserMessage(id: string): MessageEvent {
   return {
     id,
     timestamp: "2025-07-01T00:00:01Z",
@@ -67,7 +67,7 @@ function createV1UserMessage(id: string): MessageEvent {
   };
 }
 
-function createV1AgentAction(id: string): ActionEvent {
+function createAgentServerAgentAction(id: string): ActionEvent {
   return {
     id,
     timestamp: "2025-07-01T00:00:02Z",
@@ -121,8 +121,8 @@ describe("useFilteredEvents", () => {
       expect(result.current.v0Events).toBe(firstV0Events);
     });
 
-    it("returns the same v1UiEvents reference when uiEvents has not changed", () => {
-      const v1Event = createV1UserMessage("msg-1");
+    it("returns the same renderableEvents reference when uiEvents has not changed", () => {
+      const v1Event = createAgentServerUserMessage("msg-1");
       useEventStore.setState({
         events: [v1Event],
         eventIds: new Set(["msg-1"]),
@@ -130,15 +130,15 @@ describe("useFilteredEvents", () => {
       });
 
       const { result, rerender } = renderHook(() => useFilteredEvents());
-      const firstV1UiEvents = result.current.v1UiEvents;
+      const firstV1UiEvents = result.current.renderableEvents;
 
       rerender();
 
-      expect(result.current.v1UiEvents).toBe(firstV1UiEvents);
+      expect(result.current.renderableEvents).toBe(firstV1UiEvents);
     });
 
-    it("returns the same v1FullEvents reference when storeEvents has not changed", () => {
-      const v1Event = createV1UserMessage("msg-1");
+    it("returns the same allConversationEvents reference when storeEvents has not changed", () => {
+      const v1Event = createAgentServerUserMessage("msg-1");
       useEventStore.setState({
         events: [v1Event],
         eventIds: new Set(["msg-1"]),
@@ -146,11 +146,11 @@ describe("useFilteredEvents", () => {
       });
 
       const { result, rerender } = renderHook(() => useFilteredEvents());
-      const firstV1FullEvents = result.current.v1FullEvents;
+      const firstV1FullEvents = result.current.allConversationEvents;
 
       rerender();
 
-      expect(result.current.v1FullEvents).toBe(firstV1FullEvents);
+      expect(result.current.allConversationEvents).toBe(firstV1FullEvents);
     });
 
     it("returns a new v0Events reference when storeEvents changes", () => {
@@ -216,7 +216,7 @@ describe("useFilteredEvents", () => {
 
     it("does not include V1 events in v0Events", () => {
       const v0Event = createV0UserMessage(1);
-      const v1Event = createV1UserMessage("msg-1");
+      const v1Event = createAgentServerUserMessage("msg-1");
 
       useEventStore.setState({
         events: [v0Event, v1Event],
@@ -232,8 +232,8 @@ describe("useFilteredEvents", () => {
   });
 
   describe("V1 event filtering", () => {
-    it("filters V1 events into v1FullEvents", () => {
-      const v1Event = createV1UserMessage("msg-1");
+    it("filters V1 events into allConversationEvents", () => {
+      const v1Event = createAgentServerUserMessage("msg-1");
 
       useEventStore.setState({
         events: [v1Event],
@@ -243,13 +243,13 @@ describe("useFilteredEvents", () => {
 
       const { result } = renderHook(() => useFilteredEvents());
 
-      expect(result.current.v1FullEvents).toHaveLength(1);
-      expect(result.current.v1FullEvents[0]).toEqual(v1Event);
+      expect(result.current.allConversationEvents).toHaveLength(1);
+      expect(result.current.allConversationEvents[0]).toEqual(v1Event);
     });
 
-    it("does not include V0 events in v1FullEvents", () => {
+    it("does not include V0 events in allConversationEvents", () => {
       const v0Event = createV0UserMessage(1);
-      const v1Event = createV1UserMessage("msg-1");
+      const v1Event = createAgentServerUserMessage("msg-1");
 
       useEventStore.setState({
         events: [v0Event, v1Event],
@@ -259,8 +259,8 @@ describe("useFilteredEvents", () => {
 
       const { result } = renderHook(() => useFilteredEvents());
 
-      expect(result.current.v1FullEvents).toHaveLength(1);
-      expect(result.current.v1FullEvents[0]).toEqual(v1Event);
+      expect(result.current.allConversationEvents).toHaveLength(1);
+      expect(result.current.allConversationEvents[0]).toEqual(v1Event);
     });
   });
 
@@ -318,7 +318,7 @@ describe("useFilteredEvents", () => {
     });
 
     it("returns true when V1 agent action events exist", () => {
-      const agentAction = createV1AgentAction("action-1");
+      const agentAction = createAgentServerAgentAction("action-1");
 
       useEventStore.setState({
         events: [agentAction],
@@ -352,7 +352,7 @@ describe("useFilteredEvents", () => {
     });
 
     it("returns true when V1 user events exist", () => {
-      const userMsg = createV1UserMessage("msg-1");
+      const userMsg = createAgentServerUserMessage("msg-1");
 
       useEventStore.setState({
         events: [userMsg],
@@ -361,7 +361,7 @@ describe("useFilteredEvents", () => {
       });
 
       const { result } = renderHook(() => useFilteredEvents());
-      expect(result.current.v1UserEventsExist).toBe(true);
+      expect(result.current.conversationUserEventsExist).toBe(true);
       expect(result.current.userEventsExist).toBe(true);
     });
   });
@@ -371,12 +371,12 @@ describe("useFilteredEvents", () => {
       const { result } = renderHook(() => useFilteredEvents());
 
       expect(result.current.v0Events).toEqual([]);
-      expect(result.current.v1UiEvents).toEqual([]);
-      expect(result.current.v1FullEvents).toEqual([]);
+      expect(result.current.renderableEvents).toEqual([]);
+      expect(result.current.allConversationEvents).toEqual([]);
       expect(result.current.totalEvents).toBe(0);
       expect(result.current.hasSubstantiveAgentActions).toBe(false);
       expect(result.current.v0UserEventsExist).toBe(false);
-      expect(result.current.v1UserEventsExist).toBe(false);
+      expect(result.current.conversationUserEventsExist).toBe(false);
       expect(result.current.userEventsExist).toBe(false);
     });
   });

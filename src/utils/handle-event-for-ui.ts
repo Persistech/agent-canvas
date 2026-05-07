@@ -1,5 +1,5 @@
-import { OpenHandsEvent } from "#/types/v1/core";
-import { isObservationEvent } from "#/types/v1/type-guards";
+import { OpenHandsEvent } from "#/types/agent-server/core";
+import { isObservationEvent } from "#/types/agent-server/type-guards";
 
 /**
  * Handles adding an event to the UI events array

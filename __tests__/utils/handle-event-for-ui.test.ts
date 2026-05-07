@@ -5,7 +5,7 @@ import {
   MessageEvent,
   SecurityRisk,
   OpenHandsEvent,
-} from "#/types/v1/core";
+} from "#/types/agent-server/core";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 
 describe("handleEventForUI", () => {

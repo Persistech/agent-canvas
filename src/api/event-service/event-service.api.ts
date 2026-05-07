@@ -1,4 +1,4 @@
-import { OpenHandsEvent } from "#/types/v1/core";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 import { createHttpClient, createRemoteEventsList } from "../typescript-client";
 import type {
   ConfirmationResponseRequest,
@@ -30,7 +30,7 @@ class EventService {
     return createRemoteEventsList(conversationId, { sessionApiKey }).count();
   }
 
-  static async searchEventsV1(
+  static async searchEvents(
     conversationId: string,
     limit = 100,
     sessionApiKey?: string | null,

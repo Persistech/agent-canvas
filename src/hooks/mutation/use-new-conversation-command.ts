@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { I18nKey } from "#/i18n/declaration";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -23,7 +23,7 @@ export const useNewConversationCommand = () => {
         throw new Error("No active conversation");
       }
 
-      const startTask = await V1ConversationService.createConversation();
+      const startTask = await AgentServerConversationService.createConversation();
 
       if (!startTask.app_conversation_id) {
         throw new Error(

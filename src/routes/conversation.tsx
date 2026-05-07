@@ -6,7 +6,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useCommandStore } from "#/stores/command-store";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentStore } from "#/stores/agent-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { AgentState } from "#/types/agent-state";
 
 import { EventHandler } from "../wrapper/event-handler";
@@ -40,7 +40,7 @@ function AppContent() {
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
   const clearTerminal = useCommandStore((state) => state.clearTerminal);
-  const resetV1ConversationState = useV1ConversationStateStore(
+  const resetConversationRuntimeState = useConversationStateStore(
     (state) => state.reset,
   );
   const setCurrentAgentState = useAgentStore(
@@ -54,7 +54,7 @@ function AppContent() {
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
-    resetV1ConversationState();
+    resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
     clearEvents();
@@ -62,7 +62,7 @@ function AppContent() {
     conversationId,
     clearTerminal,
     resetConversationState,
-    resetV1ConversationState,
+    resetConversationRuntimeState,
     setCurrentAgentState,
     removeErrorMessage,
     clearEvents,

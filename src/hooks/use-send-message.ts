@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useConversationId } from "#/hooks/use-conversation-id";
-import { V1MessageContent } from "#/api/conversation-service/v1-conversation-service.types";
+import { MessageContent } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface SendResult {
   queued: boolean; // true if message was queued for later delivery
@@ -16,11 +16,11 @@ export function useSendMessage() {
   const { conversationId } = useConversationId();
 
   // Get V1 context (will be null if not in V1 provider)
-  const v1Context = useConversationWebSocket();
+  const conversationContext = useConversationWebSocket();
 
   const send = useCallback(
     async (event: Record<string, unknown>): Promise<SendResult> => {
-      if (v1Context) {
+      if (conversationContext) {
         // V1: Convert V0 event format to V1 message format
         const { action, args } = event as {
           action: string;
@@ -34,7 +34,7 @@ export function useSendMessage() {
 
         if (action === "message" && args?.content) {
           // Build V1 message content array
-          const content: Array<V1MessageContent> = [
+          const content: Array<MessageContent> = [
             {
               type: "text",
               text: args.content,
@@ -50,7 +50,7 @@ export function useSendMessage() {
           }
 
           // Send via V1 WebSocket context (uses correct host/port)
-          const result = await v1Context.sendMessage({
+          const result = await conversationContext.sendMessage({
             role: "user",
             content,
           });
@@ -60,7 +60,7 @@ export function useSendMessage() {
       }
       return { queued: false };
     },
-    [v1Context, conversationId],
+    [conversationContext, conversationId],
   );
 
   return { send };

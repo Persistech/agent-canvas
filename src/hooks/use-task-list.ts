@@ -3,10 +3,10 @@ import { useEventStore } from "#/stores/use-event-store";
 import type { OHEvent } from "#/stores/use-event-store";
 import { isTaskTrackingObservation } from "#/types/core/guards";
 import type { OpenHandsParsedEvent } from "#/types/core";
-import { isObservationEvent } from "#/types/v1/type-guards";
-import type { OpenHandsEvent } from "#/types/v1/core";
-import type { TaskTrackerObservation } from "#/types/v1/core/base/observation";
-import type { ObservationEvent } from "#/types/v1/core/events/observation-event";
+import { isObservationEvent } from "#/types/agent-server/type-guards";
+import type { OpenHandsEvent } from "#/types/agent-server/core";
+import type { TaskTrackerObservation } from "#/types/agent-server/core/base/observation";
+import type { ObservationEvent } from "#/types/agent-server/core/events/observation-event";
 
 export interface TaskListItem {
   id: string;

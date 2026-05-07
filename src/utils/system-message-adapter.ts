@@ -1,11 +1,11 @@
 import { OHEvent } from "#/stores/use-event-store";
 import { isActionOrObservation, isSystemMessage } from "#/types/core/guards";
-import { ChatCompletionToolParam } from "#/types/v1/core";
+import { ChatCompletionToolParam } from "#/types/agent-server/core";
 import {
   isSystemPromptEvent,
   isV0Event,
-  isV1Event,
-} from "#/types/v1/type-guards";
+  isAgentServerEvent,
+} from "#/types/agent-server/type-guards";
 
 export interface SystemMessageForModal {
   content: string;
@@ -24,16 +24,16 @@ export function adaptSystemMessage(
     .find(isSystemMessage);
 
   // V1 System Prompt Event
-  const v1SystemPromptEvent = events
-    .filter(isV1Event)
+  const systemPromptEvent = events
+    .filter(isAgentServerEvent)
     .find(isSystemPromptEvent);
 
   if (v0SystemMessage) {
     systemMessage = v0SystemMessage.args;
-  } else if (v1SystemPromptEvent) {
+  } else if (systemPromptEvent) {
     systemMessage = {
-      content: v1SystemPromptEvent.system_prompt.text,
-      tools: v1SystemPromptEvent.tools ?? null,
+      content: systemPromptEvent.system_prompt.text,
+      tools: systemPromptEvent.tools ?? null,
       openhands_version: null,
       agent_class: null,
     };

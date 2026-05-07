@@ -1,9 +1,9 @@
 import { RepositoryPage, BranchPage, InstallationPage } from "#/types/git";
 import { Provider } from "#/types/settings";
 import { GitChange, GitChangeDiff } from "../open-hands.types";
-import V1ConversationService from "../conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "../conversation-service/agent-server-conversation-service.api";
 import { createRemoteWorkspace } from "../typescript-client";
-import { mapAnyGitStatusToV0Status } from "#/utils/git-status-mapper";
+import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
 import { ProviderHandler } from "../git-providers/provider-handler";
 
 const safeProvider = (value: string): Provider => value as Provider;
@@ -96,16 +96,16 @@ class GitService {
 
   static async getGitChanges(conversationId: string): Promise<GitChange[]> {
     const workingDir =
-      await V1ConversationService.resolveConversationWorkingDir(conversationId);
+      await AgentServerConversationService.resolveConversationWorkingDir(conversationId);
     const changes = await createRemoteWorkspace({ workingDir }).gitChanges(
       workingDir,
     );
 
     return changes.map((change) => ({
       path: change.path,
-      status: mapAnyGitStatusToV0Status(
+      status: mapAnyGitStatusToClientStatus(
         String(change.status) as Parameters<
-          typeof mapAnyGitStatusToV0Status
+          typeof mapAnyGitStatusToClientStatus
         >[0],
       ),
     }));

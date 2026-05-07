@@ -1,16 +1,16 @@
 import { QueryClient } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
-type ExecutionStatusValue = V1AppConversation["execution_status"];
+type ExecutionStatusValue = AppConversation["execution_status"];
 
-const fetchV1ConversationData = async (
+const fetchConversationData = async (
   conversationId: string,
 ): Promise<{
   conversationUrl: string | null;
   sessionApiKey: string | null;
 }> => {
-  const conversations = await V1ConversationService.batchGetAppConversations([
+  const conversations = await AgentServerConversationService.batchGetAppConversations([
     conversationId,
   ]);
 
@@ -25,10 +25,10 @@ const fetchV1ConversationData = async (
   };
 };
 
-export const pauseV1Conversation = async (conversationId: string) => {
+export const pauseConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey } =
-    await fetchV1ConversationData(conversationId);
-  return V1ConversationService.pauseConversation(
+    await fetchConversationData(conversationId);
+  return AgentServerConversationService.pauseConversation(
     conversationId,
     conversationUrl,
     sessionApiKey,
@@ -38,13 +38,13 @@ export const pauseV1Conversation = async (conversationId: string) => {
 /**
  * Ask the agent a side question on a V1 conversation
  */
-export const askV1Agent = async (
+export const askAgent = async (
   conversationId: string,
   question: string,
 ): Promise<{ response: string }> => {
   const { conversationUrl, sessionApiKey } =
-    await fetchV1ConversationData(conversationId);
-  return V1ConversationService.askAgent(
+    await fetchConversationData(conversationId);
+  return AgentServerConversationService.askAgent(
     conversationId,
     conversationUrl,
     question,
@@ -52,10 +52,10 @@ export const askV1Agent = async (
   );
 };
 
-export const resumeV1Conversation = async (conversationId: string) => {
+export const resumeConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey } =
-    await fetchV1ConversationData(conversationId);
-  return V1ConversationService.resumeConversation(
+    await fetchConversationData(conversationId);
+  return AgentServerConversationService.resumeConversation(
     conversationId,
     conversationUrl,
     sessionApiKey,
@@ -67,7 +67,7 @@ export const updateConversationExecutionStatusInCache = (
   conversationId: string,
   execution_status: ExecutionStatusValue,
 ): void => {
-  queryClient.setQueryData<V1AppConversation | null>(
+  queryClient.setQueryData<AppConversation | null>(
     ["user", "conversation", conversationId],
     (oldData) => {
       if (!oldData) return oldData;

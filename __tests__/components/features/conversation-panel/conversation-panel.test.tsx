@@ -5,9 +5,9 @@ import { createRoutesStub } from "react-router";
 import React from "react";
 import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core";
 
 // Mock the unified stop conversation hook
 const mockStopConversationMutate = vi.fn();
@@ -18,8 +18,8 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
 }));
 
 
-// Helper to create complete V1AppConversation mock data
-const createMockConversation = (overrides: Partial<V1AppConversation> = {}): V1AppConversation => ({
+// Helper to create complete AppConversation mock data
+const createMockConversation = (overrides: Partial<AppConversation> = {}): AppConversation => ({
   id: "test-id",
   title: "Test Conversation",
   selected_repository: null,
@@ -27,7 +27,7 @@ const createMockConversation = (overrides: Partial<V1AppConversation> = {}): V1A
   selected_branch: null,
   updated_at: "2021-10-01T12:00:00Z",
   created_at: "2021-10-01T12:00:00Z",
-  execution_status: V1ExecutionStatus.FINISHED,
+  execution_status: ExecutionStatus.FINISHED,
   conversation_url: null,
   created_by_user_id: "user1",
   metrics: null,
@@ -72,7 +72,7 @@ describe("ConversationPanel", () => {
     }));
   });
 
-  const mockConversations: V1AppConversation[] = [
+  const mockConversations: AppConversation[] = [
     createMockConversation({ id: "1", title: "Conversation 1", updated_at: "2021-10-01T12:00:00Z" }),
     createMockConversation({ id: "2", title: "Conversation 2", updated_at: "2021-10-02T12:00:00Z" }),
     createMockConversation({ id: "3", title: "Conversation 3", updated_at: "2021-10-03T12:00:00Z" }),
@@ -82,7 +82,7 @@ describe("ConversationPanel", () => {
     vi.clearAllMocks();
     mockStopConversationMutate.mockClear();
     // Setup default mock for V1 searchConversations
-    vi.spyOn(V1ConversationService, "searchConversations").mockResolvedValue({
+    vi.spyOn(AgentServerConversationService, "searchConversations").mockResolvedValue({
       items: [...mockConversations],
       next_page_id: null,
     });
@@ -99,7 +99,7 @@ describe("ConversationPanel", () => {
 
   it("should display an empty state when there are no conversations", async () => {
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -115,7 +115,7 @@ describe("ConversationPanel", () => {
 
   it("should handle an error when fetching conversations", async () => {
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockRejectedValue(
@@ -164,14 +164,14 @@ describe("ConversationPanel", () => {
 
   it("should delete a conversation", async () => {
     const user = userEvent.setup();
-    const mockData: V1AppConversation[] = [
+    const mockData: AppConversation[] = [
       createMockConversation({ id: "1", title: "Conversation 1", updated_at: "2021-10-01T12:00:00Z" }),
       createMockConversation({ id: "2", title: "Conversation 2", updated_at: "2021-10-02T12:00:00Z" }),
       createMockConversation({ id: "3", title: "Conversation 3", updated_at: "2021-10-03T12:00:00Z" }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockImplementation(async () => ({
@@ -180,7 +180,7 @@ describe("ConversationPanel", () => {
     }));
 
     const deleteConversationSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "deleteConversation",
     );
     deleteConversationSpy.mockImplementation(async (id: string) => {
@@ -227,7 +227,7 @@ describe("ConversationPanel", () => {
   it("should refetch data on rerenders", async () => {
     const user = userEvent.setup();
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -276,14 +276,14 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     // Create mock data with a RUNNING conversation
-    const mockRunningConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockRunningConversations: AppConversation[] = [
+      createMockConversation({ id: "1", title: "Running Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: ExecutionStatus.PAUSED }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -323,14 +323,14 @@ describe("ConversationPanel", () => {
   it("should stop a conversation", async () => {
     const user = userEvent.setup();
 
-    const mockData: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Conversation 1", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Conversation 2", execution_status: V1ExecutionStatus.FINISHED }),
-      createMockConversation({ id: "3", title: "Conversation 3", execution_status: V1ExecutionStatus.FINISHED }),
+    const mockData: AppConversation[] = [
+      createMockConversation({ id: "1", title: "Conversation 1", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "2", title: "Conversation 2", execution_status: ExecutionStatus.FINISHED }),
+      createMockConversation({ id: "3", title: "Conversation 3", execution_status: ExecutionStatus.FINISHED }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockImplementation(async () => ({
@@ -371,14 +371,14 @@ describe("ConversationPanel", () => {
   it("should only show stop button for STARTING or RUNNING conversations", async () => {
     const user = userEvent.setup();
 
-    const mockMixedStatusConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockMixedStatusConversations: AppConversation[] = [
+      createMockConversation({ id: "1", title: "Running Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: ExecutionStatus.PAUSED }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -488,7 +488,7 @@ describe("ConversationPanel", () => {
 
     // Mock the updateConversationTitle API call
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -520,7 +520,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -550,7 +550,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -580,7 +580,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -609,7 +609,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockRejectedValue(new Error("API Error"));
@@ -674,7 +674,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -703,7 +703,7 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
@@ -761,13 +761,13 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     // Create mock data with a RUNNING conversation
-    const mockRunningConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockRunningConversations: AppConversation[] = [
+      createMockConversation({ id: "1", title: "Running Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: ExecutionStatus.RUNNING }),
+      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: ExecutionStatus.PAUSED }),
     ];
 
-    vi.spyOn(V1ConversationService, "searchConversations").mockResolvedValue({
+    vi.spyOn(AgentServerConversationService, "searchConversations").mockResolvedValue({
       items: mockRunningConversations,
       next_page_id: null,
     });

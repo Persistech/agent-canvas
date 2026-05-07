@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { OpenHandsEvent } from "#/types/v1/core";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 import { OpenHandsParsedEvent } from "#/types/core";
-import { isV1Event } from "#/types/v1/type-guards";
+import { isAgentServerEvent } from "#/types/agent-server/type-guards";
 
 // While we transition to v1 events, our store can handle both v0 and v1 events
 export type OHEvent = (OpenHandsEvent | OpenHandsParsedEvent) & {
@@ -82,7 +82,7 @@ export const useEventStore = create<EventState>()((set) => ({
           : state.eventIds;
 
       // Process UI events and sort if needed
-      let newUiEvents = isV1Event(event)
+      let newUiEvents = isAgentServerEvent(event)
         ? // @ts-expect-error - temporary, needs proper typing
           handleEventForUI(event, state.uiEvents)
         : [...state.uiEvents, event];

@@ -9,14 +9,14 @@ import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
 import { useConversationStore } from "#/stores/conversation-store";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionErrored } from "#/utils/status";
 
 export interface CustomChatInputProps {
   disabled?: boolean;
   isNewConversationPending?: boolean;
   showButton?: boolean;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
   onSubmit: (message: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;

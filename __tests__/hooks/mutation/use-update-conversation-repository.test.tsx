@@ -2,10 +2,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
-// Mock the V1ConversationService
-vi.mock("#/api/conversation-service/v1-conversation-service.api", () => ({
+// Mock the AgentServerConversationService
+vi.mock("#/api/conversation-service/agent-server-conversation-service.api", () => ({
   default: {
     updateConversationRepository: vi.fn(),
   },
@@ -54,7 +54,7 @@ describe("useUpdateConversationRepository", () => {
       git_provider: "github",
     };
 
-    vi.mocked(V1ConversationService.updateConversationRepository).mockResolvedValue(
+    vi.mocked(AgentServerConversationService.updateConversationRepository).mockResolvedValue(
       mockResponse as any,
     );
 
@@ -73,7 +73,7 @@ describe("useUpdateConversationRepository", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(V1ConversationService.updateConversationRepository).toHaveBeenCalledWith(
+    expect(AgentServerConversationService.updateConversationRepository).toHaveBeenCalledWith(
       "test-conversation-id",
       "owner/repo",
       "main",
@@ -89,7 +89,7 @@ describe("useUpdateConversationRepository", () => {
       git_provider: null,
     };
 
-    vi.mocked(V1ConversationService.updateConversationRepository).mockResolvedValue(
+    vi.mocked(AgentServerConversationService.updateConversationRepository).mockResolvedValue(
       mockResponse as any,
     );
 
@@ -108,7 +108,7 @@ describe("useUpdateConversationRepository", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(V1ConversationService.updateConversationRepository).toHaveBeenCalledWith(
+    expect(AgentServerConversationService.updateConversationRepository).toHaveBeenCalledWith(
       "test-conversation-id",
       null,
       null,
@@ -117,7 +117,7 @@ describe("useUpdateConversationRepository", () => {
   });
 
   it("should handle errors gracefully", async () => {
-    vi.mocked(V1ConversationService.updateConversationRepository).mockRejectedValue(
+    vi.mocked(AgentServerConversationService.updateConversationRepository).mockRejectedValue(
       new Error("Failed to update repository"),
     );
 

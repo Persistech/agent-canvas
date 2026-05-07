@@ -1,6 +1,6 @@
 import { ToolParameters } from "./tool-parameters";
 import { ToggleButton } from "./toggle-button";
-import { ChatCompletionToolParam } from "#/types/v1/core";
+import { ChatCompletionToolParam } from "#/types/agent-server/core";
 import { MarkdownRenderer } from "../../markdown/markdown-renderer";
 
 interface FunctionData {

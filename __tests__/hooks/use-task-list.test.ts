@@ -25,7 +25,7 @@ function createV0TaskTrackingObservation(
   };
 }
 
-function createV1TaskTrackerObservation(
+function createAgentServerTaskTrackerObservation(
   id: string,
   command: string,
   taskList: Array<{
@@ -194,7 +194,7 @@ describe("useTaskList", () => {
           status: "in_progress" as const,
         },
       ];
-      const event = createV1TaskTrackerObservation("1", "plan", tasks);
+      const event = createAgentServerTaskTrackerObservation("1", "plan", tasks);
 
       useEventStore.setState({
         events: [event],
@@ -220,7 +220,7 @@ describe("useTaskList", () => {
       const tasks = [
         { title: "First task", notes: "", status: "todo" as const },
       ];
-      const event = createV1TaskTrackerObservation("1", "view", tasks);
+      const event = createAgentServerTaskTrackerObservation("1", "view", tasks);
 
       useEventStore.setState({
         events: [event],
@@ -243,8 +243,8 @@ describe("useTaskList", () => {
         { title: "New task", notes: "wip", status: "in_progress" as const },
       ];
 
-      const event1 = createV1TaskTrackerObservation("1", "plan", earlyTasks);
-      const event2 = createV1TaskTrackerObservation("2", "plan", lateTasks);
+      const event1 = createAgentServerTaskTrackerObservation("1", "plan", earlyTasks);
+      const event2 = createAgentServerTaskTrackerObservation("2", "plan", lateTasks);
 
       useEventStore.setState({
         events: [event1, event2],
@@ -262,7 +262,7 @@ describe("useTaskList", () => {
     });
 
     it("returns hasTaskList=false when the latest v1 plan has an empty task list", () => {
-      const event = createV1TaskTrackerObservation("1", "plan", []);
+      const event = createAgentServerTaskTrackerObservation("1", "plan", []);
 
       useEventStore.setState({
         events: [event],

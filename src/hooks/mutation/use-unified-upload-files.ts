@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useV1UploadFiles } from "./use-v1-upload-files";
+import { useConversationUploadFiles } from "./use-conversation-upload-files";
 import { FileUploadSuccessResponse } from "#/api/open-hands.types";
 
 interface UnifiedUploadFilesVariables {
@@ -21,7 +21,7 @@ export const useUnifiedUploadFiles = () => {
   const { data: conversation } = useActiveConversation();
 
   // Initialize both hooks
-  const v1Upload = useV1UploadFiles();
+  const conversationUpload = useConversationUploadFiles();
 
   // Create a unified mutation that delegates to the appropriate hook
   return useMutation({
@@ -32,7 +32,7 @@ export const useUnifiedUploadFiles = () => {
       const { files } = variables;
 
       // V1: Use conversation URL and session API key
-      return v1Upload.mutateAsync({
+      return conversationUpload.mutateAsync({
         conversationUrl: conversation?.conversation_url,
         sessionApiKey: conversation?.session_api_key,
         files,

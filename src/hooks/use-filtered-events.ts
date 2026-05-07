@@ -6,15 +6,15 @@ import {
   hasUserEvent,
 } from "#/components/features/chat/event-content-helpers/should-render-event";
 import {
-  shouldRenderEvent as shouldRenderV1Event,
-  hasUserEvent as hasV1UserEvent,
-} from "#/components/v1/chat";
+  shouldRenderEvent as shouldRenderAgentServerEvent,
+  hasUserEvent as hasAgentServerUserEvent,
+} from "#/components/conversation-events/chat";
 import {
   isV0Event,
-  isV1Event,
+  isAgentServerEvent,
   isSystemPromptEvent,
   isConversationStateUpdateEvent,
-} from "#/types/v1/type-guards";
+} from "#/types/agent-server/type-guards";
 
 /**
  * Hook that provides memoized filtered event arrays for ChatInterface.
@@ -41,25 +41,25 @@ export function useFilteredEvents() {
   );
 
   // Filter V1 events - use uiEvents for rendering (actions replaced by observations)
-  const v1UiEvents = React.useMemo(
-    () => uiEvents.filter(isV1Event).filter(shouldRenderV1Event),
+  const renderableEvents = React.useMemo(
+    () => uiEvents.filter(isAgentServerEvent).filter(shouldRenderAgentServerEvent),
     [uiEvents],
   );
 
   // Keep full v1 events for lookups (includes both actions and observations)
-  const v1FullEvents = React.useMemo(
-    () => storeEvents.filter(isV1Event),
+  const allConversationEvents = React.useMemo(
+    () => storeEvents.filter(isAgentServerEvent),
     [storeEvents],
   );
 
   // Combined events count for tracking
   const totalEvents = React.useMemo(
-    () => v0Events.length || v1UiEvents.length,
-    [v0Events, v1UiEvents],
+    () => v0Events.length || renderableEvents.length,
+    [v0Events, renderableEvents],
   );
 
   // Check if there are any substantive agent actions (not just system messages)
-  // Reuses memoized v0Events and v1FullEvents to avoid redundant filtering
+  // Reuses memoized v0Events and allConversationEvents to avoid redundant filtering
   const hasSubstantiveAgentActions = React.useMemo(
     () =>
       v0Events.some(
@@ -68,29 +68,29 @@ export function useFilteredEvents() {
           event.source === "agent" &&
           event.action !== "system",
       ) ||
-      v1FullEvents.some(
+      allConversationEvents.some(
         (event) =>
           event.source === "agent" &&
           !isSystemPromptEvent(event) &&
           !isConversationStateUpdateEvent(event),
       ),
-    [v0Events, v1FullEvents],
+    [v0Events, allConversationEvents],
   );
 
   const v0UserEventsExist = hasUserEvent(v0Events);
-  const v1UserEventsExist = hasV1UserEvent(v1FullEvents);
-  const userEventsExist = v0UserEventsExist || v1UserEventsExist;
+  const conversationUserEventsExist = hasAgentServerUserEvent(allConversationEvents);
+  const userEventsExist = v0UserEventsExist || conversationUserEventsExist;
 
   return {
     storeEvents,
     uiEvents,
     v0Events,
-    v1UiEvents,
-    v1FullEvents,
+    renderableEvents,
+    allConversationEvents,
     totalEvents,
     hasSubstantiveAgentActions,
     v0UserEventsExist,
-    v1UserEventsExist,
+    conversationUserEventsExist,
     userEventsExist,
   };
 }

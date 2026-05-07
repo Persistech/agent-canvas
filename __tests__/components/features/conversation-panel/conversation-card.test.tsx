@@ -15,7 +15,7 @@ import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCard } from "#/components/features/conversation-panel/conversation-card/conversation-card";
 import { clickOnEditButton } from "./utils";
 import { ConversationCardActions } from "#/components/features/conversation-panel/conversation-card/conversation-card-actions";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 // We'll use the actual i18next implementation but override the translation function
 
@@ -474,14 +474,14 @@ describe("ConversationCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  const statusTable: [V1ExecutionStatus, boolean][] = [
-    [V1ExecutionStatus.RUNNING, true],
-    [V1ExecutionStatus.IDLE, true],
-    [V1ExecutionStatus.FINISHED, true],
-    [V1ExecutionStatus.WAITING_FOR_CONFIRMATION, true],
-    [V1ExecutionStatus.ERROR, false],
-    [V1ExecutionStatus.STUCK, false],
-    [V1ExecutionStatus.PAUSED, false],
+  const statusTable: [ExecutionStatus, boolean][] = [
+    [ExecutionStatus.RUNNING, true],
+    [ExecutionStatus.IDLE, true],
+    [ExecutionStatus.FINISHED, true],
+    [ExecutionStatus.WAITING_FOR_CONFIRMATION, true],
+    [ExecutionStatus.ERROR, false],
+    [ExecutionStatus.STUCK, false],
+    [ExecutionStatus.PAUSED, false],
   ];
 
   it.each(statusTable)(

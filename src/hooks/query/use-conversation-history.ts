@@ -11,7 +11,7 @@ export const useConversationHistory = (conversationId?: string) => {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      return EventService.searchEventsV1(conversationId);
+      return EventService.searchEvents(conversationId);
     },
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000, // 30 minutes — survive navigation away and back (AC5)

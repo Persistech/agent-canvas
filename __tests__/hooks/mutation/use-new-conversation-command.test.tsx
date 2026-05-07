@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
 
 const mockNavigate = vi.fn();
@@ -99,7 +99,7 @@ describe("useNewConversationCommand", () => {
   it("calls createConversation and navigates on success", async () => {
     const readyTask = makeStartTask();
     const createSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue(readyTask as never);
 
     const { result } = renderHook(() => useNewConversationCommand(), {
@@ -120,7 +120,7 @@ describe("useNewConversationCommand", () => {
       app_conversation_id: null,
     });
 
-    vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue(
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
       errorTask as never,
     );
 
@@ -134,7 +134,7 @@ describe("useNewConversationCommand", () => {
   it("invalidates conversation list queries on success", async () => {
     const readyTask = makeStartTask();
 
-    vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue(
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
       readyTask as never,
     );
 
@@ -159,7 +159,7 @@ describe("useNewConversationCommand", () => {
   it("shows a loading toast and dismisses it on success", async () => {
     const readyTask = makeStartTask();
 
-    vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue(
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
       readyTask as never,
     );
 

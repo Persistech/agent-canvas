@@ -71,8 +71,8 @@ vi.mock("#/components/shared/buttons/scroll-to-bottom-button", () => ({
   ScrollToBottomButton: () => <button type="button">Scroll to bottom</button>,
 }));
 
-vi.mock("#/components/v1/chat", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/components/v1/chat")>()),
+vi.mock("#/components/conversation-events/chat", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#/components/conversation-events/chat")>()),
   Messages: () => <div data-testid="v1-messages" />,
 }));
 
