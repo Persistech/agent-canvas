@@ -67,7 +67,12 @@ export const groupEvents = (
   minSize: number = EVENT_GROUP_MIN_SIZE,
   allEvents: OpenHandsEvent[] = events,
 ): RenderedItem[] => {
+  if (minSize < 1) {
+    throw new Error("minSize must be at least 1");
+  }
+
   const items: RenderedItem[] = [];
+  const emittedThoughtActionIds = new Set<string>();
   let run: { events: OpenHandsEvent[]; startIndex: number } | null = null;
 
   const flushRun = () => {
@@ -89,8 +94,9 @@ export const groupEvents = (
   events.forEach((event, index) => {
     if (isGroupableEvent(event)) {
       const thoughtAction = getThoughtSourceAction(event, allEvents);
-      if (thoughtAction) {
+      if (thoughtAction && !emittedThoughtActionIds.has(thoughtAction.id)) {
         flushRun();
+        emittedThoughtActionIds.add(thoughtAction.id);
         items.push({ kind: "thought", action: thoughtAction, index });
       }
       if (!run) run = { events: [], startIndex: index };

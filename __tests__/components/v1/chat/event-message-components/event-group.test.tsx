@@ -64,6 +64,16 @@ const makeBashObservation = (
 });
 
 describe("EventGroup", () => {
+  it("returns null for an empty events array", () => {
+    const { container } = renderWithProviders(
+      <EventGroup events={[]}>
+        <div>child</div>
+      </EventGroup>,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("renders a 'completed' summary when all events are observations", () => {
     const events = [
       makeBashObservation("o1", "a1", "ls"),
@@ -132,7 +142,7 @@ describe("EventGroup", () => {
     expect(screen.getByTestId("status-icon")).toBeInTheDocument();
   });
 
-  it("expands to reveal children when the toggle is clicked", async () => {
+  it("updates accessibility state while toggling the group", async () => {
     const events = [
       makeBashObservation("o1", "a1", "ls"),
       makeBashObservation("o2", "a2", "pwd"),
@@ -146,12 +156,26 @@ describe("EventGroup", () => {
       </EventGroup>,
     );
 
+    const toggle = screen.getByTestId("event-group-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-label", "EVENT_GROUP$EXPAND");
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.queryByTestId("child")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("event-group-toggle"));
+    await user.click(toggle);
+
+    const content = screen.getByRole("region");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-label", "EVENT_GROUP$COLLAPSE");
+    expect(toggle).toHaveAttribute("aria-controls", content.id);
+    expect(content).toHaveAttribute("aria-labelledby", toggle.id);
     expect(screen.getByTestId("child")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("event-group-toggle"));
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-label", "EVENT_GROUP$EXPAND");
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.queryByTestId("child")).not.toBeInTheDocument();
   });
 });

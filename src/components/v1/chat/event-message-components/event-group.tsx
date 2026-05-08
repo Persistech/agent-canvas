@@ -32,6 +32,12 @@ interface EventGroupProps {
 export function EventGroup({ events, children }: EventGroupProps) {
   const { t } = useTranslation("openhands");
   const [expanded, setExpanded] = React.useState(false);
+  const contentId = React.useId();
+  const buttonId = `${contentId}-toggle`;
+
+  if (events.length === 0) {
+    return null;
+  }
 
   // Each ObservationEvent in the group is a completed action.
   // An ActionEvent that's still here (i.e. not yet replaced by its observation
@@ -60,8 +66,10 @@ export function EventGroup({ events, children }: EventGroupProps) {
       data-testid="event-group"
     >
       <button
+        id={buttonId}
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
+        aria-controls={contentId}
         aria-expanded={expanded}
         aria-label={
           expanded
@@ -85,7 +93,13 @@ export function EventGroup({ events, children }: EventGroupProps) {
       </button>
 
       {expanded && (
-        <div className="mt-2 flex flex-col" data-testid="event-group-content">
+        <div
+          id={contentId}
+          role="region"
+          aria-labelledby={buttonId}
+          className="mt-2 flex flex-col"
+          data-testid="event-group-content"
+        >
           <IsInEventGroupContext.Provider value>
             {children}
           </IsInEventGroupContext.Provider>

@@ -15,6 +15,8 @@ interface MessagesProps {
   allEvents: OpenHandsEvent[]; // Full event history (for action lookup)
 }
 
+const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
+
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
     const { getOptimisticUserMessage } = useOptimisticUserMessageStore();
@@ -86,14 +88,11 @@ export const Messages: React.FC<MessagesProps> = React.memo(
       </>
     );
   },
-  (prevProps, nextProps) => {
-    // Prevent re-renders if messages are the same length
-    if (prevProps.messages.length !== nextProps.messages.length) {
-      return false;
-    }
-
-    return true;
-  },
+  (prevProps, nextProps) =>
+    prevProps.messages.length === nextProps.messages.length &&
+    prevProps.allEvents.length === nextProps.allEvents.length &&
+    getLastEventId(prevProps.messages) === getLastEventId(nextProps.messages) &&
+    getLastEventId(prevProps.allEvents) === getLastEventId(nextProps.allEvents),
 );
 
 Messages.displayName = "Messages";

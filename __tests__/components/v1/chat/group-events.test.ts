@@ -6,6 +6,8 @@ import {
 } from "#/components/v1/chat/group-events";
 import {
   ActionEvent,
+  AgentErrorEvent,
+  HookExecutionEvent,
   MessageEvent,
   ObservationEvent,
   SecurityRisk,
@@ -19,6 +21,7 @@ import {
 import {
   ExecuteBashObservation,
   PlanningFileEditorObservation,
+  TaskTrackerObservation,
 } from "#/types/v1/core/base/observation";
 
 const makeBashAction = (
@@ -105,6 +108,49 @@ const makePlanObs = (
   } as PlanningFileEditorObservation,
 });
 
+const makeTaskTrackerObservation = (
+  id: string,
+  actionId: string,
+): ObservationEvent<TaskTrackerObservation> => ({
+  ...makeBashObservation(id, actionId),
+  observation: {
+    kind: "TaskTrackerObservation",
+    content: "task list",
+    command: "plan",
+    task_list: [{ title: "Task", notes: "Notes", status: "todo" }],
+  },
+});
+
+const makeAgentErrorEvent = (id: string): AgentErrorEvent => ({
+  id,
+  timestamp: new Date().toISOString(),
+  source: "agent",
+  tool_name: "execute_bash",
+  tool_call_id: `call_${id}`,
+  error: "boom",
+});
+
+const makeHookExecutionEvent = (id: string): HookExecutionEvent => ({
+  id,
+  timestamp: new Date().toISOString(),
+  kind: "HookExecutionEvent",
+  source: "hook",
+  hook_event_type: "PreToolUse",
+  hook_command: "echo hook",
+  success: true,
+  blocked: false,
+  exit_code: 0,
+  reason: null,
+  tool_name: "execute_bash",
+  action_id: "a1",
+  message_id: null,
+  stdout: "",
+  stderr: "",
+  error: null,
+  additional_context: null,
+  hook_input: null,
+});
+
 describe("isGroupableEvent", () => {
   it("groups regular action events", () => {
     expect(isGroupableEvent(makeBashAction("a1"))).toBe(true);
@@ -129,11 +175,27 @@ describe("isGroupableEvent", () => {
   it("does not group PlanningFileEditorObservation", () => {
     expect(isGroupableEvent(makePlanObs("o1", "a1"))).toBe(false);
   });
+
+  it("does not group TaskTrackerObservation", () => {
+    expect(isGroupableEvent(makeTaskTrackerObservation("o1", "a1"))).toBe(false);
+  });
+
+  it("does not group AgentErrorEvent", () => {
+    expect(isGroupableEvent(makeAgentErrorEvent("e1"))).toBe(false);
+  });
+
+  it("does not group HookExecutionEvent", () => {
+    expect(isGroupableEvent(makeHookExecutionEvent("h1"))).toBe(false);
+  });
 });
 
 describe("groupEvents", () => {
   it("returns an empty list for no events", () => {
     expect(groupEvents([])).toEqual([]);
+  });
+
+  it("requires minSize to be at least 1", () => {
+    expect(() => groupEvents([], 0)).toThrow("minSize must be at least 1");
   });
 
   it("emits singles when there are not enough actions in a row", () => {
@@ -294,6 +356,24 @@ describe("groupEvents", () => {
       "thought",
       "single",
     ]);
+  });
+
+  it("does not emit the same thought twice when both action and observation are present", () => {
+    const action = makeBashAction("a1", [
+      { type: "text", text: "thinking out loud" },
+    ]);
+    const observation = makeBashObservation("o1", "a1");
+
+    const result = groupEvents(
+      [action, observation],
+      undefined,
+      [action, observation],
+    );
+
+    expect(result.map((item) => item.kind)).toEqual(["thought", "group"]);
+    if (result[1].kind === "group") {
+      expect(result[1].events).toEqual([action, observation]);
+    }
   });
 
   it("ignores empty thoughts", () => {
