@@ -12,8 +12,8 @@ export function ActiveStatusBadge({ active }: ActiveStatusBadgeProps) {
     <span
       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
         active
-          ? "bg-success/20 text-success"
-          : "bg-neutral-700 text-neutral-400"
+          ? "bg-status-success-badge-bg text-status-success-text"
+          : "bg-border text-content-muted"
       }`}
     >
       {active

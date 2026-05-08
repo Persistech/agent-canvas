@@ -15,19 +15,20 @@ const statusConfig: Record<
 > = {
   [AutomationRunStatus.COMPLETED]: {
     label: I18nKey.AUTOMATIONS$DETAIL$SUCCESSFUL,
-    style: "border-success/50 bg-success/10 text-success",
+    style:
+      "border-status-success-border bg-status-success-bg text-status-success-text",
   },
   [AutomationRunStatus.FAILED]: {
     label: I18nKey.AUTOMATIONS$DETAIL$FAILED,
-    style: "border-red-500/50 bg-red-500/10 text-red-400",
+    style: "border-status-fail-border bg-status-fail-bg text-status-fail-text",
   },
   [AutomationRunStatus.PENDING]: {
     label: I18nKey.AUTOMATIONS$DETAIL$PENDING,
-    style: "border-neutral-600 bg-neutral-700 text-neutral-400",
+    style: "border-border bg-surface-elevated text-content-muted",
   },
   [AutomationRunStatus.RUNNING]: {
     label: I18nKey.AUTOMATIONS$DETAIL$RUNNING,
-    style: "border-neutral-600 bg-neutral-700 text-neutral-400",
+    style: "border-border bg-surface-elevated text-content-muted",
   },
 };
 
