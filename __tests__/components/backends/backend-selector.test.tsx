@@ -427,12 +427,12 @@ describe("BackendSelector", () => {
     );
   });
 
-
-  it("renders the add-backend footer and opens/closes the modal", async () => {
+  it("renders the backend footer actions and opens/closes the add modal", async () => {
     renderWithProviders(<BackendSelector />);
 
     const user = await openDropdown();
     expect(screen.getByTestId("add-backend-menu-item")).toBeInTheDocument();
+    expect(screen.getByTestId("manage-backends-menu-item")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("add-backend-menu-item"));
     expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
@@ -441,6 +441,47 @@ describe("BackendSelector", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
     });
+  });
+
+  it("opens the manage backends modal and removes a backend", async () => {
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByTestId("manage-backends-menu-item"));
+
+    expect(
+      await screen.findByTestId("manage-backends-modal"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("manage-backends-row-Local 1"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("manage-backends-remove-Local 1"));
+    expect(await screen.findByTestId("confirmation-modal")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("manage-backends-row-Local 1"),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem("openhands-backends") ?? "[]"),
+    ).toEqual([]);
   });
 
   it("does not redirect when switching backends from a non-conversation route", async () => {

@@ -77,6 +77,7 @@
   2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
      The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
+- Backend selector footer actions that launch modals should open them on `onMouseDown` (while still supporting normal button activation) because the dropdown can close/unmount before a plain `onClick` reliably fires in the real sidebar UI. Current examples: `Add backend` and `Manage backends` in `src/components/features/backends/backend-selector.tsx`.
 
 - **SDK Dependency for Settings Persistence (PR #98)**: The settings persistence API changes depend on [software-agent-sdk PR #3060](https://github.com/OpenHands/software-agent-sdk/pull/3060) which adds:
   - `/api/settings` GET/PATCH with `X-Expose-Secrets: encrypted` header support

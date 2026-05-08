@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -15,6 +15,7 @@ import {
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-overlay";
 import { AddBackendModal } from "./add-backend-modal";
+import { ManageBackendsModal } from "./manage-backends-modal";
 
 const VALUE_SEPARATOR = "::";
 
@@ -92,6 +93,8 @@ export function BackendSelector({
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
   const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
+  const [manageBackendsModalOpen, setManageBackendsModalOpen] =
+    React.useState(false);
 
   const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
@@ -149,17 +152,45 @@ export function BackendSelector({
       });
   }, [active, cloudOrgs, currentUserIds, setActive, switchOrg]);
 
+  const openAddBackendModal = React.useCallback(() => {
+    setAddBackendModalOpen(true);
+  }, []);
+
+  const openManageBackendsModal = React.useCallback(() => {
+    setManageBackendsModalOpen(true);
+  }, []);
+
   const addBackendFooter = (
-    <button
-      type="button"
-      data-testid="add-backend-menu-item"
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => setAddBackendModalOpen(true)}
-      className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
-    >
-      <Plus width={16} height={16} className="text-white shrink-0" />
-      {t(I18nKey.BACKEND$ADD)}
-    </button>
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        data-testid="add-backend-menu-item"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openAddBackendModal();
+        }}
+        onClick={openAddBackendModal}
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+      >
+        <Plus width={16} height={16} className="text-white shrink-0" />
+        {t(I18nKey.BACKEND$ADD)}
+      </button>
+      <button
+        type="button"
+        data-testid="manage-backends-menu-item"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openManageBackendsModal();
+        }}
+        onClick={openManageBackendsModal}
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+      >
+        <Settings width={16} height={16} className="text-white shrink-0" />
+        {t(I18nKey.BACKEND$MANAGE)}
+      </button>
+    </div>
   );
 
   return (
@@ -167,7 +198,9 @@ export function BackendSelector({
       <Dropdown
         testId="backend-selector"
         key={`${activeValue}-${activeOption?.label ?? ""}`}
-        defaultValue={activeOption ?? { value: activeValue, label: bundledLabel }}
+        defaultValue={
+          activeOption ?? { value: activeValue, label: bundledLabel }
+        }
         footer={addBackendFooter}
         openUpward={openUpward}
         onChange={async (item) => {
@@ -199,6 +232,11 @@ export function BackendSelector({
       />
       {addBackendModalOpen ? (
         <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
+      ) : null}
+      {manageBackendsModalOpen ? (
+        <ManageBackendsModal
+          onClose={() => setManageBackendsModalOpen(false)}
+        />
       ) : null}
     </>
   );
