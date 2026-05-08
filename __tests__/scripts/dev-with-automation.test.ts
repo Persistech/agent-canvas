@@ -9,7 +9,8 @@ import {
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
-  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_AUTOMATION_VERSION,
+  DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
@@ -20,25 +21,26 @@ const repoRoot = path.resolve(
 );
 
 describe("buildAutomationCommand", () => {
-  it("uses main branch by default", () => {
+  it("uses pinned PyPI version by default", () => {
     const cmd = buildAutomationCommand({});
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toContain("--from");
     expect(cmd.args).toContain(
-      `git+${DEFAULT_AUTOMATION_REPO}@${DEFAULT_AUTOMATION_GIT_REF}`,
+      `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
     );
     expect(cmd.args).toContain("uvicorn");
     expect(cmd.args).toContain("openhands.automation.app:app");
-    expect(cmd.source).toBe(`git (${DEFAULT_AUTOMATION_GIT_REF})`);
+    expect(cmd.source).toBe(`PyPI (${DEFAULT_AUTOMATION_VERSION})`);
   });
 
-  it("uses custom git ref from OH_AUTOMATION_GIT_REF", () => {
+  it("uses custom git ref from OH_AUTOMATION_GIT_REF (overrides default)", () => {
     const cmd = buildAutomationCommand({
       OH_AUTOMATION_GIT_REF: "feat/my-feature",
     });
 
     expect(cmd.command).toBe("uvx");
+    expect(cmd.args).toContain("--refresh");
     expect(cmd.args).toContain("--from");
     expect(cmd.args).toContain(
       `git+${DEFAULT_AUTOMATION_REPO}@feat/my-feature`,
@@ -46,18 +48,30 @@ describe("buildAutomationCommand", () => {
     expect(cmd.source).toBe("git (feat/my-feature)");
   });
 
-  it("uses custom repo from OH_AUTOMATION_REPO", () => {
+  it("uses custom version from OH_AUTOMATION_VERSION", () => {
     const cmd = buildAutomationCommand({
-      OH_AUTOMATION_REPO: "https://github.com/MyOrg/my-automation",
+      OH_AUTOMATION_VERSION: "2.0.0",
     });
 
     expect(cmd.command).toBe("uvx");
-    expect(cmd.args).toContain(
-      `git+https://github.com/MyOrg/my-automation@${DEFAULT_AUTOMATION_GIT_REF}`,
-    );
+    expect(cmd.args).toContain("--from");
+    expect(cmd.args).toContain(`${DEFAULT_AUTOMATION_PACKAGE}==2.0.0`);
+    expect(cmd.source).toBe("PyPI (2.0.0)");
   });
 
-  it("uses both custom repo and ref together", () => {
+  it("git ref takes precedence over version", () => {
+    const cmd = buildAutomationCommand({
+      OH_AUTOMATION_GIT_REF: "my-branch",
+      OH_AUTOMATION_VERSION: "2.0.0",
+    });
+
+    expect(cmd.args).toContain(
+      `git+${DEFAULT_AUTOMATION_REPO}@my-branch`,
+    );
+    expect(cmd.source).toBe("git (my-branch)");
+  });
+
+  it("uses custom repo with git ref", () => {
     const cmd = buildAutomationCommand({
       OH_AUTOMATION_REPO: "https://github.com/MyOrg/my-automation",
       OH_AUTOMATION_GIT_REF: "v1.0.0",
@@ -219,8 +233,12 @@ describe("default constants", () => {
     );
   });
 
-  it("has expected default automation git ref", () => {
-    expect(DEFAULT_AUTOMATION_GIT_REF).toBe("main");
+  it("has expected default automation version", () => {
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a1");
+  });
+
+  it("has expected default automation package name", () => {
+    expect(DEFAULT_AUTOMATION_PACKAGE).toBe("openhands-automation");
   });
 
   it("has expected default backend port", () => {

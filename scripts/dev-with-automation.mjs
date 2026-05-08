@@ -58,7 +58,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
-const DEFAULT_AUTOMATION_GIT_REF = "main";
+// Default automation version from PyPI. Set OH_AUTOMATION_GIT_REF to override with a branch/commit.
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
+const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 // Default local API key for automation backend auth (matches agent-server pattern)
@@ -172,21 +174,44 @@ ACCESS POINTS:
 
 /**
  * Build the uvx command for running automation backend.
+ * 
+ * Priority:
+ * 1. OH_AUTOMATION_GIT_REF - Use git ref (branch/tag/commit)
+ * 2. OH_AUTOMATION_VERSION - Use specific PyPI version
+ * 3. DEFAULT_AUTOMATION_VERSION - Use default PyPI version
+ * 4. Latest PyPI version
  */
 function buildAutomationCommand(env = process.env) {
-  const gitRef = env.OH_AUTOMATION_GIT_REF || DEFAULT_AUTOMATION_GIT_REF;
+  const gitRef = env.OH_AUTOMATION_GIT_REF;
+  const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
 
-  // Build git URL with ref
-  const gitUrl = `git+${repoUrl}@${gitRef}`;
+  const args = [];
+  let source = "";
 
-  // Use --refresh to ensure latest commit is fetched for git refs
-  const args = ["--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app"];
+  if (gitRef) {
+    // Use git ref with refresh to ensure latest commit is fetched
+    const gitUrl = `git+${repoUrl}@${gitRef}`;
+    args.push("--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app");
+    source = `git (${gitRef})`;
+  } else if (version) {
+    // Use specific PyPI version
+    args.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${version})`;
+  } else if (DEFAULT_AUTOMATION_VERSION) {
+    // Use pinned PyPI version
+    args.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${DEFAULT_AUTOMATION_VERSION})`;
+  } else {
+    // Use latest PyPI version
+    args.push("--from", DEFAULT_AUTOMATION_PACKAGE, "uvicorn", "openhands.automation.app:app");
+    source = "PyPI (latest)";
+  }
 
   return {
     command: "uvx",
     args,
-    source: `git (${gitRef})`,
+    source,
   };
 }
 
@@ -680,7 +705,8 @@ export {
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
-  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_AUTOMATION_VERSION,
+  DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 };

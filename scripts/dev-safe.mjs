@@ -25,9 +25,8 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
 ];
 // Default secret key for local development (DO NOT use in production)
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
-// Default to main branch until settings persistence APIs are in a released version.
-// TODO: Once SDK PR #3060 is released, change this to null and let it use PyPI.
-const DEFAULT_GIT_REF = "main";
+// Default agent-server version from PyPI. Set OH_AGENT_SERVER_GIT_REF to override with a branch/commit.
+const DEFAULT_AGENT_SERVER_VERSION = "1.21.1";
 
 function isEnoentError(error) {
   return Boolean(
@@ -134,19 +133,18 @@ export function buildAgentServerCommand(env = process.env) {
       "agent-server",
     );
     source = `PyPI (${version})`;
-  } else if (DEFAULT_GIT_REF) {
-    // Default to git ref when no version specified (until APIs are released)
-    const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${DEFAULT_GIT_REF}`;
+  } else if (DEFAULT_AGENT_SERVER_VERSION) {
+    // Use pinned PyPI version
     uvxArgs.push(
       "--from",
-      `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      `${DEFAULT_AGENT_SERVER_PACKAGE}==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
-      `${baseGitUrl}#subdirectory=openhands-tools`,
+      `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
-      `${baseGitUrl}#subdirectory=openhands-workspace`,
+      `openhands-workspace==${DEFAULT_AGENT_SERVER_VERSION}`,
       "agent-server",
     );
-    source = `git (${DEFAULT_GIT_REF}, default)`;
+    source = `PyPI (${DEFAULT_AGENT_SERVER_VERSION})`;
   } else {
     // Use latest released version: uvx --from openhands-agent-server agent-server
     // The package name differs from the executable name, so we need --from syntax
