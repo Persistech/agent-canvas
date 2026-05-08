@@ -54,11 +54,7 @@ export const useLocalGitInfo = () => {
       });
 
       const [remoteResult, branchResult] = await Promise.all([
-        workspace.executeCommand(
-          "git remote get-url origin",
-          workingDir,
-          10,
-        ),
+        workspace.executeCommand("git remote get-url origin", workingDir, 10),
         workspace.executeCommand(
           "git rev-parse --abbrev-ref HEAD",
           workingDir,
@@ -83,7 +79,10 @@ export const useLocalGitInfo = () => {
       };
     },
     enabled:
-      runtimeIsReady && !!conversationId && !!workingDir && !hasConversationRepo,
+      runtimeIsReady &&
+      !!conversationId &&
+      !!workingDir &&
+      !hasConversationRepo,
     retry: false,
     staleTime: 1000 * 60,
     gcTime: 1000 * 60 * 5,
