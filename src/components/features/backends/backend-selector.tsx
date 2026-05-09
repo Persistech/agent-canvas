@@ -1,5 +1,5 @@
 import React from "react";
-import type { AxiosError } from "axios";
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
 import { Plus, Settings } from "lucide-react";
@@ -12,6 +12,7 @@ import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-or
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
 import {
+  dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-overlay";
@@ -221,9 +222,14 @@ export function BackendSelector({
             try {
               await switchOrg({ orgId, backend: target });
             } catch (error) {
+              dismissEnvironmentSwitch();
+
+              if (!axios.isAxiosError(error)) {
+                throw error;
+              }
+
               displayErrorToast(
-                retrieveAxiosErrorMessage(error as AxiosError) ||
-                  t(I18nKey.ERROR$GENERIC),
+                retrieveAxiosErrorMessage(error) || t(I18nKey.ERROR$GENERIC),
               );
               return;
             }

@@ -43,6 +43,10 @@ describe("stripWorkspacePrefix", () => {
     ).toBe("components/Button.tsx");
   });
 
+  it("returns an empty string when only the workspace root has a trailing slash", () => {
+    expect(stripWorkspacePrefix("/workspace/repo/")).toBe("");
+  });
+
   it("leaves non-workspace or incomplete paths unchanged", () => {
     expect(stripWorkspacePrefix("/workspace")).toBe("/workspace");
     expect(stripWorkspacePrefix("/workspace/repo")).toBe("/workspace/repo");

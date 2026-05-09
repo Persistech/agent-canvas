@@ -109,6 +109,31 @@ describe("ConversationNameContextMenu portal rendering", () => {
     expect(wrapper.style.bottom).toBe("688px");
   });
 
+  it("repositions when the anchored element changes between renders", () => {
+    const firstAnchor = createAnchor({ left: 12, top: 20, bottom: 48 });
+    const secondAnchor = createAnchor({ left: 64, top: 80, bottom: 112 });
+    const { rerender } = renderWithProviders(
+      <ConversationNameContextMenu
+        onClose={vi.fn()}
+        onRename={vi.fn()}
+        anchorRef={{ current: firstAnchor }}
+      />,
+    );
+
+    rerender(
+      <ConversationNameContextMenu
+        onClose={vi.fn()}
+        onRename={vi.fn()}
+        anchorRef={{ current: secondAnchor }}
+      />,
+    );
+
+    const wrapper = screen.getByTestId("conversation-name-context-menu")
+      .parentElement as HTMLDivElement;
+    expect(wrapper.style.left).toBe("64px");
+    expect(wrapper.style.top).toBe("120px");
+  });
+
   it("registers and cleans up resize/scroll listeners for anchored menus", () => {
     const addEventListenerSpy = vi.spyOn(window, "addEventListener");
     const removeEventListenerSpy = vi.spyOn(window, "removeEventListener");

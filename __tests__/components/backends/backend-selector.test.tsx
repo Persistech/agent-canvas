@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAxiosError } from "test-utils";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
   ActiveBackendProvider,
@@ -453,29 +454,32 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows an error toast and keeps the active backend when cloud org switching fails", async () => {
+  it("shows an error toast, dismisses the overlay, and keeps the active backend when cloud org switching fails", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [{ id: "org-2", name: "Acme Inc" }],
       currentOrgId: "org-2",
     });
     vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      new Error("switch failed"),
+      createAxiosError(500, "Server Error", { message: "switch failed" }),
     );
 
     let productionId = "";
     renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          productionId = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          }).id;
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
+      <>
+        <TestSeed
+          onMount={(ctx) => {
+            productionId = ctx.addBackend({
+              name: "Production",
+              host: "https://app.all-hands.dev",
+              apiKey: "bearer-key",
+              kind: "cloud",
+            }).id;
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+        <EnvironmentSwitchOverlay />
+      </>,
     );
 
     const user = await openDropdown();
@@ -488,6 +492,9 @@ describe("BackendSelector", () => {
     await waitFor(() => {
       expect(displayErrorToast).toHaveBeenCalledWith("switch failed");
     });
+    expect(
+      screen.queryByTestId("environment-switch-overlay"),
+    ).not.toBeInTheDocument();
 
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-active-backend") ?? "null",
@@ -553,6 +560,50 @@ describe("BackendSelector", () => {
     ).toEqual([]);
   });
 
+  it("falls back to the bundled backend when removing the active backend from manage backends", async () => {
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          const backend = ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+          ctx.setActive(backend.id);
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    let wrapper = screen.getByTestId("backend-selector");
+    let input = wrapper.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("Local 1");
+
+    const user = await openDropdown();
+    await user.click(screen.getByTestId("manage-backends-menu-item"));
+    await user.click(
+      await screen.findByTestId("manage-backends-remove-Local 1"),
+    );
+    await user.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("manage-backends-row-Local 1"),
+      ).not.toBeInTheDocument();
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(stored).toBeNull();
+
+    wrapper = screen.getByTestId("backend-selector");
+    input = wrapper.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("BACKEND$LOCAL_ROW");
+  });
+
   it("redirects to the automations list when switching backends from an automation detail route", async () => {
     function AutomationDetailRoute() {
       return (
@@ -591,9 +642,7 @@ describe("BackendSelector", () => {
     const user = await openDropdown();
     await user.click(screen.getByText("Local 1"));
 
-    expect(
-      await screen.findByTestId("automations-list"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
 
   it("does not redirect when switching backends from a non-conversation route", async () => {

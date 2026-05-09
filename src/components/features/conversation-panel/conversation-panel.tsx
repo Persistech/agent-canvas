@@ -14,7 +14,10 @@ import { ExitConversationModal } from "./exit-conversation-modal";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { Provider } from "#/types/settings";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
-import { displaySuccessToast } from "#/utils/custom-toast-handlers";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 import { ConversationCard } from "./conversation-card/conversation-card";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
@@ -99,10 +102,8 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const { recent: recentConversations, older: olderConversations } =
     React.useMemo(() => partitionByCutoff(conversations), [conversations]);
 
-  const {
-    mutate: deleteConversation,
-    mutateAsync: deleteConversationAsync,
-  } = useDeleteConversation();
+  const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
+    useDeleteConversation();
   const { mutate: pauseConversation } = useUnifiedPauseConversation();
   const { mutate: updateConversation } = useUpdateConversation();
 
@@ -175,12 +176,19 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
     const deletedIds = results.flatMap((result, index) =>
       result.status === "fulfilled" ? [idsToDelete[index]] : [],
     );
+    const failedCount = results.length - deletedIds.length;
 
     if (
       currentConversationId !== null &&
       deletedIds.includes(currentConversationId)
     ) {
       navigate("/conversations");
+    }
+
+    if (failedCount > 0) {
+      displayErrorToast(
+        `${failedCount} conversation${failedCount === 1 ? "" : "s"} could not be deleted.`,
+      );
     }
   };
 
@@ -358,8 +366,8 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           description={t(I18nKey.CONVERSATION$CONFIRM_DELETE_OLDER_DESC, {
             count: olderConversations.length,
           })}
-          onConfirm={() => {
-            void handleConfirmDeleteOlder();
+          onConfirm={async () => {
+            await handleConfirmDeleteOlder();
             setConfirmDeleteOlderVisible(false);
           }}
           onCancel={() => setConfirmDeleteOlderVisible(false)}
