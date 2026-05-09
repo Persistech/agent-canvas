@@ -1,5 +1,5 @@
+import { GitBranch } from "lucide-react";
 import { RepositorySelection } from "#/api/open-hands.types";
-import { CodeBranchIcon } from "#/components/shared/icons";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
 
 interface ConversationRepoLinkProps {
@@ -25,7 +25,7 @@ export function ConversationRepoLink({
         </span>
       </div>
       <div className="flex items-center gap-1">
-        <CodeBranchIcon size={12} className="text-[#A3A3A3]" />
+        <GitBranch size={12} className="text-[#A3A3A3]" />
 
         <span
           data-testid="conversation-card-selected-branch"

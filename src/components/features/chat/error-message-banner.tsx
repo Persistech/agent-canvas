@@ -1,6 +1,6 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { XIcon } from "#/components/shared/icons";
+import { X } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -63,7 +63,7 @@ export function ErrorMessageBanner({
           aria-label={t(I18nKey.BUTTON$CLOSE)}
           data-testid="error-message-banner-dismiss"
         >
-          <XIcon className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </button>
       )}
     </div>

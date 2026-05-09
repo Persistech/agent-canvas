@@ -1,4 +1,4 @@
-import { ArrowUpIcon } from "#/components/shared/icons";
+import { ArrowUp } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 export interface ChatSendButtonProps {
@@ -27,7 +27,7 @@ export function ChatSendButton({
       onClick={handleSubmit}
       disabled={disabled}
     >
-      <ArrowUpIcon color={disabled ? "#959CB2" : "white"} />
+      <ArrowUp color={disabled ? "#959CB2" : "white"} />
     </button>
   );
 }

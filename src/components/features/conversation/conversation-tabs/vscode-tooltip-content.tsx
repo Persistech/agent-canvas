@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ExternalLinkIcon } from "#/components/shared/icons";
+import { ExternalLink } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useUnifiedVSCodeUrl } from "#/hooks/query/use-unified-vscode-url";
@@ -31,7 +31,7 @@ export function VSCodeTooltipContent() {
     <div className="flex items-center gap-2">
       <span>{t(I18nKey.COMMON$CODE)}</span>
       {!isRuntimeStarting ? (
-        <ExternalLinkIcon
+        <ExternalLink
           className="w-3 h-3 text-inherit cursor-pointer"
           onClick={handleVSCodeClick}
         />
