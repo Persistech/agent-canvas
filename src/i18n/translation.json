@@ -23951,5 +23951,22 @@
     "de": "Profil \"{{name}}\" wird bearbeitet - zum Anwenden der Änderungen speichern",
     "uk": "Редагування профілю \"{{name}}\" - збережіть, щоб застосувати зміни",
     "ca": "Editant el perfil \"{{name}}\" - desa per aplicar els canvis"
+  },
+  "SETTINGS$PROFILE_SAVE_HINT": {
+    "en": "Configure your LLM settings below, then click Save to create this profile.",
+    "ja": "以下でLLM設定を構成し、「保存」をクリックしてこのプロファイルを作成します。",
+    "zh-CN": "在下方配置您的LLM设置，然后点击保存以创建此配置文件。",
+    "zh-TW": "在下方配置您的LLM設定，然後點擊儲存以建立此設定檔。",
+    "ko-KR": "아래에서 LLM 설정을 구성한 다음 저장을 클릭하여 이 프로필을 만드세요.",
+    "no": "Konfigurer LLM-innstillingene nedenfor, og klikk deretter Lagre for å opprette denne profilen.",
+    "it": "Configura le impostazioni LLM di seguito, quindi fai clic su Salva per creare questo profilo.",
+    "pt": "Configure suas configurações de LLM abaixo e clique em Salvar para criar este perfil.",
+    "es": "Configura los ajustes de LLM a continuación y haz clic en Guardar para crear este perfil.",
+    "ar": "قم بتكوين إعدادات LLM أدناه، ثم انقر فوق حفظ لإنشاء هذا الملف الشخصي.",
+    "fr": "Configurez vos paramètres LLM ci-dessous, puis cliquez sur Enregistrer pour créer ce profil.",
+    "tr": "Aşağıda LLM ayarlarınızı yapılandırın, ardından bu profili oluşturmak için Kaydet'e tıklayın.",
+    "de": "Konfigurieren Sie unten Ihre LLM-Einstellungen und klicken Sie dann auf Speichern, um dieses Profil zu erstellen.",
+    "uk": "Налаштуйте параметри LLM нижче, потім натисніть Зберегти, щоб створити цей профіль.",
+    "ca": "Configura els paràmetres LLM a continuació i fes clic a Desa per crear aquest perfil."
   }
 }

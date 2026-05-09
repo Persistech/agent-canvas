@@ -121,6 +121,7 @@ export function LlmSettingsScreen({
   const [showProfileNameInput, setShowProfileNameInput] = React.useState(false);
   // Used to track the model value for auto-saving as a profile
   const lastSavedModelRef = React.useRef<string | null>(null);
+  const profileNameInputRef = React.useRef<HTMLDivElement>(null);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -192,19 +193,27 @@ export function LlmSettingsScreen({
       return (
         <div className="flex flex-col gap-6">
           {showProfileNameInput && (
-            <ProfileNameInput
-              testId="llm-profile-name-input"
-              ruleTestId="llm-profile-name-rule"
-              value={profileName}
-              onChange={setProfileName}
-              placeholder={
-                modelValue
-                  ? deriveProfileNameFromModel(modelValue)
-                  : t(I18nKey.SETTINGS$PROFILE_NAME_PLACEHOLDER)
-              }
-              isOptional
-              isDisabled={isDisabled}
-            />
+            <div
+              ref={profileNameInputRef}
+              className="p-4 bg-tertiary/30 border border-tertiary rounded-lg"
+            >
+              <p className="text-sm text-gray-300 mb-3">
+                {t(I18nKey.SETTINGS$PROFILE_SAVE_HINT)}
+              </p>
+              <ProfileNameInput
+                testId="llm-profile-name-input"
+                ruleTestId="llm-profile-name-rule"
+                value={profileName}
+                onChange={setProfileName}
+                placeholder={
+                  modelValue
+                    ? deriveProfileNameFromModel(modelValue)
+                    : t(I18nKey.SETTINGS$PROFILE_NAME_PLACEHOLDER)
+                }
+                isOptional
+                isDisabled={isDisabled}
+              />
+            </div>
           )}
           {view === "basic" ? (
             <div
@@ -346,6 +355,13 @@ export function LlmSettingsScreen({
   const handleAddProfile = React.useCallback(() => {
     setProfileName("");
     setShowProfileNameInput(true);
+    // Scroll to the profile name input after state updates
+    setTimeout(() => {
+      profileNameInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   }, []);
 
   // Handler for "Edit Profile" menu action
