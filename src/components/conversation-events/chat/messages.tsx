@@ -2,10 +2,13 @@ import React from "react";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "../../features/chat/chat-message";
+import { ModelMessages } from "../../features/chat/model-messages";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { usePlanPreviewEvents } from "./hooks/use-plan-preview-events";
 import { groupEvents } from "./group-events";
 import { EventGroup, ThoughtEventMessage } from "./event-message-components";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useModelStore } from "#/stores/model-store";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";
 // import MemoryIcon from "#/icons/memory_icon.svg?react";
@@ -20,8 +23,20 @@ const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
     const { getOptimisticUserMessage } = useOptimisticUserMessageStore();
+    const { conversationId } = useOptionalConversationId();
 
     const optimisticUserMessage = getOptimisticUserMessage();
+    const modelEntries = useModelStore((state) =>
+      conversationId ? state.entriesByConversation[conversationId] : undefined,
+    );
+    const modelAnchorIds = React.useMemo(() => {
+      if (!modelEntries || modelEntries.length === 0) return null;
+      const ids = new Set<string>();
+      for (const entry of modelEntries) {
+        if (entry.anchorEventId !== null) ids.add(entry.anchorEventId);
+      }
+      return ids.size > 0 ? ids : null;
+    }, [modelEntries]);
 
     // Get the set of event IDs that should render PlanPreview
     // This ensures only one preview per user message "phase"
@@ -37,6 +52,18 @@ export const Messages: React.FC<MessagesProps> = React.memo(
       () => groupEvents(messages, undefined, allEvents),
       [messages, allEvents],
     );
+
+    const renderModelMessages = (eventIds: string[]) => {
+      const anchorId = eventIds.find((id) => modelAnchorIds?.has(id));
+      if (!anchorId) return null;
+
+      return (
+        <ModelMessages
+          conversationId={conversationId}
+          anchorEventId={anchorId}
+        />
+      );
+    };
 
     const renderEventMessage = (
       event: OpenHandsEvent,
@@ -60,7 +87,12 @@ export const Messages: React.FC<MessagesProps> = React.memo(
           if (item.kind === "single") {
             // Thoughts for singles are also hoisted as their own "thought"
             // item, so suppress the inline render to avoid duplication.
-            return renderEventMessage(item.event, item.index, true);
+            return (
+              <React.Fragment key={item.event.id}>
+                {renderEventMessage(item.event, item.index, true)}
+                {renderModelMessages([String(item.event.id)])}
+              </React.Fragment>
+            );
           }
 
           if (item.kind === "thought") {
@@ -74,11 +106,16 @@ export const Messages: React.FC<MessagesProps> = React.memo(
 
           const groupKey = item.events[0]?.id ?? `group-${item.startIndex}`;
           return (
-            <EventGroup key={groupKey} events={item.events}>
-              {item.events.map((event, offset) =>
-                renderEventMessage(event, item.startIndex + offset, true),
+            <React.Fragment key={groupKey}>
+              <EventGroup events={item.events}>
+                {item.events.map((event, offset) =>
+                  renderEventMessage(event, item.startIndex + offset, true),
+                )}
+              </EventGroup>
+              {renderModelMessages(
+                item.events.map((event) => String(event.id)),
               )}
-            </EventGroup>
+            </React.Fragment>
           );
         })}
 

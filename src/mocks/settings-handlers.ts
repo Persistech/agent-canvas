@@ -273,8 +273,42 @@ const MOCK_USER_PREFERENCES: {
   settings: structuredClone(MOCK_DEFAULT_USER_SETTINGS),
 };
 
+interface MockProfile {
+  name: string;
+  llm: Record<string, SettingsValue>;
+  include_secrets: boolean;
+}
+
+const MOCK_LLM_PROFILES = new Map<string, MockProfile>();
+
+const summarizeProfile = (profile: MockProfile) => ({
+  name: profile.name,
+  model: typeof profile.llm.model === "string" ? profile.llm.model : null,
+  base_url:
+    typeof profile.llm.base_url === "string" ? profile.llm.base_url : null,
+  api_key_set:
+    typeof profile.llm.api_key === "string" &&
+    profile.llm.api_key.trim().length > 0,
+});
+
+const cloneProfileConfig = (
+  profile: MockProfile,
+  exposeSecrets: string | null,
+) => {
+  const config = structuredClone(profile.llm);
+  if (typeof config.api_key === "string" && config.api_key.length > 0) {
+    if (exposeSecrets === "encrypted") {
+      config.api_key = `gAAAAA_mock_encrypted_${config.api_key.slice(0, 8)}`;
+    } else if (exposeSecrets !== "plaintext") {
+      config.api_key = null;
+    }
+  }
+  return config;
+};
+
 export const resetTestHandlersMockSettings = () => {
   MOCK_USER_PREFERENCES.settings = structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+  MOCK_LLM_PROFILES.clear();
 };
 
 // Mock model data used by provider/model endpoints
@@ -447,6 +481,98 @@ export const SETTINGS_HANDLERS = [
     HttpResponse.json(["llm", "none"]),
   ),
 
+  http.get("/api/profiles", async () =>
+    HttpResponse.json({
+      profiles: Array.from(MOCK_LLM_PROFILES.values()).map(summarizeProfile),
+    }),
+  ),
+
+  http.get("/api/profiles/:name", async ({ params, request }) => {
+    const name = String(params.name);
+    const profile = MOCK_LLM_PROFILES.get(name);
+    if (!profile) {
+      return HttpResponse.json(
+        { detail: `Profile '${name}' not found` },
+        { status: 404 },
+      );
+    }
+
+    return HttpResponse.json({
+      name,
+      config: cloneProfileConfig(
+        profile,
+        request.headers.get("X-Expose-Secrets"),
+      ),
+      api_key_set: summarizeProfile(profile).api_key_set,
+    });
+  }),
+
+  http.post("/api/profiles/:name", async ({ params, request }) => {
+    const name = String(params.name);
+    const body = (await request.json()) as {
+      llm?: Record<string, SettingsValue>;
+      include_secrets?: boolean;
+    } | null;
+
+    if (!body?.llm || typeof body.llm.model !== "string") {
+      return HttpResponse.json(
+        { detail: "Valid llm is required" },
+        { status: 422 },
+      );
+    }
+
+    MOCK_LLM_PROFILES.set(name, {
+      name,
+      llm: structuredClone(body.llm),
+      include_secrets: body.include_secrets ?? true,
+    });
+
+    return HttpResponse.json(
+      { name, message: `Profile '${name}' saved` },
+      { status: 201 },
+    );
+  }),
+
+  http.delete("/api/profiles/:name", async ({ params }) => {
+    const name = String(params.name);
+    MOCK_LLM_PROFILES.delete(name);
+    return HttpResponse.json({ name, message: `Profile '${name}' deleted` });
+  }),
+
+  http.post("/api/profiles/:name/rename", async ({ params, request }) => {
+    const name = String(params.name);
+    const body = (await request.json()) as { new_name?: string } | null;
+    const newName = body?.new_name?.trim();
+
+    if (!newName) {
+      return HttpResponse.json(
+        { detail: "new_name is required" },
+        { status: 422 },
+      );
+    }
+
+    const profile = MOCK_LLM_PROFILES.get(name);
+    if (!profile) {
+      return HttpResponse.json(
+        { detail: `Profile '${name}' not found` },
+        { status: 404 },
+      );
+    }
+    if (name !== newName && MOCK_LLM_PROFILES.has(newName)) {
+      return HttpResponse.json(
+        { detail: `Profile '${newName}' already exists` },
+        { status: 409 },
+      );
+    }
+
+    MOCK_LLM_PROFILES.delete(name);
+    MOCK_LLM_PROFILES.set(newName, { ...profile, name: newName });
+    return HttpResponse.json({
+      name: newName,
+      message: `Profile '${name}' renamed to '${newName}'`,
+    });
+  }),
+
   http.get("/api/v1/web-client/config", () => {
     const config: WebClientConfig = {
       posthog_client_key: "fake-posthog-client-key",
@@ -504,7 +630,9 @@ export const SETTINGS_HANDLERS = [
     const exposeSecrets = request.headers.get("X-Expose-Secrets");
 
     // Build agent_settings, handling secrets based on header
-    const agentSettings = structuredClone(settings.agent_settings ?? {}) as Record<string, unknown>;
+    const agentSettings = structuredClone(
+      settings.agent_settings ?? {},
+    ) as Record<string, unknown>;
     const llm = agentSettings.llm as Record<string, unknown> | undefined;
     if (llm?.api_key) {
       if (exposeSecrets === "encrypted") {
@@ -518,8 +646,16 @@ export const SETTINGS_HANDLERS = [
       }
     }
 
-    const llmApiKeySet = !!settings.llm_api_key_set || !!(settings.agent_settings as Record<string, unknown> | undefined)?.llm &&
-      !!(((settings.agent_settings as Record<string, unknown>).llm as Record<string, unknown>)?.api_key);
+    const llmApiKeySet =
+      !!settings.llm_api_key_set ||
+      (!!(settings.agent_settings as Record<string, unknown> | undefined)
+        ?.llm &&
+        !!(
+          (settings.agent_settings as Record<string, unknown>).llm as Record<
+            string,
+            unknown
+          >
+        )?.api_key);
 
     return HttpResponse.json({
       agent_settings: agentSettings,
@@ -542,12 +678,17 @@ export const SETTINGS_HANDLERS = [
 
     if (!body.agent_settings_diff && !body.conversation_settings_diff) {
       return HttpResponse.json(
-        { error: "At least one of agent_settings_diff or conversation_settings_diff must be provided" },
-        { status: 400 }
+        {
+          error:
+            "At least one of agent_settings_diff or conversation_settings_diff must be provided",
+        },
+        { status: 400 },
       );
     }
 
-    const current = MOCK_USER_PREFERENCES.settings || structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+    const current =
+      MOCK_USER_PREFERENCES.settings ||
+      structuredClone(MOCK_DEFAULT_USER_SETTINGS);
     const nextSettings: Settings = { ...current };
 
     if (body.agent_settings_diff) {
@@ -559,7 +700,11 @@ export const SETTINGS_HANDLERS = [
 
       // Sync llm_api_key_set
       const llm = merged.llm as Record<string, unknown> | undefined;
-      if (llm?.api_key && typeof llm.api_key === "string" && llm.api_key.trim().length > 0) {
+      if (
+        llm?.api_key &&
+        typeof llm.api_key === "string" &&
+        llm.api_key.trim().length > 0
+      ) {
         nextSettings.llm_api_key_set = true;
       }
     }

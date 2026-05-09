@@ -1,6 +1,7 @@
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
+import { SwitchProfileButton } from "../switch-profile-button";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
@@ -37,6 +38,7 @@ export function ChatInputActions({ disabled }: ChatInputActionsProps) {
         <div className="flex items-center gap-4">
           <Tools />
           {isCloud && <ChangeAgentButton />}
+          <SwitchProfileButton />
         </div>
       </div>
       <AgentStatus

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import LlmSettingsScreen from "#/routes/llm-settings";
@@ -24,9 +25,11 @@ function renderLlmSettingsScreen() {
     wrapper: ({ children }) => (
       <MemoryRouter>
         <QueryClientProvider
-          client={new QueryClient({
-            defaultOptions: { queries: { retry: false } },
-          })}
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
         >
           {children}
         </QueryClientProvider>
@@ -40,7 +43,7 @@ describe("LlmSettingsScreen", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the OSS LLM settings form from the SDK schema fallback", async () => {
+  it("renders the profiles list and opens the SDK-backed LLM form", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         llm_model: "openai/gpt-4o",
@@ -58,8 +61,16 @@ describe("LlmSettingsScreen", () => {
 
     renderLlmSettingsScreen();
 
+    expect(
+      await screen.findByText("SETTINGS$AVAILABLE_PROFILES"),
+    ).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("add-llm-profile"));
+
     await screen.findByTestId("llm-settings-screen");
 
+    expect(screen.getByTestId("llm-profile-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("llm-provider-input")).toBeInTheDocument();
     expect(screen.getByTestId("llm-api-key-input")).toBeInTheDocument();
   });

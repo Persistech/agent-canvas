@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
+import { ModelMessages } from "./model-messages";
 import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
@@ -23,7 +24,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { ErrorMessageBanner } from "./error-message-banner";
-import { Messages as Messages } from "#/components/conversation-events/chat";
+import { Messages } from "#/components/conversation-events/chat";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -35,6 +36,7 @@ import { getStatusColor, getStatusText } from "#/utils/utils";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { I18nKey } from "#/i18n/declaration";
+import { useModelStore } from "#/stores/model-store";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -115,13 +117,18 @@ export function ChatInterface() {
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
 
   const optimisticUserMessage = getOptimisticUserMessage();
+  const modelEntries = useModelStore((state) =>
+    conversationId ? state.entriesByConversation[conversationId] : undefined,
+  );
+  const hasModelEntries = (modelEntries?.length ?? 0) > 0;
 
   // Show V1 messages immediately if events exist in store (e.g., remount),
   // or once loading completes. This replaces the old transition-observation
   // pattern (useState + useEffect watching loading→loaded) which always showed
   // skeleton on remount because local state initialized to false.
   const showConversationMessages =
-    allConversationEvents.length > 0 || !conversationWebSocket?.isLoadingHistory;
+    allConversationEvents.length > 0 ||
+    !conversationWebSocket?.isLoadingHistory;
 
   const isReturningToConversation = !!conversationId;
   // Only show loading skeleton when genuinely loading AND no events in store yet.
@@ -258,7 +265,8 @@ export function ChatInterface() {
         {!hasSubstantiveAgentActions &&
           !optimisticUserMessage &&
           !userEventsExist &&
-          !isChatLoading && (
+          !isChatLoading &&
+          !hasModelEntries && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
             />
@@ -280,8 +288,12 @@ export function ChatInterface() {
             </div>
           )}
 
+          <ModelMessages conversationId={conversationId} anchorEventId={null} />
           {showConversationMessages && conversationUserEventsExist && (
-            <Messages messages={renderableEvents} allEvents={allConversationEvents} />
+            <Messages
+              messages={renderableEvents}
+              allEvents={allConversationEvents}
+            />
           )}
         </div>
 

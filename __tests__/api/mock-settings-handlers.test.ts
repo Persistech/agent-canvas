@@ -15,4 +15,28 @@ describe("mock settings handlers", () => {
       schema.sections.some((section) => section.key === "verification"),
     ).toBe(true);
   });
+  it("supports the local agent-server LLM profiles endpoints used by the UI", async () => {
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        llm: { model: "openai/gpt-4o", api_key: "test-key" },
+      },
+    });
+
+    const ProfilesService = (
+      await import("#/api/settings-service/profiles-service.api")
+    ).default;
+
+    await ProfilesService.saveProfile("openai_gpt-4o", {
+      include_secrets: true,
+    });
+
+    const { profiles } = await ProfilesService.listProfiles();
+
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]).toMatchObject({
+      name: "openai_gpt-4o",
+      model: "openai/gpt-4o",
+      api_key_set: true,
+    });
+  });
 });
