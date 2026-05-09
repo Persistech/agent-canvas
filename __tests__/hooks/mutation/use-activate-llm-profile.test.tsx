@@ -22,7 +22,7 @@ describe("useActivateLlmProfile", () => {
     mockActivateProfile.mockResolvedValue({
       name: "my-profile",
       message: "Profile activated",
-      model: "gpt-4",
+      llm_applied: true,
     });
 
     const invalidateCacheSpy = vi.spyOn(SettingsService, "invalidateCache");

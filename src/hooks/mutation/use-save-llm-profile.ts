@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import ProfilesService, {
-  SaveLlmProfileRequest,
+  type SaveProfileRequest,
 } from "#/api/profiles-service/profiles-service.api";
 import {
   LLM_PROFILES_QUERY_KEY,
@@ -9,7 +9,7 @@ import {
 
 interface SaveLlmProfileVariables {
   name: string;
-  request: SaveLlmProfileRequest;
+  request: SaveProfileRequest;
 }
 
 export function useSaveLlmProfile() {

@@ -349,14 +349,14 @@ export function LlmSettingsScreen({
           // Check if user provided a new API key
           const hasNewApiKey = apiKeyValue && apiKeyValue.trim().length > 0;
 
-          // Build LLM config
+          // Build LLM config using SDK's LLM type shape
           const llmConfig: {
             model: string;
-            base_url?: string | null;
-            api_key?: string | null;
+            base_url?: string;
+            api_key?: string;
           } & Record<string, unknown> = {
             model: modelValue,
-            base_url: baseUrlValue || null,
+            ...(baseUrlValue ? { base_url: baseUrlValue } : {}),
           };
 
           // When editing an existing profile without a new API key, we need to

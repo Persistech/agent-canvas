@@ -60,7 +60,7 @@ describe("useSaveLlmProfile", () => {
     });
   });
 
-  it("saves profile without llm config (snapshot mode)", async () => {
+  it("saves profile with include_secrets flag", async () => {
     vi.mocked(ProfilesService.saveProfile).mockResolvedValue({
       name: "snapshot-profile",
       message: "Profile saved",
@@ -71,11 +71,15 @@ describe("useSaveLlmProfile", () => {
     await act(async () => {
       await result.current.mutateAsync({
         name: "snapshot-profile",
-        request: { include_secrets: true },
+        request: {
+          llm: { model: "openai/gpt-4" },
+          include_secrets: true,
+        },
       });
     });
 
     expect(ProfilesService.saveProfile).toHaveBeenCalledWith("snapshot-profile", {
+      llm: { model: "openai/gpt-4" },
       include_secrets: true,
     });
   });
@@ -95,7 +99,7 @@ describe("useSaveLlmProfile", () => {
     await act(async () => {
       await result.current.mutateAsync({
         name: "test-profile",
-        request: {},
+        request: { llm: { model: "openai/gpt-4" } },
       });
     });
 
@@ -117,7 +121,7 @@ describe("useSaveLlmProfile", () => {
     await act(async () => {
       await result.current.mutateAsync({
         name: "test-profile",
-        request: {},
+        request: { llm: { model: "openai/gpt-4" } },
       });
     });
 
@@ -136,7 +140,7 @@ describe("useSaveLlmProfile", () => {
       act(async () => {
         await result.current.mutateAsync({
           name: "duplicate-name",
-          request: {},
+          request: { llm: { model: "openai/gpt-4" } },
         });
       }),
     ).rejects.toThrow("Profile name already exists");
