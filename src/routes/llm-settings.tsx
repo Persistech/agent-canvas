@@ -18,7 +18,6 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { LlmProfilesManager } from "#/components/features/settings/llm-profiles";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import type { LlmProfileSummary } from "#/api/profiles-service/profiles-service.api";
 import {
@@ -30,6 +29,9 @@ import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { LlmProfilesListView } from "#/components/features/settings/llm-profiles/llm-profiles-list-view";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -102,6 +104,8 @@ function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
   );
 }
 
+type EditMode = "none" | "add" | "edit";
+
 export function LlmSettingsScreen({
   scope = "personal",
 }: {
@@ -113,15 +117,17 @@ export function LlmSettingsScreen({
   const { data: schema } = useAgentSettingsSchema(
     settings?.agent_settings_schema,
   );
+  const { data: profilesData } = useLlmProfiles();
 
   const saveProfile = useSaveLlmProfile();
 
-  // Profile editing state
+  // Edit mode: "none" = show profiles list, "add" = new profile form, "edit" = editing existing
+  const [editMode, setEditMode] = React.useState<EditMode>("none");
   const [profileName, setProfileName] = React.useState("");
-  const [showProfileNameInput, setShowProfileNameInput] = React.useState(false);
-  // Used to track the model value for auto-saving as a profile
   const lastSavedModelRef = React.useRef<string | null>(null);
-  const profileNameInputRef = React.useRef<HTMLDivElement>(null);
+
+  // Current model from settings - used to determine which profile is "active"
+  const currentModel = settings?.llm_model ?? "";
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -138,11 +144,11 @@ export function LlmSettingsScreen({
         return schemaView;
       }
 
-      const currentModel = currentSettings.llm_model ?? "";
+      const settingsModel = currentSettings.llm_model ?? "";
       const trimmedBaseUrl = currentSettings.llm_base_url?.trim() ?? "";
       const hasCustomBaseUrl =
         trimmedBaseUrl.length > 0 &&
-        !isProviderDefaultBaseUrl(currentModel, trimmedBaseUrl);
+        !isProviderDefaultBaseUrl(settingsModel, trimmedBaseUrl);
 
       return hasCustomBaseUrl ? "all" : "basic";
     },
@@ -192,29 +198,21 @@ export function LlmSettingsScreen({
 
       return (
         <div className="flex flex-col gap-6">
-          {showProfileNameInput && (
-            <div
-              ref={profileNameInputRef}
-              className="p-4 bg-tertiary/30 border border-tertiary rounded-lg"
-            >
-              <p className="text-sm text-gray-300 mb-3">
-                {t(I18nKey.SETTINGS$PROFILE_SAVE_HINT)}
-              </p>
-              <ProfileNameInput
-                testId="llm-profile-name-input"
-                ruleTestId="llm-profile-name-rule"
-                value={profileName}
-                onChange={setProfileName}
-                placeholder={
-                  modelValue
-                    ? deriveProfileNameFromModel(modelValue)
-                    : t(I18nKey.SETTINGS$PROFILE_NAME_PLACEHOLDER)
-                }
-                isOptional
-                isDisabled={isDisabled}
-              />
-            </div>
-          )}
+          {/* Profile name input */}
+          <ProfileNameInput
+            testId="llm-profile-name-input"
+            ruleTestId="llm-profile-name-rule"
+            value={profileName}
+            onChange={setProfileName}
+            placeholder={
+              modelValue
+                ? deriveProfileNameFromModel(modelValue)
+                : t(I18nKey.SETTINGS$PROFILE_NAME_PLACEHOLDER)
+            }
+            isOptional={editMode === "add"}
+            isDisabled={isDisabled}
+          />
+
           {view === "basic" ? (
             <div
               className="flex flex-col gap-6"
@@ -282,13 +280,7 @@ export function LlmSettingsScreen({
         </div>
       );
     },
-    [
-      defaultModel,
-      profileName,
-      settings?.llm_api_key_set,
-      showProfileNameInput,
-      t,
-    ],
+    [defaultModel, editMode, profileName, settings?.llm_api_key_set, t],
   );
 
   const buildPayload = React.useCallback(
@@ -299,9 +291,7 @@ export function LlmSettingsScreen({
         view: SettingsView;
       },
     ) => {
-      // basePayload is a nested dict (e.g. {llm: {model: "gpt-4"}})
       const agentSettings = structuredClone(basePayload);
-
       const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
 
       if (context.view === "basic") {
@@ -309,21 +299,22 @@ export function LlmSettingsScreen({
         agentSettings.llm = llm;
       }
 
+      // Track the model for profile auto-save
+      const modelValue =
+        typeof context.values["llm.model"] === "string"
+          ? context.values["llm.model"]
+          : "";
+      lastSavedModelRef.current = modelValue || null;
+
       return { agent_settings_diff: agentSettings };
     },
     [schema],
   );
 
-  // Handler for auto-saving settings as a profile after save success
+  // Handler for save success - saves the profile and returns to list view
   const handleSaveSuccess = React.useCallback(async () => {
-    // Only auto-save as profile if the profile name input was shown
-    if (!showProfileNameInput) {
-      return;
-    }
-
     const savedModel = lastSavedModelRef.current;
     const trimmedUserName = profileName.trim();
-    // Use the user-supplied name only if it matches the backend regex
     const userName = PROFILE_NAME_PATTERN.test(trimmedUserName)
       ? trimmedUserName
       : null;
@@ -334,95 +325,84 @@ export function LlmSettingsScreen({
 
     if (name) {
       try {
-        // Omit `llm` → backend snapshots the just-saved agent_settings.llm
         await saveProfile.mutateAsync({
           name,
           request: { include_secrets: true },
         });
         displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_SAVED, { name }));
       } catch {
-        // Best-effort: the settings save already succeeded
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
       }
     }
 
-    // Reset state
+    // Reset state and return to list view
     setProfileName("");
-    setShowProfileNameInput(false);
-  }, [profileName, saveProfile, showProfileNameInput, t]);
+    setEditMode("none");
+  }, [profileName, saveProfile, t]);
 
   // Handler for "Add Profile" button
   const handleAddProfile = React.useCallback(() => {
     setProfileName("");
-    setShowProfileNameInput(true);
-    // Scroll to the profile name input after state updates
-    setTimeout(() => {
-      profileNameInputRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
+    setEditMode("add");
   }, []);
 
   // Handler for "Edit Profile" menu action
-  const handleEditProfile = React.useCallback(
-    (profile: LlmProfileSummary) => {
-      // Set editing state - the user can modify the form and save
-      // to update the profile with the current form values
-      setProfileName(profile.name);
-      setShowProfileNameInput(true);
+  const handleEditProfile = React.useCallback((profile: LlmProfileSummary) => {
+    setProfileName(profile.name);
+    setEditMode("edit");
+  }, []);
 
-      // Show a toast indicating we're now in edit mode for this profile
-      displaySuccessToast(
-        t(I18nKey.SETTINGS$PROFILE_LOADED, { name: profile.name }),
-      );
-    },
-    [t],
-  );
+  // Handler for cancel button in form
+  const handleCancel = React.useCallback(() => {
+    setProfileName("");
+    setEditMode("none");
+  }, []);
 
-  // Update lastSavedModelRef in buildPayload
-  const buildPayloadWithTracking = React.useCallback(
-    (
-      basePayload: Record<string, unknown>,
-      context: {
-        values: Record<string, string | boolean>;
-        view: SettingsView;
-      },
-    ) => {
-      // Track the model for profile auto-save
-      const modelValue =
-        typeof context.values["llm.model"] === "string"
-          ? context.values["llm.model"]
-          : "";
-      lastSavedModelRef.current = modelValue || null;
+  // If we're in form mode, show the settings form
+  if (editMode !== "none") {
+    return (
+      <div data-testid="llm-settings-screen" className="flex flex-col gap-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">
+            {editMode === "add"
+              ? t(I18nKey.SETTINGS$ADD_LLM_PROFILE)
+              : t(I18nKey.SETTINGS$EDIT_LLM_PROFILE)}
+          </h2>
+          <BrandButton
+            testId="cancel-profile-edit"
+            type="button"
+            variant="secondary"
+            onClick={handleCancel}
+          >
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+        </div>
 
-      return buildPayload(basePayload, context);
-    },
-    [buildPayload],
-  );
-
-  return (
-    <div className="flex flex-col gap-8">
-      <SdkSectionPage
-        scope={scope}
-        sectionKeys={["llm"]}
-        excludeKeys={LLM_EXCLUDED_KEYS}
-        header={buildHeader}
-        buildPayload={buildPayloadWithTracking}
-        getInitialView={getInitialView}
-        forceShowAdvancedView
-        allowAllView
-        onSaveSuccess={handleSaveSuccess}
-        testId="llm-settings-screen"
-      />
-
-      {/* LLM Profiles Section */}
-      <div className="border-t border-tertiary pt-8">
-        <LlmProfilesManager
-          onAddProfile={handleAddProfile}
-          onEditProfile={handleEditProfile}
+        <SdkSectionPage
+          scope={scope}
+          sectionKeys={["llm"]}
+          excludeKeys={LLM_EXCLUDED_KEYS}
+          header={buildHeader}
+          buildPayload={buildPayload}
+          getInitialView={getInitialView}
+          forceShowAdvancedView
+          allowAllView
+          onSaveSuccess={handleSaveSuccess}
+          testId="llm-profile-form"
         />
       </div>
+    );
+  }
+
+  // Default view: show profiles list only
+  return (
+    <div data-testid="llm-settings-screen" className="flex flex-col gap-4">
+      <LlmProfilesListView
+        profiles={profilesData?.profiles ?? []}
+        currentModel={currentModel}
+        onAddProfile={handleAddProfile}
+        onEditProfile={handleEditProfile}
+      />
     </div>
   );
 }
