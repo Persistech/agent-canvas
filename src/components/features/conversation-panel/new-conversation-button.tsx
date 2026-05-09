@@ -63,6 +63,17 @@ export function NewConversationButton() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open, browserOpen, manageOpen]);
 
+  React.useEffect(() => {
+    if (!open || browserOpen || manageOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, browserOpen, manageOpen]);
+
   const launch = (workingDir?: string) => {
     if (isCreating) return;
     createConversation(

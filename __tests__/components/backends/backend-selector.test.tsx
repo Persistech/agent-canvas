@@ -454,7 +454,7 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows an error toast, dismisses the overlay, and keeps the active backend when cloud org switching fails", async () => {
+  it("shows an error toast, dismisses the overlay, and does not switch to the failing cloud backend", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [{ id: "org-2", name: "Acme Inc" }],
       currentOrgId: "org-2",
@@ -464,10 +464,18 @@ describe("BackendSelector", () => {
     );
 
     let productionId = "";
+    let activeLocalId = "";
     renderWithProviders(
       <>
         <TestSeed
           onMount={(ctx) => {
+            activeLocalId = ctx.addBackend({
+              name: "Active Local",
+              host: "http://localhost:9000",
+              apiKey: "local-key",
+              kind: "local",
+            }).id;
+            ctx.setActive(activeLocalId, null);
             productionId = ctx.addBackend({
               name: "Production",
               host: "https://app.all-hands.dev",
@@ -480,6 +488,10 @@ describe("BackendSelector", () => {
         </TestSeed>
         <EnvironmentSwitchOverlay />
       </>,
+    );
+
+    const initialSelection = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
     );
 
     const user = await openDropdown();
@@ -499,8 +511,87 @@ describe("BackendSelector", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-active-backend") ?? "null",
     );
+    expect(initialSelection?.backendId).toBe(activeLocalId);
     expect(stored?.backendId).not.toBe(productionId);
     expect(stored?.orgId ?? null).toBeNull();
+  });
+
+  it("shows a generic error toast instead of throwing on unexpected org switch errors", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      new Error("unexpected failure"),
+    );
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    const user = await openDropdown();
+    await waitFor(() => {
+      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Production – Acme Inc"));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("ERROR$GENERIC");
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Unexpected error during org switch:",
+      expect.any(Error),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("falls back to the bundled backend when malformed cloud self-heal fails", async () => {
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      createAxiosError(500, "Server Error", { message: "switch failed" }),
+    );
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          const production = ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          });
+          ctx.setActive(production.id, null);
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-active-backend") ?? "null",
+      );
+      expect(stored?.backendId).toBe("__bundled__");
+      expect(stored?.orgId ?? null).toBeNull();
+    });
   });
 
   it("renders the backend footer actions and opens/closes the add modal", async () => {

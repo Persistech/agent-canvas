@@ -1177,6 +1177,8 @@ describe("ConversationPanel", () => {
       await waitFor(() => {
         expect(deleteSpy).toHaveBeenCalledTimes(2);
       });
+      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
+      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
       expect(displayErrorToast).toHaveBeenCalledWith(
         "1 conversation could not be deleted.",
       );
@@ -1226,6 +1228,8 @@ describe("ConversationPanel", () => {
       await waitFor(() => {
         expect(deleteSpy).toHaveBeenCalledTimes(2);
       });
+      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
+      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
       expect(displayErrorToast).toHaveBeenCalledWith(
         "1 conversation could not be deleted.",
       );

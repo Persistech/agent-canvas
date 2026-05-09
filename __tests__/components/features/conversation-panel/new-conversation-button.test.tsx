@@ -81,6 +81,21 @@ describe("NewConversationButton", () => {
     });
   });
 
+  it("dismisses the popover on Escape", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />);
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+    expect(screen.getByTestId("new-conversation-popover")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("new-conversation-popover"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("launches a conversation for the selected workspace", async () => {
     useWorkspacesStore.getState().addWorkspaces([
       {
@@ -100,7 +115,7 @@ describe("NewConversationButton", () => {
     });
 
     await user.click(screen.getByTestId("new-conversation-button"));
-    await user.click(screen.getByTestId("launch-workspace"));
+    await user.click(screen.getByRole("button", { name: "repo1" }));
 
     await waitFor(() => {
       expect(createSpy).toHaveBeenCalledWith(

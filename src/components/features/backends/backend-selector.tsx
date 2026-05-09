@@ -144,18 +144,38 @@ export function BackendSelector({
     const { backend } = active;
     const entry = cloudOrgs[backend.id];
     if (!entry || entry.orgs.length === 0) return;
+
+    let cancelled = false;
     const userId = currentUserIds[backend.id]?.userId ?? null;
     const personal = userId
       ? entry.orgs.find((o) => o.id === userId)
       : undefined;
     const target = personal ?? entry.orgs[0];
     if (!target) return;
-    switchOrg({ orgId: target.id, backend })
-      .then(() => setActive(backend.id, target.id))
+
+    void switchOrg({ orgId: target.id, backend })
+      .then(() => {
+        if (!cancelled) {
+          setActive(backend.id, target.id);
+        }
+      })
       .catch(() => {
-        // Error is surfaced by the mutation cache's global handler.
+        if (!cancelled) {
+          setActive(bundledBackend.id, null);
+        }
       });
-  }, [active, cloudOrgs, currentUserIds, setActive, switchOrg]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    bundledBackend.id,
+    cloudOrgs,
+    currentUserIds,
+    setActive,
+    switchOrg,
+  ]);
 
   const openAddBackendModal = React.useCallback(() => {
     setAddBackendModalOpen(true);
@@ -211,21 +231,27 @@ export function BackendSelector({
         onChange={async (item) => {
           if (!item || item.value === activeValue) return;
           const { backendId, orgId } = parseOptionValue(item.value);
-          const target = backends.find((b) => b.id === backendId);
+          const target =
+            backendId === bundledBackend.id
+              ? bundledBackend
+              : backends.find((b) => b.id === backendId);
+          if (!target) return;
 
           triggerEnvironmentSwitch(item.label);
           await new Promise<void>((resolve) => {
             setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
           });
 
-          if (orgId && target?.kind === "cloud") {
+          if (orgId && target.kind === "cloud") {
             try {
               await switchOrg({ orgId, backend: target });
             } catch (error) {
               dismissEnvironmentSwitch();
 
               if (!axios.isAxiosError(error)) {
-                throw error;
+                console.error("Unexpected error during org switch:", error);
+                displayErrorToast(t(I18nKey.ERROR$GENERIC));
+                return;
               }
 
               displayErrorToast(
@@ -238,7 +264,7 @@ export function BackendSelector({
           if (conversationMatch) navigate("/conversations");
           else if (automationDetailMatch) navigate("/automations");
 
-          setActive(backendId, orgId);
+          setActive(target.id, orgId);
         }}
         placeholder={bundledLabel}
         loading={someCloudLoading || isSwitching}
