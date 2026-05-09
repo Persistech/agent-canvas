@@ -1,6 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import {
+  LLM_PROFILES_QUERY_KEY,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 
 export function useActivateLlmProfile() {
   const queryClient = useQueryClient();
@@ -9,9 +13,9 @@ export function useActivateLlmProfile() {
     mutationFn: (name: string) => ProfilesService.activateProfile(name),
     onSuccess: () => {
       // Invalidate profiles list to refresh active_profile
-      queryClient.invalidateQueries({ queryKey: ["llm-profiles"] });
+      queryClient.invalidateQueries({ queryKey: [LLM_PROFILES_QUERY_KEY] });
       // Also invalidate settings since activating a profile changes agent_settings.llm
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEYS.all });
       // Invalidate the SettingsService internal cache so getSettingsForConversation
       // fetches fresh settings with the newly activated profile's LLM config
       SettingsService.invalidateCache();

@@ -43,9 +43,7 @@ class ProfilesService {
   ): Promise<ProfileDetailResponse> {
     const client = createProfilesClient();
     try {
-      const options: GetProfileOptions = exposeSecrets
-        ? { exposeSecrets }
-        : {};
+      const options: GetProfileOptions = exposeSecrets ? { exposeSecrets } : {};
       return await client.getProfile(name, options);
     } finally {
       client.close();

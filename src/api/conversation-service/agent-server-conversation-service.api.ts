@@ -1,6 +1,6 @@
+import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
-import { v4 as uuidv4 } from "uuid";
 import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
@@ -105,7 +105,6 @@ class AgentServerConversationService {
       };
       return createCloudAppConversation(request);
     }
-
 
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
@@ -269,9 +268,7 @@ class AgentServerConversationService {
       (DirectConversationInfo | null)[]
     >("/api/conversations", { params: { ids } });
 
-    return response.data.map((item) =>
-      item ? toAppConversation(item) : null,
-    );
+    return response.data.map((item) => (item ? toAppConversation(item) : null));
   }
 
   static async uploadFile(
@@ -430,8 +427,7 @@ class AgentServerConversationService {
       created_at: data.created_at,
       updated_at: data.updated_at,
       status:
-        (data.execution_status as RuntimeConversationInfo["status"]) ??
-        "idle",
+        (data.execution_status as RuntimeConversationInfo["status"]) ?? "idle",
       stats: data.stats ?? { usage_to_metrics: {} },
     };
   }

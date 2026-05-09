@@ -58,7 +58,7 @@ async function withRetry<T>(
       lastError = error;
       if (attempt < maxRetries - 1) {
         // Exponential backoff: 500ms, 1000ms, 2000ms
-        const delay = baseDelayMs * Math.pow(2, attempt);
+        const delay = baseDelayMs * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }

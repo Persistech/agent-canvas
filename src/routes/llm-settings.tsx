@@ -364,7 +364,9 @@ export function LlmSettingsScreen({
           // passing it back in the save request
           if (isEditing && !hasNewApiKey) {
             // Profile name to fetch - use the renamed name if we just renamed
-            const profileToFetch = nameChanged ? targetName : originalProfileName;
+            const profileToFetch = nameChanged
+              ? targetName
+              : originalProfileName;
             try {
               // Fetch the existing profile with encrypted secrets
               const existingProfile = await ProfilesService.getProfile(
@@ -442,7 +444,8 @@ export function LlmSettingsScreen({
   if (editMode !== "none") {
     // When adding a new profile, start with empty form values
     // When editing an existing profile, load values from settings
-    const initialValuesOverride = editMode === "add" ? emptyInitialValues : undefined;
+    const initialValuesOverride =
+      editMode === "add" ? emptyInitialValues : undefined;
 
     return (
       <div data-testid="llm-settings-screen" className="flex flex-col gap-4">

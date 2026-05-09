@@ -19,10 +19,12 @@ export function LlmProfilesManager({
 }: LlmProfilesManagerProps) {
   const { t } = useTranslation("openhands");
   const { data, isLoading, error } = useLlmProfiles();
-  const [profileToRename, setProfileToRename] =
-    useState<ProfileInfo | null>(null);
-  const [profileToDelete, setProfileToDelete] =
-    useState<ProfileInfo | null>(null);
+  const [profileToRename, setProfileToRename] = useState<ProfileInfo | null>(
+    null,
+  );
+  const [profileToDelete, setProfileToDelete] = useState<ProfileInfo | null>(
+    null,
+  );
 
   const profiles = data?.profiles ?? [];
 

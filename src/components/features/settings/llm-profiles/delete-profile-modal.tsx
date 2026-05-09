@@ -4,7 +4,10 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ApiKeyModalBase } from "#/components/features/settings/api-key-modal-base";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
-import { displayErrorToast, displaySuccessToast } from "#/utils/custom-toast-handlers";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
 interface DeleteProfileModalProps {

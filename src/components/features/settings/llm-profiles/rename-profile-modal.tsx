@@ -6,7 +6,10 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ApiKeyModalBase } from "#/components/features/settings/api-key-modal-base";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { useRenameLlmProfile } from "#/hooks/mutation/use-rename-llm-profile";
-import { displayErrorToast, displaySuccessToast } from "#/utils/custom-toast-handlers";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { PROFILE_NAME_PATTERN } from "#/utils/derive-profile-name";
 

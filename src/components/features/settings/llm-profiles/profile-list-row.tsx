@@ -58,9 +58,7 @@ export function ProfileListRow({
         )}
       </div>
       <div className="relative shrink-0 flex items-center gap-2">
-        {isActivating ? (
-          <LoadingSpinner size="small" />
-        ) : null}
+        {isActivating ? <LoadingSpinner size="small" /> : null}
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
