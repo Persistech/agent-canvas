@@ -16,6 +16,8 @@ export const SETTINGS_QUERY_KEYS = {
   personal: () => ["settings", "personal"] as const,
 } as const;
 
+export const LLM_PROFILES_QUERY_KEY = "llm-profiles" as const;
+
 /** Cache configuration shared across all config-related queries */
 export const CONFIG_CACHE_OPTIONS = {
   staleTime: 1000 * 60 * 5, // 5 minutes

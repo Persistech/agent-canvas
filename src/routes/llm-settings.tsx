@@ -18,6 +18,18 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import { LlmProfilesManager } from "#/components/features/settings/llm-profiles";
+import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import type { LlmProfileSummary } from "#/api/profiles-service/profiles-service.api";
+import {
+  deriveProfileNameFromModel,
+  PROFILE_NAME_PATTERN,
+} from "#/utils/derive-profile-name";
+import { ProfileNameInput } from "#/components/features/settings/llm-profiles/profile-name-input";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -102,6 +114,14 @@ export function LlmSettingsScreen({
     settings?.agent_settings_schema,
   );
 
+  const saveProfile = useSaveLlmProfile();
+
+  // Profile editing state
+  const [profileName, setProfileName] = React.useState("");
+  const [showProfileNameInput, setShowProfileNameInput] = React.useState(false);
+  // Used to track the model value for auto-saving as a profile
+  const lastSavedModelRef = React.useRef<string | null>(null);
+
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
       "",
@@ -171,6 +191,21 @@ export function LlmSettingsScreen({
 
       return (
         <div className="flex flex-col gap-6">
+          {showProfileNameInput && (
+            <ProfileNameInput
+              testId="llm-profile-name-input"
+              ruleTestId="llm-profile-name-rule"
+              value={profileName}
+              onChange={setProfileName}
+              placeholder={
+                modelValue
+                  ? deriveProfileNameFromModel(modelValue)
+                  : t(I18nKey.SETTINGS$PROFILE_NAME_PLACEHOLDER)
+              }
+              isOptional
+              isDisabled={isDisabled}
+            />
+          )}
           {view === "basic" ? (
             <div
               className="flex flex-col gap-6"
@@ -238,7 +273,13 @@ export function LlmSettingsScreen({
         </div>
       );
     },
-    [defaultModel, settings?.llm_api_key_set, t],
+    [
+      defaultModel,
+      profileName,
+      settings?.llm_api_key_set,
+      showProfileNameInput,
+      t,
+    ],
   );
 
   const buildPayload = React.useCallback(
@@ -264,18 +305,109 @@ export function LlmSettingsScreen({
     [schema],
   );
 
+  // Handler for auto-saving settings as a profile after save success
+  const handleSaveSuccess = React.useCallback(async () => {
+    // Only auto-save as profile if the profile name input was shown
+    if (!showProfileNameInput) {
+      return;
+    }
+
+    const savedModel = lastSavedModelRef.current;
+    const trimmedUserName = profileName.trim();
+    // Use the user-supplied name only if it matches the backend regex
+    const userName = PROFILE_NAME_PATTERN.test(trimmedUserName)
+      ? trimmedUserName
+      : null;
+    const derivedName = savedModel
+      ? deriveProfileNameFromModel(savedModel)
+      : null;
+    const name = userName || derivedName;
+
+    if (name) {
+      try {
+        // Omit `llm` → backend snapshots the just-saved agent_settings.llm
+        await saveProfile.mutateAsync({
+          name,
+          request: { include_secrets: true },
+        });
+        displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_SAVED, { name }));
+      } catch {
+        // Best-effort: the settings save already succeeded
+        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+      }
+    }
+
+    // Reset state
+    setProfileName("");
+    setShowProfileNameInput(false);
+  }, [profileName, saveProfile, showProfileNameInput, t]);
+
+  // Handler for "Add Profile" button
+  const handleAddProfile = React.useCallback(() => {
+    setProfileName("");
+    setShowProfileNameInput(true);
+  }, []);
+
+  // Handler for "Edit Profile" menu action
+  const handleEditProfile = React.useCallback(
+    (profile: LlmProfileSummary) => {
+      // Set editing state - the user can modify the form and save
+      // to update the profile with the current form values
+      setProfileName(profile.name);
+      setShowProfileNameInput(true);
+
+      // Show a toast indicating we're now in edit mode for this profile
+      displaySuccessToast(
+        t(I18nKey.SETTINGS$PROFILE_LOADED, { name: profile.name }),
+      );
+    },
+    [t],
+  );
+
+  // Update lastSavedModelRef in buildPayload
+  const buildPayloadWithTracking = React.useCallback(
+    (
+      basePayload: Record<string, unknown>,
+      context: {
+        values: Record<string, string | boolean>;
+        view: SettingsView;
+      },
+    ) => {
+      // Track the model for profile auto-save
+      const modelValue =
+        typeof context.values["llm.model"] === "string"
+          ? context.values["llm.model"]
+          : "";
+      lastSavedModelRef.current = modelValue || null;
+
+      return buildPayload(basePayload, context);
+    },
+    [buildPayload],
+  );
+
   return (
-    <SdkSectionPage
-      scope={scope}
-      sectionKeys={["llm"]}
-      excludeKeys={LLM_EXCLUDED_KEYS}
-      header={buildHeader}
-      buildPayload={buildPayload}
-      getInitialView={getInitialView}
-      forceShowAdvancedView
-      allowAllView
-      testId="llm-settings-screen"
-    />
+    <div className="flex flex-col gap-8">
+      <SdkSectionPage
+        scope={scope}
+        sectionKeys={["llm"]}
+        excludeKeys={LLM_EXCLUDED_KEYS}
+        header={buildHeader}
+        buildPayload={buildPayloadWithTracking}
+        getInitialView={getInitialView}
+        forceShowAdvancedView
+        allowAllView
+        onSaveSuccess={handleSaveSuccess}
+        testId="llm-settings-screen"
+      />
+
+      {/* LLM Profiles Section */}
+      <div className="border-t border-tertiary pt-8">
+        <LlmProfilesManager
+          onAddProfile={handleAddProfile}
+          onEditProfile={handleEditProfile}
+        />
+      </div>
+    </div>
   );
 }
 
