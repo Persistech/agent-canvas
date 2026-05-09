@@ -2,6 +2,7 @@
  * ProfilesService provides a thin wrapper around the SDK's ProfilesClient,
  * creating a client per-call to pick up current backend configuration.
  *
+ * Uses ProfilesClient from @openhands/typescript-client (PR #148).
  * All types are re-exported from the SDK for consumer convenience.
  */
 import {
