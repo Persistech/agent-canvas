@@ -267,4 +267,114 @@ describe("LlmSettingsScreen", () => {
     });
   });
 
+  it("preserves form values when changing profile name", async () => {
+    const user = userEvent.setup();
+    
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "openai/gpt-4o",
+        llm_api_key_set: true,
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "openai/gpt-4o",
+            api_key: null,
+            base_url: "",
+          },
+        },
+      }),
+    );
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({ 
+      profiles: [], 
+      active_profile: null 
+    });
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+
+    // Click Add LLM Profile button
+    await user.click(screen.getByTestId("add-llm-profile"));
+
+    // Wait for the form to appear
+    await waitFor(() => {
+      expect(screen.getByTestId("llm-profile-form")).toBeInTheDocument();
+    });
+
+    // Find the API key input and type a value
+    const apiKeyInput = screen.getByTestId("llm-api-key-input");
+    await user.type(apiKeyInput, "sk-test-api-key");
+    
+    // Verify the value was entered
+    expect(apiKeyInput).toHaveValue("sk-test-api-key");
+
+    // Now change the profile name
+    const profileNameInput = screen.getByTestId("llm-profile-name-input");
+    await user.type(profileNameInput, "my_custom_profile");
+
+    // Verify profile name was entered
+    expect(profileNameInput).toHaveValue("my_custom_profile");
+
+    // CRITICAL: The API key should still have its value after changing profile name
+    // This was a bug where changing profile name would wipe out other form values
+    expect(apiKeyInput).toHaveValue("sk-test-api-key");
+  });
+
+  it("preserves form values when changing profile name after selecting model", async () => {
+    const user = userEvent.setup();
+    
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "",
+        llm_api_key_set: false,
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "",
+            api_key: null,
+            base_url: "",
+          },
+        },
+      }),
+    );
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({ 
+      profiles: [], 
+      active_profile: null 
+    });
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+
+    // Click Add LLM Profile button
+    await user.click(screen.getByTestId("add-llm-profile"));
+
+    // Wait for the form to appear
+    await waitFor(() => {
+      expect(screen.getByTestId("llm-profile-form")).toBeInTheDocument();
+    });
+
+    // Find the API key input and type a value first
+    const apiKeyInput = screen.getByTestId("llm-api-key-input");
+    await user.type(apiKeyInput, "sk-another-api-key");
+    expect(apiKeyInput).toHaveValue("sk-another-api-key");
+
+    // Type in the profile name field
+    const profileNameInput = screen.getByTestId("llm-profile-name-input");
+    await user.clear(profileNameInput);
+    await user.type(profileNameInput, "test_profile");
+    expect(profileNameInput).toHaveValue("test_profile");
+
+    // API key should STILL have its value
+    expect(apiKeyInput).toHaveValue("sk-another-api-key");
+
+    // Now clear and type a different profile name
+    await user.clear(profileNameInput);
+    await user.type(profileNameInput, "different_name");
+    expect(profileNameInput).toHaveValue("different_name");
+
+    // API key should STILL be preserved
+    expect(apiKeyInput).toHaveValue("sk-another-api-key");
+  });
+
 });

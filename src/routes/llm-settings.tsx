@@ -434,11 +434,15 @@ export function LlmSettingsScreen({
     setEditMode("none");
   }, []);
 
+  // Stable empty object for new profile form - must not create new reference on every render
+  // Otherwise SdkSectionPage will reset form values when parent re-renders (e.g., profile name change)
+  const emptyInitialValues = React.useMemo(() => ({}), []);
+
   // If we're in form mode, show the settings form
   if (editMode !== "none") {
     // When adding a new profile, start with empty form values
     // When editing an existing profile, load values from settings
-    const initialValuesOverride = editMode === "add" ? {} : undefined;
+    const initialValuesOverride = editMode === "add" ? emptyInitialValues : undefined;
 
     return (
       <div data-testid="llm-settings-screen" className="flex flex-col gap-4">
