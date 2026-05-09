@@ -127,6 +127,8 @@ export default defineConfig(({ mode }) => {
         "prop-types",
         "react-is",
         "@heroui/react",
+        "lucide-react",
+        "react-icons/fa6",
         "@microlink/react-json-view",
         "socket.io-client",
         // These are discovered when launching conversations:
