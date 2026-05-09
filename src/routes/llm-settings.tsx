@@ -15,6 +15,7 @@ import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import {
   inferInitialView,
+  type SettingsFormValues,
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
@@ -122,7 +123,6 @@ export function LlmSettingsScreen({
   // Edit mode: "none" = show profiles list, "add" = new profile form, "edit" = editing existing
   const [editMode, setEditMode] = React.useState<EditMode>("none");
   const [profileName, setProfileName] = React.useState("");
-  const lastSavedModelRef = React.useRef<string | null>(null);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -294,46 +294,61 @@ export function LlmSettingsScreen({
         agentSettings.llm = llm;
       }
 
-      // Track the model for profile auto-save
-      const modelValue =
-        typeof context.values["llm.model"] === "string"
-          ? context.values["llm.model"]
-          : "";
-      lastSavedModelRef.current = modelValue || null;
-
       return { agent_settings_diff: agentSettings };
     },
     [schema],
   );
 
   // Handler for save success - saves the profile and returns to list view
-  const handleSaveSuccess = React.useCallback(async () => {
-    const savedModel = lastSavedModelRef.current;
-    const trimmedUserName = profileName.trim();
-    const userName = PROFILE_NAME_PATTERN.test(trimmedUserName)
-      ? trimmedUserName
-      : null;
-    const derivedName = savedModel
-      ? deriveProfileNameFromModel(savedModel)
-      : null;
-    const name = userName || derivedName;
+  const handleSaveSuccess = React.useCallback(
+    async (savedValues: SettingsFormValues) => {
+      const modelValue =
+        typeof savedValues["llm.model"] === "string"
+          ? savedValues["llm.model"]
+          : "";
+      const apiKeyValue =
+        typeof savedValues["llm.api_key"] === "string"
+          ? savedValues["llm.api_key"]
+          : undefined;
+      const baseUrlValue =
+        typeof savedValues["llm.base_url"] === "string"
+          ? savedValues["llm.base_url"]
+          : undefined;
 
-    if (name) {
-      try {
-        await saveProfile.mutateAsync({
-          name,
-          request: { include_secrets: true },
-        });
-        displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_SAVED, { name }));
-      } catch {
-        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+      const trimmedUserName = profileName.trim();
+      const userName = PROFILE_NAME_PATTERN.test(trimmedUserName)
+        ? trimmedUserName
+        : null;
+      const derivedName = modelValue
+        ? deriveProfileNameFromModel(modelValue)
+        : null;
+      const name = userName || derivedName;
+
+      if (name && modelValue) {
+        try {
+          await saveProfile.mutateAsync({
+            name,
+            request: {
+              llm: {
+                model: modelValue,
+                api_key: apiKeyValue || null,
+                base_url: baseUrlValue || null,
+              },
+              include_secrets: true,
+            },
+          });
+          displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_SAVED, { name }));
+        } catch {
+          displayErrorToast(t(I18nKey.ERROR$GENERIC));
+        }
       }
-    }
 
-    // Reset state and return to list view
-    setProfileName("");
-    setEditMode("none");
-  }, [profileName, saveProfile, t]);
+      // Reset state and return to list view
+      setProfileName("");
+      setEditMode("none");
+    },
+    [profileName, saveProfile, t],
+  );
 
   // Handler for "Add Profile" button
   const handleAddProfile = React.useCallback(() => {

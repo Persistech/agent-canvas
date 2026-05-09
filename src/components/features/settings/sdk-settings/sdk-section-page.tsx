@@ -140,7 +140,11 @@ export function SdkSectionPage({
       view: SettingsView;
     },
   ) => Record<string, unknown>;
-  onSaveSuccess?: () => void;
+  /**
+   * Called after settings are saved successfully.
+   * Receives the form values that were saved.
+   */
+  onSaveSuccess?: (savedValues: SettingsFormValues) => void;
   getInitialView?: (
     settings: Settings,
     filteredSchema: SettingsSchema,
@@ -320,7 +324,7 @@ export function SdkSectionPage({
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
         setDirty({});
-        onSaveSuccess?.();
+        onSaveSuccess?.(values);
       },
     });
   };
