@@ -8,6 +8,10 @@ import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useAllCloudOrganizations } from "#/hooks/query/use-cloud-organizations";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
+import {
+  useBackendsHealth,
+  type BackendHealth,
+} from "#/hooks/query/use-backends-health";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
@@ -19,6 +23,7 @@ import {
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AddBackendModal } from "./add-backend-modal";
+import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
 
 const VALUE_SEPARATOR = "::";
@@ -35,6 +40,10 @@ function parseOptionValue(value: string): {
   return { backendId, orgId: orgId ?? null };
 }
 
+function buildStatusPrefix(health: BackendHealth | undefined) {
+  return <BackendStatusDot isConnected={health?.isConnected ?? null} />;
+}
+
 function buildOptions(
   bundled: Backend,
   registered: Backend[],
@@ -42,22 +51,36 @@ function buildOptions(
   personalWorkspaceLabel: string,
   cloudOrgs: ReturnType<typeof useAllCloudOrganizations>,
   currentUserIds: ReturnType<typeof useCloudCurrentUserId>,
+  healthByBackendId: Record<string, BackendHealth>,
 ): DropdownOption[] {
   const options: DropdownOption[] = [
-    { value: makeOptionValue(bundled.id, null), label: bundledLabel },
+    {
+      value: makeOptionValue(bundled.id, null),
+      label: bundledLabel,
+      prefix: buildStatusPrefix(healthByBackendId[bundled.id]),
+    },
   ];
 
   const locals = registered.filter((b) => b.kind === "local");
   const clouds = registered.filter((b) => b.kind === "cloud");
 
   for (const b of locals) {
-    options.push({ value: makeOptionValue(b.id, null), label: b.name });
+    options.push({
+      value: makeOptionValue(b.id, null),
+      label: b.name,
+      prefix: buildStatusPrefix(healthByBackendId[b.id]),
+    });
   }
 
   for (const b of clouds) {
     const entry = cloudOrgs[b.id];
+    const prefix = buildStatusPrefix(healthByBackendId[b.id]);
     if (!entry || entry.orgs.length === 0) {
-      options.push({ value: makeOptionValue(b.id, null), label: b.name });
+      options.push({
+        value: makeOptionValue(b.id, null),
+        label: b.name,
+        prefix,
+      });
     } else {
       // Personal-workspace rule (per the SaaS contract): the org whose
       // id matches the calling user's id is the user's personal
@@ -71,6 +94,9 @@ function buildOptions(
         options.push({
           value: makeOptionValue(b.id, org.id),
           label: `${b.name} – ${orgLabel}`,
+          // All org rows for the same cloud backend share that backend's
+          // single connectivity verdict — there is no per-org probe.
+          prefix,
         });
       }
     }
@@ -92,6 +118,14 @@ export function BackendSelector({
     useActiveBackendContext();
   const cloudOrgs = useAllCloudOrganizations();
   const currentUserIds = useCloudCurrentUserId();
+  // Probe the bundled backend AND each registered backend every 10s.
+  // The bundled backend is always a separate row in the dropdown, so it
+  // needs its own probe even when the registered list is empty.
+  const allBackends = React.useMemo(
+    () => [bundledBackend, ...backends],
+    [bundledBackend, backends],
+  );
+  const healthByBackendId = useBackendsHealth(allBackends);
   const { mutateAsync: switchOrg, isPending: isSwitching } =
     useSwitchCloudOrganization();
   const navigate = useNavigate();
@@ -113,6 +147,7 @@ export function BackendSelector({
         personalWorkspaceLabel,
         cloudOrgs,
         currentUserIds,
+        healthByBackendId,
       ),
     [
       bundledBackend,
@@ -121,6 +156,7 @@ export function BackendSelector({
       personalWorkspaceLabel,
       cloudOrgs,
       currentUserIds,
+      healthByBackendId,
     ],
   );
 
@@ -231,7 +267,11 @@ export function BackendSelector({
         testId="backend-selector"
         key={`${activeValue}-${activeOption?.label ?? ""}`}
         defaultValue={
-          activeOption ?? { value: activeValue, label: bundledLabel }
+          activeOption ?? {
+            value: activeValue,
+            label: bundledLabel,
+            prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
+          }
         }
         footer={addBackendFooter}
         openUpward={openUpward}
