@@ -32,6 +32,15 @@ export class AgentServerUnavailableError extends Error {
   }
 }
 
+function createAgentServerAuthenticationError(details?: string | null) {
+  const error = new AgentServerUnavailableError(
+    details ??
+      "Agent server requires a valid X-Session-API-Key before the frontend can connect.",
+  );
+  error.name = "AgentServerAuthenticationError";
+  return error;
+}
+
 export const isAgentServerUnavailableError = (
   error: unknown,
 ): error is AgentServerUnavailableError =>
@@ -39,7 +48,22 @@ export const isAgentServerUnavailableError = (
   (typeof error === "object" &&
     error !== null &&
     "name" in error &&
-    error.name === "AgentServerUnavailableError");
+    (error.name === "AgentServerUnavailableError" ||
+      error.name === "AgentServerAuthenticationError"));
+
+function getHttpStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null) return null;
+
+  const { status } = error as { status?: unknown };
+  if (typeof status === "number") return status;
+
+  const { statusCode } = error as { statusCode?: unknown };
+  if (typeof statusCode === "number") return statusCode;
+
+  const { response } = error as { response?: { status?: unknown } };
+  const responseStatus = response?.status;
+  return typeof responseStatus === "number" ? responseStatus : null;
+}
 
 export function clearCachedAgentServerInfo() {
   cachedAgentServerInfo = null;
@@ -69,8 +93,15 @@ export async function loadAgentServerInfo() {
     }).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
-    if (error instanceof HttpError) {
-      throw error;
+    const status = getHttpStatus(error);
+    if (status === 401 || status === 403) {
+      throw createAgentServerAuthenticationError(`HTTP ${status}`);
+    }
+
+    if (error instanceof HttpError || status !== null) {
+      throw new AgentServerUnavailableError(
+        status === null ? null : `HTTP ${status}`,
+      );
     }
 
     const details = error instanceof Error ? error.message : null;

@@ -115,13 +115,6 @@ function resolveAgentServerBaseUrl(baseUrl: string | null): string | null {
   return baseUrl;
 }
 
-export function getAgentServerFormDefaults(): AgentServerFormDefaults {
-  return {
-    baseUrl: getConfiguredBaseUrl() ?? "",
-    sessionApiKey: getConfiguredSessionApiKey() ?? "",
-  };
-}
-
 export function saveAgentServerConfig(config: AgentServerFormDefaults): void {
   const currentConfig = readStoredConfig();
 
@@ -141,6 +134,13 @@ export function getAgentServerBaseUrl(): string {
   }
 
   return "http://127.0.0.1:8000";
+}
+
+export function getAgentServerFormDefaults(): AgentServerFormDefaults {
+  return {
+    baseUrl: getAgentServerBaseUrl(),
+    sessionApiKey: getConfiguredSessionApiKey() ?? "",
+  };
 }
 
 export function getAgentServerSessionApiKey(): string | null {

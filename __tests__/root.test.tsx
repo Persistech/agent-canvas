@@ -9,14 +9,25 @@ import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store"
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 const TRANSLATIONS: Record<string, string> = {
-  "BACKEND$MANAGE_TITLE": "Manage backends",
-  "BACKEND$MANAGE_EMPTY": "No backends yet.",
-  "BACKEND$ADD": "+ Add Backend",
-  "BACKEND$KIND_LOCAL": "Local",
-  "BACKEND$KIND_CLOUD": "Cloud",
-  "BACKEND$EDIT": "Edit",
-  "BACKEND$REMOVE": "Remove",
-  "HOME$DONE": "Done",
+  BACKEND$MANAGE_TITLE: "Manage backends",
+  BACKEND$MANAGE_EMPTY: "No backends yet.",
+  BACKEND$ADD: "+ Add Backend",
+  BACKEND$KIND_LOCAL: "Local",
+  BACKEND$KIND_CLOUD: "Cloud",
+  BACKEND$EDIT: "Edit",
+  BACKEND$REMOVE: "Remove",
+  HOME$DONE: "Done",
+  SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE: "Agent server connection",
+  SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_DESCRIPTION:
+    "Enter connection details.",
+  SETTINGS$AGENT_SERVER_URL: "Agent server URL",
+  SETTINGS$AGENT_SERVER_URL_PLACEHOLDER: "http://127.0.0.1:8000",
+  SETTINGS$AGENT_SERVER_API_KEY: "Session API key",
+  SETTINGS$AGENT_SERVER_API_KEY_PLACEHOLDER: "Enter your session API key",
+  SETTINGS$AGENT_SERVER_BROWSER_ONLY_NOTE: "Saved in this browser only.",
+  SETTINGS$AGENT_SERVER_RETRY_CONNECTION: "Retry connection",
+  SETTINGS$SAVE_AND_RECONNECT: "Save and reconnect",
+  COMMON$OPTIONAL: "Optional",
 };
 
 vi.mock("react-i18next", () => ({
@@ -65,7 +76,6 @@ describe("App root agent-server availability guard", () => {
     __resetActiveStoreForTests();
   });
 
-
   it("renders the routed page even when the connected server reports an old version", async () => {
     server.use(
       http.get("/server_info", () =>
@@ -98,7 +108,7 @@ describe("App root agent-server availability guard", () => {
     });
   });
 
-  it("shows the manage-backends modal when the backend is unreachable", async () => {
+  it("shows the agent-server connection form when the backend is unreachable", async () => {
     let serverInfoRequests = 0;
 
     server.use(
@@ -116,15 +126,33 @@ describe("App root agent-server availability guard", () => {
       ).toBeInTheDocument();
     });
 
-    // The onboarding placeholder now hosts the Manage Backends modal
-    // directly so the user can edit/add a backend immediately. The
-    // modal additionally probes /server_info per registered backend
-    // for its status dot + version label, so the request count is
-    // bounded but greater than the single config probe.
     await waitFor(() => {
-      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("agent-server-connection-form"),
+      ).toBeInTheDocument();
     });
     expect(serverInfoRequests).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
+  });
+
+  it("shows the agent-server connection form when the backend requires a session API key", async () => {
+    server.use(
+      http.get("/server_info", () =>
+        HttpResponse.json({ detail: "Unauthorized" }, { status: 401 }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("agent-server-connection-form"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("agent-server-api-key-input")).toHaveValue("");
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 

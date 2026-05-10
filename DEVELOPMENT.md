@@ -16,11 +16,21 @@ It uses `uvx` to run a temporary `agent-server` installation for this checkout o
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Ingress port | `8000` |
-| `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
-| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
+| Variable                  | Description                    | Default |
+| ------------------------- | ------------------------------ | ------- |
+| `PORT`                    | Ingress port                   | `8000`  |
+| `OH_AUTOMATION_GIT_REF`   | Git ref for automation backend | `main`  |
+| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server       | `main`  |
+
+### Remote static stack
+
+Use this when serving the UI from a VM or another machine over the network:
+
+```sh
+npm run dev:remote -- --port 8000
+```
+
+This is `dev:static -- --remote`: it builds the production frontend, exposes the ingress port, keeps internal services on `127.0.0.1`, and clears `VITE_SESSION_API_KEY` for the frontend build so the browser must provide the session API key through the Agent Server connection screen.
 
 ### Alternative: Minimal Mode (without Automation)
 

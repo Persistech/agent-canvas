@@ -50,6 +50,15 @@ describe("agent server config", () => {
     expect(getAgentServerBaseUrl()).toBe("https://agent.example.com");
   });
 
+  it("prefills the connection form with the browser origin when no backend URL is configured", () => {
+    mockWindowLocation("https://canvas.example.dev/settings");
+
+    expect(getAgentServerFormDefaults()).toEqual({
+      baseUrl: "https://canvas.example.dev",
+      sessionApiKey: "",
+    });
+  });
+
   it("prefills the settings form from environment defaults when local settings are empty", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "https://env-agent.example.com/");
     vi.stubEnv("VITE_SESSION_API_KEY", "env-session-key");

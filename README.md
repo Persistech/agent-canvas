@@ -25,6 +25,7 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 ### With Docker (recommended)
 
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - Docker
@@ -47,6 +48,7 @@ Access the UI at [http://localhost:8000](http://localhost:8000)
 > This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - `uv` (for running the agent server via `uvx`)
@@ -59,6 +61,16 @@ npm run dev:dangerously-dockerless
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
+
+### Remote VM / internet access
+
+To serve Agent Canvas from a VM, use the static remote stack:
+
+```sh
+npm run dev:remote -- --port 8000
+```
+
+Expose only the ingress port (default `8000`) through your firewall or reverse proxy. The agent-server, automation backend, and static-file server bind to `127.0.0.1`; the public ingress forwards `/api`, `/sockets`, and the UI. The frontend build intentionally does **not** bundle `VITE_SESSION_API_KEY`. When you open the UI in a browser, enter the session API key from `~/.openhands/agent-canvas/session-api-key.txt` (or your `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` value) on the Agent Server connection screen.
 
 # Architecture
 
