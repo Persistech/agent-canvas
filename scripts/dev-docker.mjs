@@ -68,8 +68,13 @@ const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
 
 // Docker image for the agent-server.
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
-// Default tag used when OH_AGENT_SERVER_GIT_REF is not set. Update to upgrade.
-const DEFAULT_AGENT_SERVER_TAG = "0924962-python";
+// Default tag used when OH_AGENT_SERVER_GIT_REF is not set.
+// Uses `main-python` which tracks the latest main branch build. This is
+// rebuilt on every push to main, so it stays current with SDK releases.
+// NOTE: Versioned tags (e.g., `1.21.1-python`) are planned but not yet
+// available — see https://linear.app/all-hands-ai/issue/AGE-1518.
+// Once resolved, update this to use a pinned release version tag.
+const DEFAULT_AGENT_SERVER_TAG = "main-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
