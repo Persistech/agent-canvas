@@ -41,7 +41,11 @@ jobs:
       - name: Verify package contents
         run: npm pack --dry-run
 
+      # Trusted publishing uses OIDC - no NPM_TOKEN needed!
+      # Requires: npm CLI 11.5.1+ and trusted publisher configured on npmjs.com
+      # See: https://docs.npmjs.com/trusted-publishers/
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@latest
+
       - name: Publish to npm with provenance
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
