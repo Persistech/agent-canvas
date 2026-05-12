@@ -26,6 +26,16 @@ interface EditingProfile {
   initialValues: SettingsFormValues;
 }
 
+/**
+ * LlmSettingsLocalView provides an integrated view for managing LLM profiles
+ * in local agent-server mode. It supports listing, creating, and editing profiles.
+ *
+ * Note: This component manages multiple responsibilities (view state, validation,
+ * form coordination, save logic). A future refactoring could extract these into
+ * separate hooks (e.g., useProfileForm, useProfileSave) for better testability.
+ * See PR review feedback for details.
+ */
+
 export function LlmSettingsLocalView() {
   const { t } = useTranslation("openhands");
   const saveProfile = useSaveLlmProfile();
@@ -109,12 +119,17 @@ export function LlmSettingsLocalView() {
     (control: SdkSectionSaveControl) => {
       setSaveControl(control);
 
-      // Auto-derive profile name from model in create mode
+      // Auto-derive profile name from model in create mode.
+      // Note: The uniqueness check uses existingNames from state, which is derived
+      // from profilesData at component render time. If another client creates a
+      // profile with the same derived name while this form is open, the client-side
+      // check would pass but the server save would fail with a conflict error.
+      // This is acceptable for the current use case; the server error is handled
+      // gracefully in handleSave.
       if (viewMode === "create" && !profileName) {
         const modelValue = control.values["llm.model"];
         if (typeof modelValue === "string" && modelValue) {
           const derived = deriveProfileNameFromModel(modelValue);
-          // Only set if it won't conflict
           if (!existingNames.has(derived)) {
             setProfileName(derived);
           }
@@ -145,14 +160,21 @@ export function LlmSettingsLocalView() {
       // Build the LLM config object
       const llmConfig: Record<string, unknown> = { model };
 
-      // Only include api_key if user entered one (preserve existing if editing)
+      // API key handling:
+      // - If user entered a new key, use it
+      // - In edit mode with no new key, preserve the existing encrypted key
+      //   (fetched with exposeSecrets='encrypted' and passed back to server)
+      // - In create mode with no key, omit api_key entirely
+      //
+      // Note: The current UX doesn't support explicitly clearing an API key.
+      // If needed, a future enhancement could add a "Clear API Key" option.
+      // The encrypted key format is stable and can be round-tripped to the server.
       if (apiKey) {
         llmConfig.api_key = apiKey;
       } else if (
         viewMode === "edit" &&
         editingProfile?.initialValues["llm.api_key"]
       ) {
-        // Preserve existing encrypted key when editing and no new key provided
         llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
       }
 

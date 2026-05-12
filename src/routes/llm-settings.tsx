@@ -306,6 +306,11 @@ export function LlmSettingsScreen({
  * Default export for the route renders the integrated profiles + settings view.
  * The LlmSettingsScreen component is also exported for embedded use cases
  * (e.g., onboarding, profile editing forms).
+ *
+ * Note: This default export changed from directly rendering LlmSettingsScreen
+ * to rendering LlmSettingsLocalView. Since this is a route file, only the
+ * router should import the default export. Other consumers should use the
+ * named export `LlmSettingsScreen` for embedded use cases.
  */
 export default function LlmSettingsRoute() {
   return <LlmSettingsLocalView />;
