@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import LlmSettingsScreen from "#/routes/llm-settings";
+// Import the named export LlmSettingsScreen directly for testing the form component.
+// The default export now renders LlmSettingsLocalView (the profiles manager view).
+import { LlmSettingsScreen } from "#/routes/llm-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
