@@ -325,7 +325,10 @@ function LlmSettingsCloudView({
  * Local mode LLM settings - renders the profile management UI.
  * Profiles are only available in local agent-server mode.
  */
-function LlmSettingsLocalView({ scope = "personal" }: LlmSettingsScreenProps) {
+function LlmSettingsLocalView({
+  scope = "personal",
+  onSaveSuccess: parentOnSaveSuccess,
+}: LlmSettingsScreenProps) {
   const { t } = useTranslation("openhands");
 
   const { data: settings } = useSettings(scope);
@@ -544,87 +547,110 @@ function LlmSettingsLocalView({ scope = "personal" }: LlmSettingsScreenProps) {
         : null;
       const targetName = userName || derivedName;
 
-      if (targetName && modelValue) {
-        try {
-          // When editing an existing profile, check if name changed
-          const isEditing = editMode === "edit" && originalProfileName;
-          const nameChanged = isEditing && targetName !== originalProfileName;
+      // Validate required fields
+      if (!targetName || !modelValue) {
+        displayErrorToast(t(I18nKey.SETTINGS$PROFILE_NAME_AND_MODEL_REQUIRED));
+        return;
+      }
 
-          if (nameChanged) {
-            // Rename first, then save config to the new name
-            await renameProfile.mutateAsync({
-              name: originalProfileName,
-              newName: targetName,
-            });
-          }
+      try {
+        // When editing an existing profile, check if name changed
+        const isEditing = editMode === "edit" && originalProfileName;
+        const nameChanged = isEditing && targetName !== originalProfileName;
 
-          // Check if user provided a new API key
-          const hasNewApiKey = apiKeyValue && apiKeyValue.trim().length > 0;
-
-          // Build LLM config using SDK's LLM type shape
-          const llmConfig: {
-            model: string;
-            base_url?: string;
-            api_key?: string;
-          } & Record<string, unknown> = {
-            model: modelValue,
-            ...(baseUrlValue ? { base_url: baseUrlValue } : {}),
-          };
-
-          // When editing an existing profile without a new API key, we need to
-          // preserve the existing API key by fetching it with encryption and
-          // passing it back in the save request
-          if (isEditing && !hasNewApiKey) {
-            // Profile name to fetch - use the renamed name if we just renamed
-            const profileToFetch = nameChanged
-              ? targetName
-              : originalProfileName;
-            try {
-              // Fetch the existing profile with encrypted secrets
-              const existingProfile = await ProfilesService.getProfile(
-                profileToFetch,
-                "encrypted",
-              );
-              // Preserve the encrypted API key if it exists
-              const existingApiKey = existingProfile.config?.api_key;
-              if (
-                existingApiKey &&
-                typeof existingApiKey === "string" &&
-                existingApiKey.trim()
-              ) {
-                llmConfig.api_key = existingApiKey;
-              }
-            } catch {
-              // If we can't fetch the existing profile, proceed without the API key
-              // This is a best-effort preservation
-            }
-          } else if (hasNewApiKey) {
-            llmConfig.api_key = apiKeyValue;
-          }
-
-          // Save the profile config (to existing name or renamed profile)
-          // include_secrets should be true when we have any api_key to save
-          await saveProfile.mutateAsync({
-            name: targetName,
-            request: {
-              llm: llmConfig,
-              include_secrets: Boolean(llmConfig.api_key),
-            },
+        if (nameChanged) {
+          // Rename first, then save config to the new name
+          await renameProfile.mutateAsync({
+            name: originalProfileName,
+            newName: targetName,
           });
-          displaySuccessToast(
-            t(I18nKey.SETTINGS$PROFILE_SAVED, { name: targetName }),
-          );
-
-          // Reset state only on success - must be inside try block to avoid data loss on error
-          setProfileName("");
-          setOriginalProfileName(null);
-          setEditMode("none");
-        } catch {
-          displayErrorToast(t(I18nKey.ERROR$GENERIC));
         }
+
+        // Check if user provided a new API key
+        const hasNewApiKey = apiKeyValue && apiKeyValue.trim().length > 0;
+
+        // Build LLM config using SDK's LLM type shape
+        const llmConfig: {
+          model: string;
+          base_url?: string;
+          api_key?: string;
+        } & Record<string, unknown> = {
+          model: modelValue,
+          ...(baseUrlValue ? { base_url: baseUrlValue } : {}),
+        };
+
+        // When editing an existing profile without a new API key, we need to
+        // preserve the existing API key by fetching it with encryption and
+        // passing it back in the save request
+        if (isEditing && !hasNewApiKey) {
+          // Profile name to fetch - use the renamed name if we just renamed
+          const profileToFetch = nameChanged ? targetName : originalProfileName;
+          try {
+            // Fetch the existing profile with encrypted secrets
+            const existingProfile = await ProfilesService.getProfile(
+              profileToFetch,
+              "encrypted",
+            );
+            // Preserve the encrypted API key if it exists
+            const existingApiKey = existingProfile.config?.api_key;
+            if (
+              existingApiKey &&
+              typeof existingApiKey === "string" &&
+              existingApiKey.trim()
+            ) {
+              llmConfig.api_key = existingApiKey;
+            }
+          } catch (fetchError) {
+            // Log and abort save if we can't fetch existing profile - prevents data loss
+            console.error(
+              "Failed to fetch existing profile for API key preservation:",
+              fetchError,
+            );
+            displayErrorToast(
+              t(I18nKey.ERROR$FAILED_TO_LOAD_PROFILE_TRY_AGAIN),
+            );
+            return;
+          }
+        } else if (hasNewApiKey) {
+          llmConfig.api_key = apiKeyValue;
+        }
+
+        // Save the profile config (to existing name or renamed profile)
+        // include_secrets should be true when we have any api_key to save
+        await saveProfile.mutateAsync({
+          name: targetName,
+          request: {
+            llm: llmConfig,
+            include_secrets: Boolean(llmConfig.api_key),
+          },
+        });
+        displaySuccessToast(
+          t(I18nKey.SETTINGS$PROFILE_SAVED, { name: targetName }),
+        );
+
+        // Reset state only on success - must be inside try block to avoid data loss on error
+        setProfileName("");
+        setOriginalProfileName(null);
+        setEditMode("none");
+
+        // Invoke parent callback after successful save
+        parentOnSaveSuccess?.();
+      } catch (error) {
+        console.error("Failed to save profile:", error);
+        const message =
+          error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC);
+        displayErrorToast(message);
       }
     },
-    [editMode, originalProfileName, profileName, renameProfile, saveProfile, t],
+    [
+      editMode,
+      originalProfileName,
+      profileName,
+      renameProfile,
+      saveProfile,
+      t,
+      parentOnSaveSuccess,
+    ],
   );
 
   // Handler for "Add Profile" button

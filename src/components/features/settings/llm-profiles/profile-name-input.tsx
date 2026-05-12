@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { PROFILE_NAME_PATTERN } from "#/utils/derive-profile-name";
@@ -36,6 +37,10 @@ export function ProfileNameInput({
     ? `${t(I18nKey.SETTINGS$PROFILE_NAME_LABEL)} (${t(I18nKey.COMMON$OPTIONAL)})`
     : t(I18nKey.SETTINGS$PROFILE_NAME_LABEL);
 
+  // Generate a stable ID for the rule element to link with aria-describedby
+  const ruleId = React.useId();
+  const describedById = ruleTestId ?? `${ruleId}-rule`;
+
   return (
     <div className="flex flex-col gap-2">
       <SettingsInput
@@ -49,8 +54,11 @@ export function ProfileNameInput({
         }
         onChange={onChange}
         isDisabled={isDisabled}
+        ariaDescribedBy={describedById}
+        ariaInvalid={!isValid}
       />
       <p
+        id={describedById}
         data-testid={ruleTestId}
         className={`text-xs ${isValid ? "text-gray-400" : "text-red-400"}`}
       >

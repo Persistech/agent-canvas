@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import ProfilesService, {
   type SaveProfileRequest,
 } from "#/api/profiles-service/profiles-service.api";
+import SettingsService from "#/api/settings-service/settings-service.api";
 import {
   LLM_PROFILES_QUERY_KEY,
   SETTINGS_QUERY_KEYS,
@@ -20,6 +21,9 @@ export function useSaveLlmProfile() {
       await ProfilesService.saveProfile(name, request);
     },
     onSuccess: () => {
+      // Invalidate SettingsService internal cache to ensure fresh settings
+      // for new conversations (especially if saving the active profile)
+      SettingsService.invalidateCache();
       queryClient.invalidateQueries({ queryKey: [LLM_PROFILES_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEYS.all });
     },

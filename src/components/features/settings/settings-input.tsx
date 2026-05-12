@@ -22,6 +22,10 @@ interface SettingsInputProps {
   /** Validation message shown when pattern doesn't match */
   title?: string;
   labelClassName?: string;
+  /** ARIA describedby attribute for accessibility */
+  ariaDescribedBy?: string;
+  /** ARIA invalid attribute for accessibility */
+  ariaInvalid?: boolean;
 }
 
 export function SettingsInput({
@@ -44,6 +48,8 @@ export function SettingsInput({
   pattern,
   title,
   labelClassName,
+  ariaDescribedBy,
+  ariaInvalid,
 }: SettingsInputProps) {
   return (
     <label className={cn("flex flex-col gap-2.5 w-fit", className)}>
@@ -67,6 +73,8 @@ export function SettingsInput({
         required={required}
         pattern={pattern}
         title={title}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         className={cn(
           "bg-tertiary border border-[#717888] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
           "disabled:bg-[#2D2F36] disabled:border-[#2D2F36] disabled:cursor-not-allowed",

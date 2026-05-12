@@ -6153,6 +6153,23 @@
     "uk": "Сталася помилка",
     "ca": "S'ha produït un error"
   },
+  "ERROR$FAILED_TO_LOAD_PROFILE_TRY_AGAIN": {
+    "en": "Failed to load existing profile. Please try again.",
+    "ja": "既存のプロファイルの読み込みに失敗しました。もう一度お試しください。",
+    "zh-CN": "无法加载现有配置文件。请重试。",
+    "zh-TW": "無法載入現有設定檔。請重試。",
+    "ko-KR": "기존 프로필을 로드하지 못했습니다. 다시 시도하세요.",
+    "no": "Kunne ikke laste eksisterende profil. Vennligst prøv igjen.",
+    "ar": "فشل في تحميل الملف الشخصي الحالي. يرجى المحاولة مرة أخرى.",
+    "de": "Fehler beim Laden des vorhandenen Profils. Bitte versuchen Sie es erneut.",
+    "fr": "Échec du chargement du profil existant. Veuillez réessayer.",
+    "it": "Impossibile caricare il profilo esistente. Riprova.",
+    "pt": "Falha ao carregar o perfil existente. Por favor, tente novamente.",
+    "es": "Error al cargar el perfil existente. Por favor, inténtelo de nuevo.",
+    "ca": "No s'ha pogut carregar el perfil existent. Torneu-ho a provar.",
+    "tr": "Mevcut profil yüklenemedi. Lütfen tekrar deneyin.",
+    "uk": "Не вдалося завантажити існуючий профіль. Будь ласка, спробуйте ще раз."
+  },
   "GITHUB$AUTH_SCOPE": {
     "en": "openid email profile",
     "ja": "openid email profile",
@@ -25005,6 +25022,23 @@
     "de": "LLM-Profil bearbeiten",
     "uk": "Редагувати профіль LLM",
     "ca": "Edita el perfil LLM"
+  },
+  "SETTINGS$PROFILE_NAME_AND_MODEL_REQUIRED": {
+    "en": "Profile name and model are required",
+    "ja": "プロファイル名とモデルは必須です",
+    "zh-CN": "配置文件名称和模型是必需的",
+    "zh-TW": "設定檔名稱和模型是必需的",
+    "ko-KR": "프로필 이름과 모델이 필요합니다",
+    "no": "Profilnavn og modell er påkrevd",
+    "ar": "اسم الملف الشخصي والنموذج مطلوبان",
+    "de": "Profilname und Modell sind erforderlich",
+    "fr": "Le nom du profil et le modèle sont requis",
+    "it": "Nome del profilo e modello sono obbligatori",
+    "pt": "Nome do perfil e modelo são obrigatórios",
+    "es": "El nombre del perfil y el modelo son obligatorios",
+    "ca": "El nom del perfil i el model són obligatoris",
+    "tr": "Profil adı ve model gereklidir",
+    "uk": "Назва профілю та модель обов'язкові"
   },
   "SETTINGS$PROFILE_ACTIVATE": {
     "en": "Activate",
