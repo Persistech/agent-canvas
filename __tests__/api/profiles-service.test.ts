@@ -1,30 +1,57 @@
+import { ProfilesClient } from "@openhands/typescript-client/clients";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
-// Mock the ProfilesClient from the SDK via the typescript-client adapter
-const mockListProfiles = vi.fn();
-const mockGetProfile = vi.fn();
-const mockSaveProfile = vi.fn();
-const mockDeleteProfile = vi.fn();
-const mockRenameProfile = vi.fn();
-const mockActivateProfile = vi.fn();
-const mockClose = vi.fn();
+// Mock the ProfilesClient from the SDK using vi.hoisted
+const {
+  mockListProfiles,
+  mockGetProfile,
+  mockSaveProfile,
+  mockDeleteProfile,
+  mockRenameProfile,
+  mockActivateProfile,
+  mockClose,
+} = vi.hoisted(() => ({
+  mockListProfiles: vi.fn(),
+  mockGetProfile: vi.fn(),
+  mockSaveProfile: vi.fn(),
+  mockDeleteProfile: vi.fn(),
+  mockRenameProfile: vi.fn(),
+  mockActivateProfile: vi.fn(),
+  mockClose: vi.fn(),
+}));
 
-vi.mock("#/api/typescript-client", () => ({
-  createProfilesClient: vi.fn(() => ({
-    listProfiles: mockListProfiles,
-    getProfile: mockGetProfile,
-    saveProfile: mockSaveProfile,
-    deleteProfile: mockDeleteProfile,
-    renameProfile: mockRenameProfile,
-    activateProfile: mockActivateProfile,
-    close: mockClose,
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ProfilesClient: vi.fn(function ProfilesClientMock() {
+    return {
+      listProfiles: mockListProfiles,
+      getProfile: mockGetProfile,
+      saveProfile: mockSaveProfile,
+      deleteProfile: mockDeleteProfile,
+      renameProfile: mockRenameProfile,
+      activateProfile: mockActivateProfile,
+      close: mockClose,
+    };
+  }),
+}));
+
+vi.mock("#/api/agent-server-client-options", () => ({
+  getAgentServerClientOptions: vi.fn(() => ({
+    host: "http://localhost:3000",
+    apiKey: "test-key",
   })),
 }));
 
 describe("ProfilesService", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockListProfiles.mockReset();
+    mockGetProfile.mockReset();
+    mockSaveProfile.mockReset();
+    mockDeleteProfile.mockReset();
+    mockRenameProfile.mockReset();
+    mockActivateProfile.mockReset();
+    mockClose.mockReset();
+    vi.mocked(ProfilesClient).mockClear();
   });
 
   afterEach(() => {

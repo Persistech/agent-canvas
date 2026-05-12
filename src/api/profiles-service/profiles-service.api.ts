@@ -6,16 +6,19 @@
  * All types are re-exported from the SDK for consumer convenience.
  */
 import {
-  createProfilesClient,
-  type ProfileInfo,
-  type ProfileListResponse,
-  type ProfileDetailResponse,
-  type ProfileMutationResponse,
-  type ActivateProfileResponse,
-  type SaveProfileRequest,
-  type ExposeSecretsMode,
+  ProfilesClient,
   type GetProfileOptions,
-} from "../typescript-client";
+} from "@openhands/typescript-client/clients";
+import type {
+  ProfileInfo,
+  ProfileListResponse,
+  ProfileDetailResponse,
+  ProfileMutationResponse,
+  ActivateProfileResponse,
+  SaveProfileRequest,
+  ExposeSecretsMode,
+} from "@openhands/typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 // Re-export SDK types for consumers
 export type {
@@ -30,7 +33,7 @@ export type {
 
 class ProfilesService {
   static async listProfiles(): Promise<ProfileListResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       return await client.listProfiles();
     } finally {
@@ -42,7 +45,7 @@ class ProfilesService {
     name: string,
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<ProfileDetailResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       const options: GetProfileOptions = exposeSecrets ? { exposeSecrets } : {};
       return await client.getProfile(name, options);
@@ -55,7 +58,7 @@ class ProfilesService {
     name: string,
     request: SaveProfileRequest,
   ): Promise<ProfileMutationResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       return await client.saveProfile(name, request);
     } finally {
@@ -64,7 +67,7 @@ class ProfilesService {
   }
 
   static async deleteProfile(name: string): Promise<ProfileMutationResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       return await client.deleteProfile(name);
     } finally {
@@ -76,7 +79,7 @@ class ProfilesService {
     name: string,
     newName: string,
   ): Promise<ProfileMutationResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       return await client.renameProfile(name, newName);
     } finally {
@@ -85,7 +88,7 @@ class ProfilesService {
   }
 
   static async activateProfile(name: string): Promise<ActivateProfileResponse> {
-    const client = createProfilesClient();
+    const client = new ProfilesClient(getAgentServerClientOptions());
     try {
       return await client.activateProfile(name);
     } finally {
