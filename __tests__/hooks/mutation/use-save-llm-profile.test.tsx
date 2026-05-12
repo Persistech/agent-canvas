@@ -4,7 +4,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
-import { LLM_PROFILES_QUERY_KEY, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { LLM_PROFILES_QUERY_KEYS, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 vi.mock("#/api/profiles-service/profiles-service.api");
 
@@ -84,14 +84,14 @@ describe("useSaveLlmProfile", () => {
     });
   });
 
-  it("invalidates LLM_PROFILES_QUERY_KEY on success", async () => {
+  it("invalidates LLM_PROFILES_QUERY_KEYS.all on success", async () => {
     vi.mocked(ProfilesService.saveProfile).mockResolvedValue({
       name: "test-profile",
       message: "Profile saved",
     });
 
     // Pre-populate the profiles cache
-    queryClient.setQueryData([LLM_PROFILES_QUERY_KEY], { profiles: [] });
+    queryClient.setQueryData(LLM_PROFILES_QUERY_KEYS.all, { profiles: [] });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useSaveLlmProfile(), { wrapper });
@@ -104,7 +104,7 @@ describe("useSaveLlmProfile", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
   });
 

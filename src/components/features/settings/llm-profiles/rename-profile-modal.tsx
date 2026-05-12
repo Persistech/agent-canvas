@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ProfileNameInput } from "./profile-name-input";
@@ -25,6 +25,7 @@ export function RenameProfileModal({
   const { t } = useTranslation("openhands");
   const [newName, setNewName] = useState("");
   const renameProfile = useRenameLlmProfile();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNewName(profile?.name ?? "");
@@ -92,9 +93,12 @@ export function RenameProfileModal({
       isOpen
       title={t(I18nKey.SETTINGS$PROFILE_RENAME_TITLE)}
       footer={footer}
+      onClose={onClose}
+      initialFocusRef={inputRef}
     >
       <div data-testid="rename-profile-modal" className="flex flex-col gap-3">
         <ProfileNameInput
+          ref={inputRef}
           testId="rename-profile-input"
           ruleTestId="rename-profile-rule"
           value={newName}

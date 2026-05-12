@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -21,6 +22,7 @@ export function DeleteProfileModal({
 }: DeleteProfileModalProps) {
   const { t } = useTranslation("openhands");
   const deleteProfile = useDeleteLlmProfile();
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!profile) return null;
 
@@ -55,6 +57,7 @@ export function DeleteProfileModal({
         )}
       </BrandButton>
       <BrandButton
+        ref={cancelButtonRef}
         type="button"
         variant="secondary"
         className="grow"
@@ -71,6 +74,8 @@ export function DeleteProfileModal({
       isOpen
       title={t(I18nKey.SETTINGS$PROFILE_DELETE_TITLE)}
       footer={footer}
+      onClose={onClose}
+      initialFocusRef={cancelButtonRef}
     >
       <p className="text-sm break-all">
         {t(I18nKey.SETTINGS$PROFILE_DELETE_CONFIRMATION, {

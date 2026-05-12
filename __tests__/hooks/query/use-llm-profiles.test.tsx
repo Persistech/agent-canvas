@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useLlmProfiles, LLM_PROFILES_QUERY_KEY } from "#/hooks/query/use-llm-profiles";
+import { useLlmProfiles, LLM_PROFILES_QUERY_KEYS } from "#/hooks/query/use-llm-profiles";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
 vi.mock("#/api/profiles-service/profiles-service.api");
@@ -64,7 +64,7 @@ describe("useLlmProfiles", () => {
     });
 
     const queries = queryClient.getQueryCache().findAll({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect(queries).toHaveLength(1);
   });
@@ -79,7 +79,7 @@ describe("useLlmProfiles", () => {
     });
 
     const queries = queryClient.getQueryCache().findAll({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect(queries).toHaveLength(1);
     expect((queries[0].options as Record<string, unknown>).staleTime).toBe(
@@ -97,7 +97,7 @@ describe("useLlmProfiles", () => {
     });
 
     const queries = queryClient.getQueryCache().findAll({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect(queries).toHaveLength(1);
     expect(queries[0].options.gcTime).toBe(1000 * 60 * 15);
@@ -113,7 +113,7 @@ describe("useLlmProfiles", () => {
     });
 
     const queries = queryClient.getQueryCache().findAll({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect((queries[0].options as Record<string, unknown>).meta).toEqual({
       disableToast: true,

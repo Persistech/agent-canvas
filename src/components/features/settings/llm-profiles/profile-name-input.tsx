@@ -1,4 +1,4 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { PROFILE_NAME_PATTERN } from "#/utils/derive-profile-name";
@@ -17,16 +17,22 @@ interface ProfileNameInputProps {
   isRequired?: boolean;
 }
 
-export function ProfileNameInput({
-  testId,
-  ruleTestId,
-  value,
-  onChange,
-  placeholder,
-  isDisabled,
-  isOptional,
-  isRequired = false,
-}: ProfileNameInputProps) {
+export const ProfileNameInput = forwardRef<
+  HTMLInputElement,
+  ProfileNameInputProps
+>(function ProfileNameInput(
+  {
+    testId,
+    ruleTestId,
+    value,
+    onChange,
+    placeholder,
+    isDisabled,
+    isOptional,
+    isRequired = false,
+  },
+  ref,
+) {
   const { t } = useTranslation("openhands");
   const trimmed = value.trim();
   // When required, empty string is invalid. Otherwise, empty is valid (optional).
@@ -44,6 +50,7 @@ export function ProfileNameInput({
   return (
     <div className="flex flex-col gap-2">
       <SettingsInput
+        ref={ref}
         testId={testId}
         label={label}
         type="text"
@@ -66,4 +73,4 @@ export function ProfileNameInput({
       </p>
     </div>
   );
-}
+});

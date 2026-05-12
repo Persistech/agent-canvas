@@ -346,6 +346,13 @@ function LlmSettingsLocalView({
   const [originalProfileName, setOriginalProfileName] = React.useState<
     string | null
   >(null);
+  // Loaded profile config for edit mode - converted to form values format
+  const [editProfileConfig, setEditProfileConfig] =
+    React.useState<SettingsFormValues | null>(null);
+  // Loading state while fetching profile for edit
+  const [isLoadingProfile, setIsLoadingProfile] = React.useState(false);
+  // Force form re-render when switching profiles
+  const [formKey, setFormKey] = React.useState(0);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -631,6 +638,7 @@ function LlmSettingsLocalView({
         // Reset state only on success - must be inside try block to avoid data loss on error
         setProfileName("");
         setOriginalProfileName(null);
+        setEditProfileConfig(null);
         setEditMode("none");
 
         // Invoke parent callback after successful save
@@ -657,20 +665,55 @@ function LlmSettingsLocalView({
   const handleAddProfile = React.useCallback(() => {
     setProfileName("");
     setOriginalProfileName(null);
+    setEditProfileConfig(null);
     setEditMode("add");
+    setFormKey((prev) => prev + 1);
   }, []);
 
-  // Handler for "Edit Profile" menu action
-  const handleEditProfile = React.useCallback((profile: ProfileInfo) => {
-    setProfileName(profile.name);
-    setOriginalProfileName(profile.name);
-    setEditMode("edit");
-  }, []);
+  // Handler for "Edit Profile" menu action - fetches profile config for form
+  const handleEditProfile = React.useCallback(
+    async (profile: ProfileInfo) => {
+      setProfileName(profile.name);
+      setOriginalProfileName(profile.name);
+      setIsLoadingProfile(true);
+      setEditMode("edit");
+
+      try {
+        // Fetch the profile config (without secrets - they are not displayed in form)
+        const profileData = await ProfilesService.getProfile(profile.name);
+
+        // Convert profile config to form values format (llm.model, llm.base_url, etc.)
+        const formValues: SettingsFormValues = {};
+        if (profileData.config) {
+          const config = profileData.config as Record<string, unknown>;
+          if (config.model) formValues["llm.model"] = String(config.model);
+          if (config.base_url)
+            formValues["llm.base_url"] = String(config.base_url);
+          // Note: api_key is not loaded for display - only preserved on save
+        }
+
+        setEditProfileConfig(formValues);
+        setFormKey((prev) => prev + 1);
+      } catch (error) {
+        console.error("Failed to load profile for editing:", error);
+        displayErrorToast(t(I18nKey.ERROR$FAILED_TO_LOAD_PROFILE_TRY_AGAIN));
+        // Reset back to list view on error
+        setEditMode("none");
+        setProfileName("");
+        setOriginalProfileName(null);
+        setEditProfileConfig(null);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    },
+    [t],
+  );
 
   // Handler for cancel button in form
   const handleCancel = React.useCallback(() => {
     setProfileName("");
     setOriginalProfileName(null);
+    setEditProfileConfig(null);
     setEditMode("none");
   }, []);
 
@@ -681,9 +724,37 @@ function LlmSettingsLocalView({
   // If we're in form mode, show the settings form
   if (editMode !== "none") {
     // When adding a new profile, start with empty form values
-    // When editing an existing profile, load values from settings
+    // When editing an existing profile, use the fetched profile config
     const initialValuesOverride =
-      editMode === "add" ? emptyInitialValues : undefined;
+      editMode === "add"
+        ? emptyInitialValues
+        : (editProfileConfig ?? undefined);
+
+    // Show loading state while fetching profile for edit
+    if (isLoadingProfile) {
+      return (
+        <div data-testid="llm-settings-screen" className="flex flex-col gap-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">
+              {t(I18nKey.SETTINGS$EDIT_LLM_PROFILE)}
+            </h2>
+            <BrandButton
+              testId="cancel-profile-edit"
+              type="button"
+              variant="secondary"
+              onClick={handleCancel}
+            >
+              {t(I18nKey.BUTTON$CANCEL)}
+            </BrandButton>
+          </div>
+          <div className="flex items-center justify-center py-8">
+            <span className="text-gray-400">
+              {t(I18nKey.LOADING_PROJECT$LOADING)}
+            </span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div data-testid="llm-settings-screen" className="flex flex-col gap-4">
@@ -704,6 +775,7 @@ function LlmSettingsLocalView({
         </div>
 
         <SdkSectionPage
+          key={formKey}
           scope={scope}
           sectionKeys={["llm"]}
           excludeKeys={LLM_EXCLUDED_KEYS}

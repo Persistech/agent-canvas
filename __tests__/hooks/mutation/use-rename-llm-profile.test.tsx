@@ -4,7 +4,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRenameLlmProfile } from "#/hooks/mutation/use-rename-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
-import { LLM_PROFILES_QUERY_KEY, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { LLM_PROFILES_QUERY_KEYS, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 vi.mock("#/api/profiles-service/profiles-service.api");
 
@@ -50,13 +50,13 @@ describe("useRenameLlmProfile", () => {
     expect(ProfilesService.renameProfile).toHaveBeenCalledWith("old-name", "new-name");
   });
 
-  it("invalidates LLM_PROFILES_QUERY_KEY on success", async () => {
+  it("invalidates LLM_PROFILES_QUERY_KEYS.all on success", async () => {
     vi.mocked(ProfilesService.renameProfile).mockResolvedValue({
       name: "renamed-profile",
       message: "Profile renamed",
     });
 
-    queryClient.setQueryData([LLM_PROFILES_QUERY_KEY], {
+    queryClient.setQueryData(LLM_PROFILES_QUERY_KEYS.all, {
       profiles: [{ name: "old-name", model: "gpt-4", base_url: null, api_key_set: true }],
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -71,7 +71,7 @@ describe("useRenameLlmProfile", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: [LLM_PROFILES_QUERY_KEY],
+      queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
   });
 

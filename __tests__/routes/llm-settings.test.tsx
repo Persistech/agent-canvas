@@ -238,6 +238,12 @@ describe("LlmSettingsScreen", () => {
       ], 
       active_profile: "my_profile" 
     });
+    // Mock getProfile for when edit mode fetches profile data
+    vi.spyOn(ProfilesService, "getProfile").mockResolvedValue({
+      name: "my_profile",
+      config: { model: "openai/gpt-4o", base_url: "https://api.openai.com/v1" },
+      api_key_set: true,
+    });
 
     renderLlmSettingsScreen();
 
@@ -257,7 +263,7 @@ describe("LlmSettingsScreen", () => {
     const editButton = await screen.findByTestId("profile-action-edit");
     await user.click(editButton);
 
-    // Wait for the form to appear
+    // Wait for the form to appear (after profile data is fetched)
     await waitFor(() => {
       expect(screen.getByTestId("llm-profile-form")).toBeInTheDocument();
     });
