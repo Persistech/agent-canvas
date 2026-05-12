@@ -1,3 +1,15 @@
+/**
+ * ProfilesService tests using SDK client mocks.
+ *
+ * Note: We mock ProfilesClient directly because the SDK's HttpClient uses
+ * native fetch that MSW doesn't intercept reliably in Node.js test environments.
+ * This approach still tests:
+ * - ProfilesService correctly delegates to ProfilesClient methods
+ * - Client cleanup (close) happens consistently
+ * - Error propagation from the SDK
+ *
+ * For full integration testing, use browser-level tests with MSW.
+ */
 import { ProfilesClient } from "@openhands/typescript-client/clients";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";

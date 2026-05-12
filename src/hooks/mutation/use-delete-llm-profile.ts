@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import SettingsService from "#/api/settings-service/settings-service.api";
 import {
   LLM_PROFILES_QUERY_KEY,
   SETTINGS_QUERY_KEYS,
@@ -15,6 +16,10 @@ export function useDeleteLlmProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [LLM_PROFILES_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEYS.all });
+      // Invalidate the SettingsService internal cache so getSettingsForConversation
+      // fetches fresh settings after the profile is deleted (backend may have
+      // deactivated it or reset agent_settings.llm)
+      SettingsService.invalidateCache();
     },
   });
 }

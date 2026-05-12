@@ -189,4 +189,30 @@ describe("RenameProfileModal", () => {
       "different-profile",
     );
   });
+
+  it("shows error toast and keeps modal open on rename failure", async () => {
+    const user = userEvent.setup();
+    const { displayErrorToast } = await import(
+      "#/utils/custom-toast-handlers"
+    );
+    vi.mocked(ProfilesService.renameProfile).mockRejectedValue(
+      new Error("Name already exists"),
+    );
+
+    const onClose = vi.fn();
+    renderModal(mockProfile, onClose);
+
+    const input = screen.getByTestId("rename-profile-input");
+    await user.clear(input);
+    await user.type(input, "duplicate-name");
+    await user.click(screen.getByTestId("rename-profile-submit"));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("Name already exists");
+    });
+
+    // Modal should stay open after error (onClose not called)
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("rename-profile-modal")).toBeInTheDocument();
+  });
 });

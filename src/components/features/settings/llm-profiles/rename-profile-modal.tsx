@@ -99,6 +99,7 @@ export function RenameProfileModal({
           ruleTestId="rename-profile-rule"
           value={newName}
           onChange={setNewName}
+          isRequired
         />
       </div>
     </ApiKeyModalBase>

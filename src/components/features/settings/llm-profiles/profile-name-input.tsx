@@ -12,6 +12,8 @@ interface ProfileNameInputProps {
   isDisabled?: boolean;
   /** Render label as "Name (Optional)" when this field isn't required. */
   isOptional?: boolean;
+  /** When true, empty values will show red validation styling (required field behavior). */
+  isRequired?: boolean;
 }
 
 export function ProfileNameInput({
@@ -22,10 +24,14 @@ export function ProfileNameInput({
   placeholder,
   isDisabled,
   isOptional,
+  isRequired = false,
 }: ProfileNameInputProps) {
   const { t } = useTranslation("openhands");
   const trimmed = value.trim();
-  const isValid = trimmed === "" || PROFILE_NAME_PATTERN.test(trimmed);
+  // When required, empty string is invalid. Otherwise, empty is valid (optional).
+  const isValid = isRequired
+    ? trimmed !== "" && PROFILE_NAME_PATTERN.test(trimmed)
+    : trimmed === "" || PROFILE_NAME_PATTERN.test(trimmed);
   const label = isOptional
     ? `${t(I18nKey.SETTINGS$PROFILE_NAME_LABEL)} (${t(I18nKey.COMMON$OPTIONAL)})`
     : t(I18nKey.SETTINGS$PROFILE_NAME_LABEL);

@@ -55,6 +55,8 @@ export function ProfileRow({
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
           aria-label={t(I18nKey.SETTINGS$PROFILE_MENU)}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
           className="cursor-pointer text-gray-300 hover:text-white p-2 border border-tertiary rounded-md"
           data-testid="profile-menu-trigger"
         >

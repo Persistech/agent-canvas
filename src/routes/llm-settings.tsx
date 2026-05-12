@@ -418,15 +418,15 @@ export function LlmSettingsScreen({
           displaySuccessToast(
             t(I18nKey.SETTINGS$PROFILE_SAVED, { name: targetName }),
           );
+
+          // Reset state only on success - must be inside try block to avoid data loss on error
+          setProfileName("");
+          setOriginalProfileName(null);
+          setEditMode("none");
         } catch {
           displayErrorToast(t(I18nKey.ERROR$GENERIC));
         }
       }
-
-      // Reset state and return to list view
-      setProfileName("");
-      setOriginalProfileName(null);
-      setEditMode("none");
     },
     [editMode, originalProfileName, profileName, renameProfile, saveProfile, t],
   );
