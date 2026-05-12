@@ -45,7 +45,12 @@ const FilesService = {
   },
 
   async getHome(): Promise<HomeResponse> {
-    return createFileClient().getHome();
+    const home = await createFileClient().getHome();
+    return {
+      favorites: [],
+      locations: [],
+      ...home,
+    };
   },
 };
 
