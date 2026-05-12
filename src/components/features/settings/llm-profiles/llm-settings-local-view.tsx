@@ -160,8 +160,19 @@ export function LlmSettingsLocalView() {
       return;
     }
 
+    const trimmedName = profileName.trim();
+    const originalName = editingProfile?.profile.name;
+    const isRename =
+      viewMode === "edit" && originalName && originalName !== trimmedName;
+    const wasActive = profilesData?.active_profile === originalName;
+
     setIsSaving(true);
     try {
+      // If editing and name changed, rename the profile first
+      if (isRename) {
+        await ProfilesService.renameProfile(originalName, trimmedName);
+      }
+
       // Build the LLM config object
       const llmConfig: Record<string, unknown> = { model };
 
@@ -189,7 +200,7 @@ export function LlmSettingsLocalView() {
       }
 
       await saveProfile.mutateAsync({
-        name: profileName.trim(),
+        name: trimmedName,
         request: {
           llm: llmConfig as {
             model: string;
@@ -200,10 +211,16 @@ export function LlmSettingsLocalView() {
         },
       });
 
+      // If the renamed profile was the active profile, re-activate it
+      // (the rename operation doesn't automatically update active_profile)
+      if (isRename && wasActive) {
+        await ProfilesService.activateProfile(trimmedName);
+      }
+
       displaySuccessToast(
         viewMode === "create"
-          ? t(I18nKey.SETTINGS$PROFILE_CREATED, { name: profileName })
-          : t(I18nKey.SETTINGS$PROFILE_UPDATED, { name: profileName }),
+          ? t(I18nKey.SETTINGS$PROFILE_CREATED, { name: trimmedName })
+          : t(I18nKey.SETTINGS$PROFILE_UPDATED, { name: trimmedName }),
       );
       handleBackToList();
     } catch (error) {
@@ -218,6 +235,7 @@ export function LlmSettingsLocalView() {
     profileName,
     viewMode,
     editingProfile,
+    profilesData?.active_profile,
     saveProfile,
     t,
     handleBackToList,
