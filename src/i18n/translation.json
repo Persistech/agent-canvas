@@ -8296,6 +8296,9 @@
   "MODEL$SWITCH_FAILED": {
     "en": "Failed to switch to profile '{{name}}'"
   },
+  "MODEL$OPEN_SETTINGS": {
+    "en": "Open LLM settings"
+  },
   "CHAT_INTERFACE$CONNECTING": {
     "en": "Connecting... (this may take 1-2 minutes)",
     "ja": "接続中...（1-2分かかる場合があります）",

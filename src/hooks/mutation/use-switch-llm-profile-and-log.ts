@@ -14,11 +14,11 @@ import { I18nKey } from "#/i18n/declaration";
  * issued the command.
  */
 export function useSwitchLlmProfileAndLog() {
-  const { mutate } = useSwitchLlmProfile();
+  const { mutate, isPending } = useSwitchLlmProfile();
   const recordSwitch = useModelStore((s) => s.recordSwitch);
   const { t } = useTranslation();
 
-  return useCallback(
+  const switchAndLog = useCallback(
     (conversationId: string, profileName: string) => {
       const last = useEventStore
         .getState()
@@ -44,4 +44,6 @@ export function useSwitchLlmProfileAndLog() {
     },
     [mutate, recordSwitch, t],
   );
+
+  return { switchAndLog, isPending };
 }

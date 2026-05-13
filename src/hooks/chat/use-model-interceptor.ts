@@ -27,7 +27,7 @@ export const useModelInterceptor = (
 ) => {
   const showProfiles = useModelStore((s) => s.show);
   const queryClient = useQueryClient();
-  const switchAndLog = useSwitchLlmProfileAndLog();
+  const { switchAndLog } = useSwitchLlmProfileAndLog();
   const { backend, orgId } = useActiveBackend();
   const isLocal = backend.kind === "local";
   const { t } = useTranslation();
