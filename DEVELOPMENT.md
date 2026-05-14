@@ -31,11 +31,11 @@ cloud-backed OpenHands sessions.
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Ingress port | `8000` |
-| `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
-| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
+| Variable                  | Description                    | Default |
+| ------------------------- | ------------------------------ | ------- |
+| `PORT`                    | Ingress port                   | `8000`  |
+| `OH_AUTOMATION_GIT_REF`   | Git ref for automation backend | `main`  |
+| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server       | `main`  |
 
 ### Alternative: Minimal Mode (without Automation)
 
@@ -163,15 +163,15 @@ You can create a `.env` file in the project directory with these variables based
 | `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                     | `false`                |
 | `VITE_GITHUB_TOKEN`         | GitHub token for repository access (used in some tests)                            | -                      |
 
-Full-stack dev launchers (`npm run dev`, `npm run dev:dangerously-dockerless`,
-and `npm run dev:minimal`) keep browser-side agent-server requests on the
-current web origin and proxy `/api`, `/server_info`, and `/sockets` server-side.
-This keeps the same launched stack reachable through `localhost`, a LAN address,
-or a Tailscale hostname. Set `VITE_BACKEND_BASE_URL` only when you intentionally
-want the browser to talk directly to a separately managed backend.
+Dev launchers that manage a local backend clear `VITE_BACKEND_BASE_URL` and keep
+browser-side agent-server requests on the current web origin. Vite or the ingress
+proxy forwards `/api`, `/server_info`, and `/sockets` to the local backend
+server-side, so the same launched stack works through `localhost`, a LAN address,
+or a Tailscale hostname. Set `VITE_BACKEND_BASE_URL` only when running the
+frontend separately and intentionally sending browser requests directly to a
+separately managed backend.
 
-Security note: the dev stack is intended for trusted local development
-environments. The agent server and automation backend bind to loopback and sit
-behind the dev proxy, but anyone who can reach the served UI can drive that local
-stack through the browser. Only expose the dev port on trusted networks, such as
-your own Tailscale tailnet, or keep it behind a local firewall or tunnel.
+Security note: anyone who can reach the served UI can drive the local
+agent-server and automation stack through the dev proxy. Only expose the dev port
+on trusted networks, such as your own Tailscale tailnet, or keep it behind a
+local firewall or tunnel.
