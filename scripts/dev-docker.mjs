@@ -48,7 +48,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -74,6 +74,9 @@ const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Note: The SDK build script strips the "v" prefix from semver release tags.
 const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
+const CONTAINER_HOME_DIR = "/home/openhands";
+const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
+const HOME_PERMISSION_CHECK_FILE = ".agent-canvas-permission-check";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
 // decryptable across docker / non-docker runs.
@@ -85,8 +88,20 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // dir (which is `~/.openhands` on the host, mounted in below). The frontend
 // receives this via VITE_WORKING_DIR so the working_dir it sends to the
 // agent-server is one the container can actually mkdir.
-const CONTAINER_WORKSPACES_DIR =
-  "/home/openhands/.openhands/agent-canvas/workspaces";
+const CONTAINER_WORKSPACES_DIR = `${CONTAINER_OPENHANDS_DIR}/agent-canvas/workspaces`;
+
+const HOME_PERMISSION_CHECK_SCRIPT = [
+  "set -eu",
+  `target=${JSON.stringify(CONTAINER_OPENHANDS_DIR)}`,
+  'echo "container_user=$(id -u):$(id -g)"',
+  'test -d "$target" || { echo "$target does not exist" >&2; exit 1; }',
+  'test -w "$target" || { echo "$target is not writable by the container user" >&2; exit 1; }',
+  'mode=$(stat -c %a "$target")',
+  'chmod "$mode" "$target" || { echo "$target permissions cannot be adjusted by the container user" >&2; exit 1; }',
+  `tmp="$target/${HOME_PERMISSION_CHECK_FILE}.$$"`,
+  `printf '%s\\n' ok > "$tmp"`,
+  'rm -f "$tmp"',
+].join("\n");
 
 /**
  * Resolve the docker image to use based on environment.
@@ -144,6 +159,122 @@ function logDockerInfoFailure(stderr) {
   logError("Start Docker (e.g. open Docker Desktop) and try again.");
 }
 
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function parseContainerUser(stdout) {
+  const match = stdout.match(/^container_user=(\d+:\d+)$/m);
+  return match ? match[1] : null;
+}
+
+function buildDockerHomePermissionCheckArgs({
+  image = resolveAgentServerImage(),
+  home = homedir(),
+  openhandsDir = join(home, ".openhands"),
+  mountHostHome = process.env.OH_MOUNT_HOST_HOME === "1",
+} = {}) {
+  const source = mountHostHome ? home : openhandsDir;
+  const target = mountHostHome ? CONTAINER_HOME_DIR : CONTAINER_OPENHANDS_DIR;
+
+  return [
+    "run",
+    "--rm",
+    "--entrypoint",
+    "/bin/sh",
+    "-v",
+    `${source}:${target}`,
+    image,
+    "-c",
+    HOME_PERMISSION_CHECK_SCRIPT,
+  ];
+}
+
+function logDockerHomePermissionFailure({
+  hostPath,
+  image,
+  stdout = "",
+  stderr = "",
+  error,
+}) {
+  const containerUser = parseContainerUser(stdout);
+  const firstDiagnosticLine = stderr.split("\n").find(Boolean);
+
+  logError("");
+  logError(
+    `Docker agent-server cannot use ${hostPath} as its persisted OpenHands state directory.`,
+  );
+  logError(
+    "The directory is bind-mounted into the container at /home/openhands/.openhands,",
+  );
+  logError(
+    "and the container must be able to adjust its permissions and write settings there.",
+  );
+  logError(`Image checked: ${image}`);
+  if (containerUser) {
+    logError(`Container user: ${containerUser}`);
+  }
+  if (firstDiagnosticLine) {
+    logError(`Docker check failed: ${firstDiagnosticLine}`);
+  }
+  if (error) {
+    logError(`Docker check failed: ${error.message}`);
+  }
+  logError("");
+  logError("Fix the host directory permissions, then rerun npm run dev.");
+  logError("On Linux, the usual fix is:");
+  if (containerUser) {
+    logError(`  sudo chown -R ${containerUser} ${shellQuote(hostPath)}`);
+  } else {
+    logError(
+      `  sudo chown -R <container-uid>:<container-gid> ${shellQuote(hostPath)}`,
+    );
+  }
+  logError(`  sudo chmod -R u+rwX ${shellQuote(hostPath)}`);
+  logError("");
+  logError(
+    "If you want to keep that directory owned only by your host user, use:",
+  );
+  logError("  npm run dev:dangerously-dockerless");
+}
+
+function checkDockerHomePermissions(config, env = process.env) {
+  const image = resolveAgentServerImage(env);
+  const openhandsDir = dirname(config.stateDir);
+  const mountHostHome = env.OH_MOUNT_HOST_HOME === "1";
+  const dockerArgs = buildDockerHomePermissionCheckArgs({
+    image,
+    openhandsDir,
+    mountHostHome,
+  });
+
+  logService(
+    "docker",
+    `Checking ${openhandsDir} permissions with ${image}...`,
+    c.dim,
+  );
+
+  const check = spawnSync("docker", dockerArgs, {
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30_000,
+  });
+  const stdout = check.stdout ? check.stdout.toString().trim() : "";
+  const stderr = check.stderr ? check.stderr.toString().trim() : "";
+
+  if (check.error || check.status !== 0) {
+    logDockerHomePermissionFailure({
+      hostPath: openhandsDir,
+      image,
+      stdout,
+      stderr,
+      error: check.error,
+    });
+    process.exit(1);
+  }
+
+  logSuccess(`${openhandsDir} is writable by the Docker agent-server`);
+}
+
 /**
  * Check that the docker CLI is on PATH AND that the docker daemon is
  * actually responding. `commandExists("docker")` only verifies the binary is
@@ -180,6 +311,8 @@ function checkDockerPrereqs(config) {
     process.exit(1);
   }
   logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
+
+  checkDockerHomePermissions(config);
 }
 
 function startAgentServerDocker(config) {
@@ -320,12 +453,16 @@ if (isMainModule) {
 
 export {
   AGENT_SERVER_REPO,
+  buildDockerHomePermissionCheckArgs,
   CONTAINER_LOCAL_SDK_DIR,
   CONTAINER_NAME,
+  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  checkDockerHomePermissions,
   isDockerPermissionDenied,
+  parseContainerUser,
   resolveAgentServerImage,
   startAgentServerDocker,
 };

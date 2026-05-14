@@ -149,12 +149,13 @@
   - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
   - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
   - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
+  - Startup runs a short Docker permission probe against the mounted `~/.openhands` path before starting services. Keep this fail-fast check when changing Docker mounts or persistence paths so settings writes do not fail later with opaque 500s.
 - Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
   - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
-- `npm run dev` now runs the full stack with automation by default (via `dev:automation`). Use `npm run dev:minimal` for agent-server + Vite only.
+- `npm run dev` now runs the full stack with automation by default (via `dev:docker`). Use `npm run dev:minimal` for agent-server + Vite only.
 - `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), Vite dev server, and ingress proxy. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)

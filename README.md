@@ -36,6 +36,8 @@ Set `$PROJECT_PATH` to the directory on your machine where your projects live (e
 
 By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off. Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
 
+On startup, Docker mode checks that the mounted `~/.openhands` directory can be used by the agent-server container. If the directory has incompatible ownership or permissions, `npm run dev:docker` fails before starting services and prints the host-side fix commands.
+
 ```sh
 export PROJECT_PATH=/path/to/your/projects
 git clone https://github.com/OpenHands/agent-canvas.git
