@@ -3,6 +3,22 @@ import { WebClientConfig } from "#/api/option-service/option.types";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsValue } from "#/types/settings";
 
+export let MOCK_PROFILES: Array<{
+  name: string;
+  is_active: boolean;
+  model?: string | null;
+}> = [
+  { name: "gpt-4o-default", is_active: true, model: null },
+  { name: "claude-haiku-fast", is_active: false, model: null },
+];
+
+export const resetMockProfiles = () => {
+  MOCK_PROFILES = [
+    { name: "gpt-4o-default", is_active: true, model: null },
+    { name: "claude-haiku-fast", is_active: false, model: null },
+  ];
+};
+
 /** Simple recursive merge — objects merge, scalars overwrite. */
 function deepMerge(
   base: Record<string, unknown>,
@@ -711,5 +727,46 @@ export const SETTINGS_HANDLERS = [
     }
 
     return HttpResponse.json(null, { status: 400 });
+  }),
+
+  http.get("*/api/profiles", async () =>
+    HttpResponse.json({
+      profiles: MOCK_PROFILES.map((p) => ({
+        name: p.name,
+        model: p.model ?? null,
+        base_url: null,
+        api_key_set: false,
+      })),
+      active_profile: MOCK_PROFILES.find((p) => p.is_active)?.name ?? null,
+    }),
+  ),
+
+  http.post("*/api/profiles/:name/activate", async ({ params }) => {
+    const name = params.name as string;
+    MOCK_PROFILES = MOCK_PROFILES.map((p) => ({
+      ...p,
+      is_active: p.name === name,
+    }));
+    return HttpResponse.json({
+      name,
+      message: "Profile activated",
+      llm_applied: true,
+    });
+  }),
+
+  http.post("*/api/profiles/:name/rename", async ({ request, params }) => {
+    const body = (await request.json()) as { new_name?: string } | null;
+    const oldName = params.name as string;
+    const newName = body?.new_name ?? oldName;
+    MOCK_PROFILES = MOCK_PROFILES.map((p) =>
+      p.name === oldName ? { ...p, name: newName } : p,
+    );
+    return HttpResponse.json({ name: newName, message: "Profile renamed" });
+  }),
+
+  http.delete("*/api/profiles/:name", async ({ params }) => {
+    const name = params.name as string;
+    MOCK_PROFILES = MOCK_PROFILES.filter((p) => p.name !== name);
+    return HttpResponse.json({ name, message: "Profile deleted" });
   }),
 ];

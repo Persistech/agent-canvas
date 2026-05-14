@@ -11,6 +11,7 @@ import {
   SdkSectionPage,
   SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
+import { LlmProfilesManager } from "#/components/features/settings/llm-profiles";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
@@ -282,22 +283,25 @@ export function LlmSettingsScreen({
   );
 
   return (
-    <SdkSectionPage
-      scope={scope}
-      sectionKeys={["llm"]}
-      excludeKeys={LLM_EXCLUDED_KEYS}
-      header={buildHeader}
-      buildPayload={buildPayload}
-      getInitialView={getInitialView}
-      forceShowAdvancedView
-      allowAllView
-      onSaveSuccess={onSaveSuccess}
-      initialValueOverrides={initialValueOverrides}
-      embedded={embedded}
-      hideSaveButton={hideSaveButton}
-      onSaveControlChange={onSaveControlChange}
-      testId="llm-settings-screen"
-    />
+    <div className="flex flex-col gap-8" data-testid="llm-settings-page">
+      <SdkSectionPage
+        scope={scope}
+        sectionKeys={["llm"]}
+        excludeKeys={LLM_EXCLUDED_KEYS}
+        header={buildHeader}
+        buildPayload={buildPayload}
+        getInitialView={getInitialView}
+        forceShowAdvancedView
+        allowAllView
+        onSaveSuccess={onSaveSuccess}
+        initialValueOverrides={initialValueOverrides}
+        embedded={embedded}
+        hideSaveButton={hideSaveButton}
+        onSaveControlChange={onSaveControlChange}
+        testId="llm-settings-screen"
+      />
+      <LlmProfilesManager />
+    </div>
   );
 }
 
