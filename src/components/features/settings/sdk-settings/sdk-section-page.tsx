@@ -115,6 +115,8 @@ export interface SdkSectionSaveControl {
   isSaving: boolean;
   /** At least one field is dirty (or `extraDirty` was passed in). */
   isDirty: boolean;
+  /** Current form values (for custom save flows). */
+  values: SettingsFormValues;
 }
 
 /**
@@ -271,7 +273,6 @@ export function SdkSectionPage({
     return { ...base, ...initialValueOverrides };
     // overridesSignature keeps the memo reactive without depending on
     // a (potentially recreated) object reference each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, filteredSchema, settingsSource, overridesSignature]);
 
   const initialView = React.useMemo(() => {
@@ -323,7 +324,6 @@ export function SdkSectionPage({
     // initialValueOverrides is intentionally tracked via
     // overridesSignature on initialValues; including the object ref
     // here would re-fire the effect every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues, initialView]);
 
   const visibleSections = React.useMemo(() => {
@@ -414,9 +414,9 @@ export function SdkSectionPage({
       save: stableSave,
       isSaving: isPending,
       isDirty: saveControlIsDirty,
+      values,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPending, saveControlIsDirty]);
+  }, [isPending, saveControlIsDirty, values]);
 
   if (isLoading || isFetching || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
@@ -469,8 +469,11 @@ export function SdkSectionPage({
           onChange: handleFieldChange,
         })}
 
-        {visibleSections.map((section) => (
-          <section key={section.key} className="flex flex-col gap-4">
+        {visibleSections.map((section, sectionIndex) => (
+          <section
+            key={`${section.key}-${sectionIndex}`}
+            className="flex flex-col gap-4"
+          >
             <div className="grid gap-4 xl:grid-cols-2">
               {section.fields.map((field) => (
                 <SchemaField

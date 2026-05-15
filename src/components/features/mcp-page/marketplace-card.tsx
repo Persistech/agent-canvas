@@ -24,8 +24,6 @@ export function MarketplaceCard({
         return "HTTP";
       case "sse":
         return "SSE";
-      case "tavily-builtin":
-        return t(I18nKey.MCP$TRANSPORT_BUILTIN);
       default:
         return "";
     }
@@ -38,10 +36,10 @@ export function MarketplaceCard({
       data-testid={`mcp-marketplace-card-${entry.id}`}
       className={cn(
         "group flex flex-col text-left",
-        "rounded-xl border border-tertiary bg-base-secondary",
+        "rounded-xl border border-[var(--oh-border)] bg-base-secondary",
         "p-4 gap-3 cursor-pointer",
-        "hover:border-primary/60 hover:bg-base-tertiary/30 transition-colors",
-        "focus:outline-none focus:ring-2 focus:ring-primary/60",
+        "hover:border-[var(--cool-grey-500)] hover:bg-base-tertiary/30 transition-colors",
+        "focus:outline-none focus:ring-2 focus:ring-[var(--oh-border)]",
       )}
     >
       <div className="flex items-start gap-3">

@@ -3,6 +3,7 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
+import { getAgentServerHeaders } from "../agent-server-config";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
@@ -73,6 +74,10 @@ export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
   const local = getEffectiveLocalBackend();
+  const localAuthHeaders = {
+    ...buildAuthHeaders(local),
+    ...getAgentServerHeaders(),
+  };
   // Send `X-Org-Id` so the upstream scopes per-request to the org the user
   // selected locally, instead of the user's globally-shared
   // `current_org_id` on the SaaS. Restricted to calls against the active
@@ -92,8 +97,8 @@ export async function callCloudProxy<TResponse = unknown>(
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
 
-  // Talk directly to the local agent-server, bypassing the shared
-  // `createHttpClient()` resolver (which would otherwise read host + auth
+  // Talk directly to the local agent-server, bypassing the global
+  // local agent-server client configuration (which would otherwise read host + auth
   // from the active backend — wrong for this call: we need the local
   // backend's host and session key explicitly, not the active one).
   const response = await axios.post<TResponse>(
@@ -107,7 +112,7 @@ export async function callCloudProxy<TResponse = unknown>(
       ...(req.timeoutSeconds ? { timeout_seconds: req.timeoutSeconds } : {}),
     },
     {
-      headers: buildAuthHeaders(local),
+      headers: localAuthHeaders,
       timeout: 30_000,
       ...(req.responseType ? { responseType: req.responseType } : {}),
     },

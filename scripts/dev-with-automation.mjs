@@ -31,6 +31,7 @@
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
+ *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
  *
  * Secrets:
  *   The automation API key is automatically seeded into agent-server secrets
@@ -51,9 +52,16 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
-  generateRandomApiKey,
   findFreePorts,
+  getOrCreatePersistedApiKey,
+  validateFrontendDependencies,
 } from "./dev-safe.mjs";
+import {
+  createShutdownHookRegistry,
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -63,14 +71,20 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 // Default automation version (released PyPI version)
 // Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
+// SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
+// DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
+const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.0";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-
-// Auto-generate a random API key for this dev session.
-// This ensures services share the same key during a single invocation,
-// but each restart gets a fresh key for better security isolation.
-// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
-const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
+// Where the auto-generated default automation API key is persisted. Static
+// frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
+// must remain stable across restarts and --skip-build reuse.
+const DEFAULT_AUTOMATION_API_KEY_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "automation-api-key.txt",
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -117,7 +131,9 @@ function parseArgs() {
     automationRepo: null,
     verbose: false,
     static: false,
+    dynamic: false,
     staticDir: null,
+    skipBuild: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -139,8 +155,14 @@ function parseArgs() {
       case "--static":
         config.static = true;
         break;
+      case "--dynamic":
+        config.dynamic = true;
+        break;
       case "--static-dir":
         config.staticDir = args[++i];
+        break;
+      case "--skip-build":
+        config.skipBuild = true;
         break;
       case "-h":
       case "--help":
@@ -166,6 +188,10 @@ OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
   --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
   --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
+  --static                    Serve an existing production build instead of Vite
+  --static-dir <dir>          Static build directory (default: build/)
+  --skip-build                Reuse build/ when the launcher builds static assets
+  --dynamic                   Force Vite dev server when a wrapper defaults static
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -177,6 +203,7 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+  OH_AUTOMATION_API_KEY_PATH  Override persisted default automation key path
 
 SECRETS:
   The automation API key is automatically seeded into agent-server secrets
@@ -269,8 +296,13 @@ async function buildConfig(args, env = process.env) {
 
   const vscodePort = ports.backend + 1000;
 
-  // Local API key for automation backend auth
-  const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
+  // Local API key for automation backend auth. Keep the generated default
+  // stable across restarts because static frontend builds bake this value.
+  const automationApiKeyPath =
+    env.OH_AUTOMATION_API_KEY_PATH || DEFAULT_AUTOMATION_API_KEY_PATH;
+  const localApiKey =
+    env.AUTOMATION_LOCAL_API_KEY ||
+    getOrCreatePersistedApiKey(automationApiKeyPath, "automation");
   
   // Session API key for agent-server auth
   // Build a preliminary safe config to get the auto-generated session key
@@ -321,7 +353,7 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites() {
+function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
   logStep("1/2", "Checking prerequisites...");
 
   if (!commandExists("uvx")) {
@@ -335,6 +367,16 @@ function checkPrerequisites() {
     process.exit(1);
   }
   logSuccess("npm found");
+
+  if (checkFrontendDependencies) {
+    try {
+      validateFrontendDependencies(projectRoot);
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    logSuccess("frontend dependencies found");
+  }
 }
 
 function ensureDirectories(config) {
@@ -356,14 +398,21 @@ function ensureDirectories(config) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const processes = new Map();
+const shutdownHooks = createShutdownHookRegistry((err) => {
+  logService("cleanup", `Cleanup hook failed: ${err.message}`, c.yellow);
+});
+
+function registerShutdownHook(hook) {
+  return shutdownHooks.add(hook);
+}
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, {
+  const proc = spawn(command, args, getProcessTreeSpawnOptions({
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
     cwd: options.cwd,
     shell: process.platform === "win32",
-  });
+  }));
 
   const color = options.color || c.reset;
 
@@ -478,6 +527,7 @@ function startAutomationBackend(config) {
       cwd: config.stateDir,
       env: {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+        AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
         AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
@@ -509,15 +559,17 @@ function shutdown() {
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
-    proc.kill("SIGTERM");
+    signalProcessTree(proc, "SIGTERM");
   }
 
   setTimeout(() => {
-    for (const [, proc] of processes) {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+    for (const [name, proc] of processes) {
+      if (isProcessRunning(proc)) {
+        logService(name, "Force stopping...", c.dim);
+        signalProcessTree(proc, "SIGKILL");
       }
     }
+    shutdownHooks.run();
     process.exit(0);
   }, 3000);
 }
@@ -698,14 +750,19 @@ async function main(options = {}) {
     extraPrereqs,
     viteWorkingDir,
     staticMode: staticModeOverride,
+    defaultStaticMode = false,
+    buildStaticFrontend,
     staticDir: staticDirOverride,
   } = options;
 
   const args = parseArgs();
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
-  const useStaticMode = staticModeOverride ?? args.static;
-  const staticDir = staticDirOverride ?? args.staticDir ?? join(projectRoot, "build", "client");
+  const useStaticMode =
+    staticModeOverride ??
+    (args.dynamic ? false : args.static || defaultStaticMode);
+  const staticDir =
+    staticDirOverride ?? args.staticDir ?? join(projectRoot, "build");
 
   const modeLabel = useStaticMode ? "(Static)" : "";
   const titleWithMode = modeLabel ? `${bannerTitle} ${modeLabel}` : bannerTitle;
@@ -717,14 +774,10 @@ async function main(options = {}) {
   // Setup phase
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
-  checkPrerequisites();
-
-  // In static mode, verify build exists
-  if (useStaticMode && !existsSync(staticDir)) {
-    logError(`Static directory not found: ${staticDir}`);
-    logError(`Run 'npm run build' first to create the static files.`);
-    process.exit(1);
-  }
+  checkPrerequisites({
+    checkFrontendDependencies:
+      !useStaticMode || typeof buildStaticFrontend === "function",
+  });
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
@@ -732,6 +785,17 @@ async function main(options = {}) {
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
+  }
+
+  if (useStaticMode && typeof buildStaticFrontend === "function") {
+    buildStaticFrontend(config, args);
+  }
+
+  // In static mode, verify build exists after any launcher-managed build.
+  if (useStaticMode && !existsSync(staticDir)) {
+    logError(`Static directory not found: ${staticDir}`);
+    logError(`Run 'npm run build' first to create the static files.`);
+    process.exit(1);
   }
 
   // Start services phase
@@ -815,8 +879,8 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAutomationCommand,
   buildConfig,
-  generateRandomApiKey,
   main,
+  registerShutdownHook,
   spawnService,
   commandExists,
   logService,
@@ -827,8 +891,10 @@ export {
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
+  DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
+  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

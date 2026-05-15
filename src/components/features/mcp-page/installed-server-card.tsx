@@ -9,10 +9,6 @@ import { cn } from "#/utils/utils";
 
 interface InstalledServerCardProps {
   server: MCPServerConfig;
-  /** Force a specific marketplace catalog id — used for Tavily where the
-   * persisted shape (search_api_key) doesn't look like a normal MCP
-   * server. */
-  catalogIdOverride?: string;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -46,7 +42,6 @@ function getServerSubtitle(server: MCPServerConfig): string {
 
 export function InstalledServerCard({
   server,
-  catalogIdOverride,
   onEdit,
   onDelete,
 }: InstalledServerCardProps) {
@@ -55,15 +50,11 @@ export function InstalledServerCard({
   // and `findInstalledMatch` agree on URL canonicalization (trailing
   // slashes, query strings, default ports) and stay in sync when one
   // is updated.
-  const catalog = catalogIdOverride
-    ? MCP_MARKETPLACE.find((entry) => entry.id === catalogIdOverride)
-    : findCatalogEntryForServer(server, MCP_MARKETPLACE);
+  const catalog = findCatalogEntryForServer(server, MCP_MARKETPLACE);
 
   const title = catalog?.name ?? getServerTitle(server);
-  const subtitle = catalogIdOverride ? "" : getServerSubtitle(server);
-  const transport = catalogIdOverride
-    ? t(I18nKey.MCP$TRANSPORT_BUILTIN)
-    : getServerTransportLabel(server.type);
+  const subtitle = getServerSubtitle(server);
+  const transport = getServerTransportLabel(server.type);
 
   return (
     <div
@@ -71,14 +62,14 @@ export function InstalledServerCard({
       data-server-id={server.id}
       className={cn(
         "flex items-start gap-3 rounded-xl",
-        "border border-tertiary bg-base-secondary p-4",
+        "border border-[var(--oh-border)] bg-base-secondary p-4",
       )}
     >
       <span
         aria-hidden="true"
         className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
         style={{
-          backgroundColor: catalog?.iconBg ?? "#3F4452",
+          backgroundColor: catalog?.iconBg ?? "var(--oh-color-tertiary)",
           color: catalog?.iconColor ?? "#FFFFFF",
         }}
       >
