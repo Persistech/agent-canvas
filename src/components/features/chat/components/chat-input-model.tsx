@@ -1,4 +1,5 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -9,30 +10,51 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 /**
- * Extract a short, meaningful display label from a full model string.
- * Uses the part after the last slash (e.g. "litellm_proxy/claude-opus-4-6" → "claude-opus-4-6"),
- * falling back to the full string when there's no slash.
+ * Resolve a display label for the conversation's model.
+ * Prefers a matching LLM profile name (the active profile if it matches,
+ * otherwise the first profile with a matching model). Falls back to
+ * `deriveProfileNameFromModel` (the part after the last slash, sanitised).
  */
-function getModelDisplayLabel(model: string): string {
-  const lastSlash = model.lastIndexOf("/");
-  return lastSlash >= 0 ? model.slice(lastSlash + 1) : model;
+function useModelDisplayLabel(llmModel: string | null | undefined): string | null {
+  const { data: profilesData } = useLlmProfiles();
+
+  return React.useMemo(() => {
+    if (!llmModel) return null;
+
+    const profiles = profilesData?.profiles;
+    if (profiles?.length) {
+      const activeProfileName = profilesData.active_profile;
+      // Prefer the active profile when its model matches
+      const activeMatch = profiles.find(
+        (p) => p.name === activeProfileName && p.model === llmModel,
+      );
+      if (activeMatch) return activeMatch.name;
+
+      // Fall back to any profile whose model matches
+      const anyMatch = profiles.find((p) => p.model === llmModel);
+      if (anyMatch) return anyMatch.name;
+    }
+
+    return deriveProfileNameFromModel(llmModel);
+  }, [llmModel, profilesData]);
 }
 
 export function ChatInputModel() {
   const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
+  const modelDisplayLabel = useModelDisplayLabel(conversation?.llm_model);
 
   const popoverRef = useClickOutsideElement<HTMLUListElement>(() => {
     setIsPopoverOpen(false);
   });
 
-  if (!conversation?.llm_model) {
+  if (!conversation?.llm_model || !modelDisplayLabel) {
     return null;
   }
-  const modelDisplayLabel = getModelDisplayLabel(conversation.llm_model);
 
   return (
     <div className="relative min-w-0">
