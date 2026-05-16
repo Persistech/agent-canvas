@@ -15,6 +15,7 @@ const useActiveConversationMock = vi.fn<
     data: { conversation_id: string; llm_model: string | null } | undefined;
   }
 >(() => ({ data: undefined }));
+const useChatInputLlmDisplayMock = vi.fn();
 
 vi.mock("#/components/features/controls/agent-status", () => ({
   AgentStatus: () => <div data-testid="agent-status-stub" />,
@@ -31,6 +32,13 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
 }));
+
+vi.mock(
+  "#/components/features/chat/components/use-chat-input-llm-display",
+  () => ({
+    useChatInputLlmDisplay: () => useChatInputLlmDisplayMock(),
+  }),
+);
 
 vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
   pauseConversation: vi.fn(),
@@ -57,11 +65,19 @@ describe("ChatInputActions", () => {
     __resetActiveStoreForTests();
     useActiveConversationMock.mockReset();
     useActiveConversationMock.mockReturnValue({ data: undefined });
+    useChatInputLlmDisplayMock.mockReset();
+    useChatInputLlmDisplayMock.mockReturnValue(null);
   });
 
   it("renders the active conversation model when one is available", () => {
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+    useChatInputLlmDisplayMock.mockReturnValue({
+      label: "gpt-4o",
+      model: "gpt-4o",
+      profileName: null,
+      title: "gpt-4o",
     });
 
     renderWithProviders(<ChatInputActions disabled={false} />);
@@ -75,6 +91,7 @@ describe("ChatInputActions", () => {
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: null },
     });
+    useChatInputLlmDisplayMock.mockReturnValue(null);
 
     renderWithProviders(<ChatInputActions disabled={false} />);
 

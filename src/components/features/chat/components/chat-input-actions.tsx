@@ -6,6 +6,7 @@ import { AgentStatus } from "#/components/features/controls/agent-status";
 import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
 import { ChatInputModel } from "./chat-input-model";
+import { useChatInputLlmDisplay } from "./use-chat-input-llm-display";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -64,6 +65,7 @@ export function ChatInputActions({
   // conversation route yet). Conversation-scoped actions below guard on this.
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
+  const llmDisplay = useChatInputLlmDisplay();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
@@ -453,8 +455,15 @@ export function ChatInputActions({
               className="overflow-visible min-w-[220px] max-w-[320px]"
             >
               <li className="text-sm">
-                <div className="p-2 leading-5 text-white break-all">
-                  {conversation?.llm_model}
+                <div className="p-2 text-white break-all">
+                  <div className="leading-5">
+                    {llmDisplay?.label ?? conversation?.llm_model}
+                  </div>
+                  {llmDisplay?.profileName && (
+                    <div className="mt-1 text-xs leading-4 text-[var(--oh-muted)]">
+                      {llmDisplay.model}
+                    </div>
+                  )}
                 </div>
               </li>
               <Divider />

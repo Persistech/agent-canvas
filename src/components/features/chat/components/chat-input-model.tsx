@@ -1,5 +1,3 @@
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useSettings } from "#/hooks/query/use-settings";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -10,6 +8,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { useChatInputLlmDisplay } from "./use-chat-input-llm-display";
 
 const MODEL_LABEL_MAX_CHARS = 10;
 
@@ -22,21 +21,18 @@ function truncateModelLabel(model: string): string {
 
 export function ChatInputModel() {
   const { t } = useTranslation("openhands");
-  const { data: conversation } = useActiveConversation();
-  // Home page has no active conversation; fall back to the user's default
-  // model so the switcher renders consistently across both surfaces.
-  const { data: settings } = useSettings();
-  const llmModel = conversation?.llm_model ?? settings?.llm_model;
+  const llmDisplay = useChatInputLlmDisplay();
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
 
   const popoverRef = useClickOutsideElement<HTMLUListElement>(() => {
     setIsPopoverOpen(false);
   });
 
-  if (!llmModel) {
+  if (!llmDisplay) {
     return null;
   }
-  const truncatedModelLabel = truncateModelLabel(llmModel);
+
+  const truncatedModelLabel = truncateModelLabel(llmDisplay.label);
 
   return (
     <div className="relative min-w-0">
@@ -46,7 +42,7 @@ export function ChatInputModel() {
           "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,color]",
           "hover:text-white hover:bg-white/10 cursor-pointer",
         )}
-        title={llmModel}
+        title={llmDisplay.title}
         data-testid="chat-input-llm-model"
         aria-expanded={isPopoverOpen}
         aria-haspopup="dialog"
@@ -76,7 +72,14 @@ export function ChatInputModel() {
           className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
         >
           <li className="text-sm">
-            <div className="p-2 leading-5 text-white break-all">{llmModel}</div>
+            <div className="p-2 text-white break-all">
+              <div className="leading-5">{llmDisplay.label}</div>
+              {llmDisplay.profileName && (
+                <div className="mt-1 text-xs leading-4 text-[var(--oh-muted)]">
+                  {llmDisplay.model}
+                </div>
+              )}
+            </div>
           </li>
           <Divider />
           <li className="text-sm">

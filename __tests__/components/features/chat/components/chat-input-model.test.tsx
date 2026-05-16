@@ -3,33 +3,29 @@ import { fireEvent, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithProviders } from "test-utils";
 
-const useActiveConversationMock = vi.fn();
-const useSettingsMock = vi.fn();
+const useChatInputLlmDisplayMock = vi.fn();
 
-vi.mock("#/hooks/query/use-active-conversation", () => ({
-  useActiveConversation: () => useActiveConversationMock(),
-}));
-
-vi.mock("#/hooks/query/use-settings", () => ({
-  useSettings: () => useSettingsMock(),
-}));
+vi.mock(
+  "#/components/features/chat/components/use-chat-input-llm-display",
+  () => ({
+    useChatInputLlmDisplay: () => useChatInputLlmDisplayMock(),
+  }),
+);
 
 // eslint-disable-next-line import/first
 import { ChatInputModel } from "#/components/features/chat/components/chat-input-model";
 
 describe("ChatInputModel", () => {
   beforeEach(() => {
-    useActiveConversationMock.mockReset();
-    useSettingsMock.mockReset();
-    useSettingsMock.mockReturnValue({ data: undefined });
+    useChatInputLlmDisplayMock.mockReset();
   });
 
-  it("renders the active conversation's llm_model when present", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: {
-        conversation_id: "test-conversation-id",
-        llm_model: "openai/gpt-4o",
-      },
+  it("renders the resolved LLM label when present", () => {
+    useChatInputLlmDisplayMock.mockReturnValue({
+      label: "openai/gpt-4o",
+      model: "openai/gpt-4o",
+      profileName: null,
+      title: "openai/gpt-4o",
     });
 
     renderWithProviders(<ChatInputModel />);
@@ -51,39 +47,31 @@ describe("ChatInputModel", () => {
     expect(llmSettingsLink).toHaveAttribute("href", "/settings");
   });
 
-  it("renders nothing when llm_model is missing", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id" },
-    });
-
-    renderWithProviders(<ChatInputModel />);
-
-    expect(
-      screen.queryByTestId("chat-input-llm-model"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("falls back to the user's default model from settings when there is no active conversation", () => {
-    // Arrange — home page render: no conversation yet, but the user has
-    // a default model configured. The switcher should still show.
-    useActiveConversationMock.mockReturnValue({ data: undefined });
-    useSettingsMock.mockReturnValue({
-      data: { llm_model: "anthropic/claude-sonnet-4-20250514" },
+  it("renders the profile name when the active model resolves to a saved profile", () => {
+    useChatInputLlmDisplayMock.mockReturnValue({
+      label: "haiku",
+      model: "anthropic/claude-3-5-haiku-20241022",
+      profileName: "haiku",
+      title: "haiku (anthropic/claude-3-5-haiku-20241022)",
     });
 
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    expect(model).toHaveTextContent("anthropic/…");
+    expect(model).toHaveTextContent("haiku");
     expect(model).toHaveAttribute(
       "title",
-      "anthropic/claude-sonnet-4-20250514",
+      "haiku (anthropic/claude-3-5-haiku-20241022)",
     );
+
+    fireEvent.click(model);
+    const popover = screen.getByTestId("chat-input-llm-model-popover");
+    expect(popover).toHaveTextContent("haiku");
+    expect(popover).toHaveTextContent("anthropic/claude-3-5-haiku-20241022");
   });
 
-  it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
-    useActiveConversationMock.mockReturnValue({ data: undefined });
-    useSettingsMock.mockReturnValue({ data: undefined });
+  it("renders nothing when no LLM display info is available", () => {
+    useChatInputLlmDisplayMock.mockReturnValue(null);
 
     renderWithProviders(<ChatInputModel />);
 
