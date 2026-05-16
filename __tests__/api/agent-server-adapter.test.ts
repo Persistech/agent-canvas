@@ -24,7 +24,7 @@ const {
     apiKey: "session-key",
     kind: "local" as const,
   })),
-  mockShouldLoadPublicSkills: vi.fn(() => false),
+  mockShouldLoadPublicSkills: vi.fn(() => true),
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -45,7 +45,7 @@ vi.mock("#/api/backend-registry/active-store", () => ({
 
 beforeEach(() => {
   mockIsAgentServerToolAvailable.mockReturnValue(true);
-  mockShouldLoadPublicSkills.mockReturnValue(false);
+  mockShouldLoadPublicSkills.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
     id: "default-local",
     name: "Local backend",
@@ -119,7 +119,7 @@ describe("buildStartConversationRequest", () => {
       "ThinkTool",
     ]);
     expect(payload.agent.agent_context).toEqual({
-      load_public_skills: false,
+      load_public_skills: true,
       load_user_skills: true,
     });
     expect(payload.agent.agent).toBeUndefined();
@@ -585,13 +585,13 @@ describe("createAgentFromSettings runtime services suffix", () => {
       agent: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent.agent_context).toEqual({
-      load_public_skills: false,
+      load_public_skills: true,
       load_user_skills: true,
     });
   });
 
-  it("opts conversations into public skills only when explicitly enabled", () => {
-    mockShouldLoadPublicSkills.mockReturnValue(true);
+  it("opts conversations out of public skills only when explicitly disabled", () => {
+    mockShouldLoadPublicSkills.mockReturnValue(false);
 
     const payload = buildStartConversationRequest({
       settings: DEFAULT_SETTINGS,
@@ -601,7 +601,7 @@ describe("createAgentFromSettings runtime services suffix", () => {
     };
 
     expect(payload.agent.agent_context).toEqual({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
     });
   });
@@ -626,7 +626,7 @@ describe("createAgentFromSettings runtime services suffix", () => {
       agent: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent.agent_context).toMatchObject({
-      load_public_skills: false,
+      load_public_skills: true,
       load_user_skills: true,
     });
     expect(
