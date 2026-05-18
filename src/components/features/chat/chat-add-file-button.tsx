@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -29,7 +29,7 @@ export function ChatAddFileButton({
       disabled={disabled}
     >
       <span className="flex h-full w-full items-center justify-center">
-        <Plus className="h-[13px] w-[13px] shrink-0" strokeWidth={2} />
+        <Paperclip className="h-[13px] w-[13px] shrink-0" strokeWidth={2} />
       </span>
     </button>
   );

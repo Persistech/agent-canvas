@@ -13,6 +13,14 @@ describe("ChatAddFileButton", () => {
     expect(button).not.toHaveAttribute("aria-label", "Add file");
   });
 
+  it("renders a paperclip icon to signal file attachment", () => {
+    render(<ChatAddFileButton handleFileIconClick={vi.fn()} />);
+
+    const button = screen.getByTestId("paperclip-icon");
+    expect(button.querySelector("svg.lucide-paperclip")).toBeInTheDocument();
+    expect(button.querySelector("svg.lucide-plus")).not.toBeInTheDocument();
+  });
+
   it("invokes handleFileIconClick when clicked", async () => {
     const user = userEvent.setup();
     const handleFileIconClick = vi.fn();
