@@ -20,10 +20,25 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Use 2 workers on CI (matches ubuntu-24.04's 2 vCPUs). Tests are isolated
+   * per browser context so parallel execution is safe. */
+  workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
+
+  /* Snapshot configuration for visual regression tests */
+  snapshotDir: "./tests/e2e/__snapshots__",
+  snapshotPathTemplate:
+    "{snapshotDir}/{testFilePath}/{projectName}/{arg}{ext}",
+  expect: {
+    toHaveScreenshot: {
+      /* Threshold for pixel comparison (0-1, lower = stricter) */
+      threshold: 0.01,
+      /* Maximum allowed different pixels */
+      maxDiffPixels: 100,
+    },
+  },
+
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
