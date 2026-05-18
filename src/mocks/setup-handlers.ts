@@ -19,7 +19,7 @@ function readMockCloudBackends() {
   }
 }
 
-export const SETUP_HANDLERS = [
+const BROWSER_SETUP_HANDLERS = [
   http.get("*/setup/backends", async () =>
     HttpResponse.json({ backends: readMockCloudBackends() }),
   ),
@@ -30,3 +30,6 @@ export const SETUP_HANDLERS = [
     HttpResponse.json({ ok: true }),
   ),
 ];
+
+export const SETUP_HANDLERS =
+  import.meta.env.MODE === "test" ? [] : BROWSER_SETUP_HANDLERS;
