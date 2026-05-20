@@ -411,9 +411,20 @@ class AgentServerConversationService {
       return batchGetCloudConversations(ids);
     }
 
+    // Opt into ``include_skills=false`` so the agent-server trims the
+    // ~260 KB ``agent.agent_context.skills`` payload from each
+    // conversation. Canvas only reads ``agent.kind`` and
+    // ``agent.llm.model`` from these responses (see ``toAppConversation``
+    // — the skills list is never accessed), and the local agent-server
+    // runtime keeps the full skill catalog server-side for prompt
+    // rendering. Companion PRs:
+    //   - software-agent-sdk#3316 (server-side query param)
+    //   - typescript-client#172 (typed ``includeSkills`` option)
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
-    ).getConversations<DirectConversationInfo>(ids);
+    ).getConversations<DirectConversationInfo>(ids, {
+      includeSkills: false,
+    });
 
     return requireDirectConversationItems(data).map((item) =>
       toAppConversation(item),
