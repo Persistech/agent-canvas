@@ -8,6 +8,10 @@ import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversat
 import { useStartTasks } from "#/hooks/query/use-start-tasks";
 import { useDeleteConversation } from "#/hooks/mutation/use-delete-conversation";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
+import { useUnifiedResumeConversation } from "#/hooks/mutation/use-unified-start-conversation";
+import { useUserProviders } from "#/hooks/use-user-providers";
+import { categorizeResumeError } from "#/utils/resume-error";
+import { TakeOwnershipModal } from "../conversation/take-ownership-modal";
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { ConfirmStopModal } from "./confirm-stop-modal";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -263,6 +267,11 @@ export function ConversationPanel({
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
   const { mutate: pauseConversation } = useUnifiedPauseConversation();
+  const { mutate: resumeConversation } = useUnifiedResumeConversation();
+  const { providers } = useUserProviders();
+  const [takeOwnershipForId, setTakeOwnershipForId] = React.useState<
+    string | null
+  >(null);
   const { mutate: updateConversation } = useUpdateConversation();
 
   // The next page of conversations is loaded only via the explicit "Load
@@ -308,6 +317,31 @@ export function ConversationPanel({
     setConfirmStopModalVisible(true);
     setSelectedConversationId(conversationId);
   }, []);
+
+  const handleResumeConversation = React.useCallback(
+    (conversationId: string) => {
+      resumeConversation(
+        { conversationId, providers },
+        {
+          onError: (error) => {
+            const info = categorizeResumeError(error);
+            if (info.kind === "lease_held") {
+              // Open the take-ownership modal scoped to this row's id so
+              // the retry click goes to the right conversation.
+              setTakeOwnershipForId(conversationId);
+            }
+            // session_load_failed and unknown errors are handled by the
+            // unified resume mutation itself (banner is rendered in the
+            // conversation route, generic toast for unknown). The sidebar
+            // doesn't host the banner because the user may have triggered
+            // resume from a different conversation than the one they're
+            // currently viewing.
+          },
+        },
+      );
+    },
+    [resumeConversation, providers],
+  );
 
   const handleConversationTitleChange = React.useCallback(
     (conversationId: string, newTitle: string) => {
@@ -414,6 +448,7 @@ export function ConversationPanel({
               handleDeleteProject(conversation.id, conversation.title ?? "")
             }
             onStop={() => handleStopConversation(conversation.id)}
+            onResume={() => handleResumeConversation(conversation.id)}
             onChangeTitle={(title) =>
               handleConversationTitleChange(conversation.id, title)
             }
@@ -450,6 +485,7 @@ export function ConversationPanel({
       handleConversationTitleChange,
       handleDeleteProject,
       handleStopConversation,
+      handleResumeConversation,
       onClose,
       openContextMenuId,
       showRepoBranchMetadata,
@@ -703,6 +739,17 @@ export function ConversationPanel({
           }}
           onClose={() => setConfirmExitConversationModalVisible(false)}
           onCancel={() => setConfirmExitConversationModalVisible(false)}
+        />
+      )}
+
+      {takeOwnershipForId && (
+        <TakeOwnershipModal
+          onConfirm={() => {
+            const id = takeOwnershipForId;
+            setTakeOwnershipForId(null);
+            handleResumeConversation(id);
+          }}
+          onCancel={() => setTakeOwnershipForId(null)}
         />
       )}
     </div>

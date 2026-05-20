@@ -545,6 +545,40 @@ describe("ConversationCard", () => {
     },
   );
 
+  // Resume is the inverse of Stop: only meaningful when the conversation is
+  // paused. Mirrors `isExecutionPaused` from `#/utils/status`.
+  const resumeStatusTable: [ExecutionStatus, boolean][] = [
+    [ExecutionStatus.RUNNING, false],
+    [ExecutionStatus.IDLE, false],
+    [ExecutionStatus.FINISHED, false],
+    [ExecutionStatus.WAITING_FOR_CONFIRMATION, false],
+    [ExecutionStatus.ERROR, false],
+    [ExecutionStatus.STUCK, false],
+    [ExecutionStatus.PAUSED, true],
+  ];
+
+  it.each(resumeStatusTable)(
+    "should toggle resume button visibility correctly for execution status",
+    (executionStatus, shouldShow) => {
+      renderWithProviders(
+        <ConversationCardActions
+          contextMenuOpen={true}
+          onContextMenuToggle={vi.fn()}
+          onResume={vi.fn()}
+          executionStatus={executionStatus}
+        />,
+      );
+
+      const resumeButton = screen.queryByTestId("resume-button");
+
+      if (shouldShow) {
+        expect(resumeButton).toBeInTheDocument();
+      } else {
+        expect(resumeButton).not.toBeInTheDocument();
+      }
+    },
+  );
+
   describe("stop button label by active backend", () => {
     const cloudBackend: Backend = {
       id: "prod",

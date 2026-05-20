@@ -11,6 +11,7 @@ interface ConversationCardActionsProps {
   onContextMenuToggle: (isOpen: boolean) => void;
   onDelete?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onStop?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onResume?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onEdit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadViaVSCode?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -24,6 +25,7 @@ export function ConversationCardActions({
   onContextMenuToggle,
   onDelete,
   onStop,
+  onResume,
   onEdit,
   onDownloadViaVSCode,
   onDownloadConversation,
@@ -107,6 +109,7 @@ export function ConversationCardActions({
               onClose={() => onContextMenuToggle(false)}
               onDelete={onDelete}
               onStop={isActive ? onStop : undefined}
+              onResume={isPaused ? onResume : undefined}
               onEdit={onEdit}
               onDownloadViaVSCode={
                 conversationId && showOptions ? onDownloadViaVSCode : undefined

@@ -14,12 +14,14 @@ import DownloadIcon from "#/icons/u-download.svg?react";
 import CreditCardIcon from "#/icons/u-credit-card.svg?react";
 import CloseIcon from "#/icons/u-close.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
+import PlayCircleIcon from "#/icons/play-circle.svg?react";
 import { Divider } from "#/ui/divider";
 
 interface ConversationCardContextMenuProps {
   onClose: () => void;
   onDelete?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onStop?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onResume?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onEdit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDisplayCost?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onShowAgentTools?: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -42,6 +44,7 @@ export function ConversationCardContextMenu({
   onClose,
   onDelete,
   onStop,
+  onResume,
   onEdit,
   onDisplayCost,
   onShowAgentTools,
@@ -150,6 +153,19 @@ export function ConversationCardContextMenu({
       )}
       {generateSection(
         [
+          onResume && (
+            <ContextMenuListItem
+              key="resume-button"
+              testId="resume-button"
+              onClick={onResume}
+              className={contextMenuListItemClassName}
+            >
+              <ConversationNameContextMenuIconText
+                icon={<PlayCircleIcon width={16} height={16} />}
+                text={t(I18nKey.BUTTON$RESUME_CONVERSATION)}
+              />
+            </ContextMenuListItem>
+          ),
           onStop && (
             <ContextMenuListItem
               key="stop-button"

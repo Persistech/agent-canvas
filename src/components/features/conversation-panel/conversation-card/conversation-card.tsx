@@ -17,6 +17,7 @@ interface ConversationCardProps {
   onClick?: () => void;
   onDelete?: () => void;
   onStop?: () => void;
+  onResume?: () => void;
   onChangeTitle?: (title: string) => void;
   showOptions?: boolean;
   title: string;
@@ -39,6 +40,7 @@ export function ConversationCard({
   onClick,
   onDelete,
   onStop,
+  onResume,
   onChangeTitle,
   showOptions,
   title,
@@ -78,6 +80,13 @@ export function ConversationCard({
     event.preventDefault();
     event.stopPropagation();
     onStop?.();
+    onContextMenuToggle?.(false);
+  };
+
+  const handleResume = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onResume?.();
     onContextMenuToggle?.(false);
   };
 
@@ -126,7 +135,12 @@ export function ConversationCard({
     onContextMenuToggle?.(false);
   };
 
-  const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
+  const hasContextMenu = !!(
+    onDelete ||
+    onResume ||
+    onChangeTitle ||
+    showOptions
+  );
   const shouldRenderFooter =
     showRepositoryMetadata || (!!llmModel && showLlmProfiles);
 
@@ -187,6 +201,7 @@ export function ConversationCard({
                 onContextMenuToggle={onContextMenuToggle || (() => {})}
                 onDelete={onDelete && handleDelete}
                 onStop={onStop && handleStop}
+                onResume={onResume && handleResume}
                 onEdit={onChangeTitle && handleEdit}
                 onDownloadViaVSCode={handleDownloadViaVSCode}
                 onDownloadConversation={handleDownloadConversation}
