@@ -16,43 +16,124 @@ permissions:
   issues: write
 
 jobs:
-  pr-review:
-    # Run on same-repo PRs via pull_request and on fork PRs via pull_request_target.
-    # Trigger when one of the following conditions is met:
-    #   1. A new non-draft PR is opened by a non-first-time contributor, OR
-    #   2. A draft PR is converted to ready for review by a non-first-time contributor, OR
-    #   3. The 'review-this' label is added, OR
-    #   4. openhands-agent or all-hands-bot is requested as a reviewer
-    # Note: FIRST_TIME_CONTRIBUTOR and NONE PRs require manual trigger via label/reviewer request.
-    if: |
-      (
-        (
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        ) ||
-        (
-          github.event_name == 'pull_request_target' &&
-          (
-            github.event.pull_request.head.repo.full_name != github.repository ||
-            (
-              github.event.pull_request.draft == true &&
-              github.event.action == 'review_requested'
+  authorize-pr-review:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.evaluate.outputs.should_run }}
+      reason: ${{ steps.evaluate.outputs.reason }}
+    steps:
+      - name: Evaluate PR review authorization
+        id: evaluate
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC }}
+          script: |
+            const trustedAuthorAssociations = new Set([
+              'COLLABORATOR',
+              'MEMBER',
+              'OWNER',
+            ])
+            const botReviewers = new Set(['openhands-agent', 'all-hands-bot'])
+            const org = 'OpenHands'
+
+            const action = context.payload.action
+            const pr = context.payload.pull_request
+            const labelName = context.payload.label?.name
+            const requestedReviewer = context.payload.requested_reviewer?.login
+            const sender = context.payload.sender?.login
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`
+            const isSameRepo = pr.head.repo.full_name === repoFullName
+            const isTrustedAuthor = trustedAuthorAssociations.has(
+              pr.author_association ?? '',
             )
-          )
-        )
-      ) &&
-      (
-        (github.event.action == 'opened' && github.event.pull_request.draft == false && github.event.pull_request.author_association != 'FIRST_TIME_CONTRIBUTOR' && github.event.pull_request.author_association != 'NONE') ||
-        (github.event.action == 'ready_for_review' && github.event.pull_request.author_association != 'FIRST_TIME_CONTRIBUTOR' && github.event.pull_request.author_association != 'NONE') ||
-        (github.event.action == 'labeled' && github.event.label.name == 'review-this') ||
-        (
-          github.event.action == 'review_requested' &&
-          (
-            github.event.requested_reviewer.login == 'openhands-agent' ||
-            github.event.requested_reviewer.login == 'all-hands-bot'
-          )
-        )
-      )
+            const isSupportedContext =
+              (context.eventName === 'pull_request' && isSameRepo) ||
+              (
+                context.eventName === 'pull_request_target' &&
+                (
+                  !isSameRepo ||
+                  (pr.draft === true && action === 'review_requested')
+                )
+              )
+            const isReviewThisLabel =
+              action === 'labeled' && labelName === 'review-this'
+            const isBotReviewerRequest =
+              action === 'review_requested' &&
+              botReviewers.has(requestedReviewer ?? '')
+            const senderCanAuthorize =
+              sender != null && (isReviewThisLabel || isBotReviewerRequest)
+
+            let senderIsOrgMember = false
+            if (senderCanAuthorize) {
+              try {
+                await github.request('GET /orgs/{org}/members/{username}', {
+                  org,
+                  username: sender,
+                })
+                senderIsOrgMember = true
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error
+                }
+              }
+            }
+
+            let shouldRun = false
+            let reason = 'event_not_enabled'
+
+            if (!isSupportedContext) {
+              reason = 'unsupported_event_context'
+            } else if (
+              (action === 'opened' && pr.draft === false) ||
+              action === 'ready_for_review'
+            ) {
+              shouldRun = isTrustedAuthor
+              reason = shouldRun
+                ? 'trusted_author_auto_review'
+                : 'untrusted_pr_requires_org_member_trigger'
+            } else if (isReviewThisLabel) {
+              shouldRun = isTrustedAuthor || senderIsOrgMember
+              reason = shouldRun
+                ? (isTrustedAuthor
+                    ? 'trusted_pr_review_this_label'
+                    : 'org_member_labeled_untrusted_pr')
+                : 'review_this_label_added_by_non_org_member'
+            } else if (isBotReviewerRequest) {
+              shouldRun = isTrustedAuthor || senderIsOrgMember
+              reason = shouldRun
+                ? (isTrustedAuthor
+                    ? 'trusted_author_requested_bot_reviewer'
+                    : 'org_member_rerequested_review_on_untrusted_pr')
+                : 'untrusted_pr_reviewer_request_blocked'
+            }
+
+            core.setOutput('should_run', String(shouldRun))
+            core.setOutput('reason', reason)
+            core.info(
+              JSON.stringify(
+                {
+                  action,
+                  authorAssociation: pr.author_association,
+                  isSameRepo,
+                  isSupportedContext,
+                  isTrustedAuthor,
+                  labelName,
+                  requestedReviewer,
+                  sender,
+                  senderIsOrgMember,
+                  shouldRun,
+                  reason,
+                },
+                null,
+                2,
+              ),
+            )
+
+  pr-review:
+    needs: authorize-pr-review
+    # Auto-run for org-affiliated PR authors. For untrusted PRs, require an
+    # OpenHands org member to add 'review-this' or re-request the bot review.
+    if: needs.authorize-pr-review.outputs.should_run == 'true'
     concurrency:
       group: pr-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
