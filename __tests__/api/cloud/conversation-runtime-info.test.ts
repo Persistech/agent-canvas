@@ -61,12 +61,12 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.post).mockReset();
+      vi.mocked(axios.request).mockReset();
     });
 
-    it("routes through /api/cloud-proxy targeting the conversation runtime host", async () => {
+    it("calls the conversation runtime host directly with X-Session-API-Key", async () => {
       // Arrange
-      vi.mocked(axios.post).mockResolvedValue({ data: runtimeResponse });
+      vi.mocked(axios.request).mockResolvedValue({ data: runtimeResponse });
       const conversationUrl =
         "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc";
 
@@ -78,14 +78,14 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       );
 
       // Assert
-      expect(axios.post).toHaveBeenCalledOnce();
-      const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-      expect(url).toMatch(/\/api\/cloud-proxy$/);
-      expect(body).toMatchObject({
-        host: "http://abc123.runtime.all-hands.dev",
+      expect(axios.request).toHaveBeenCalledOnce();
+      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(config).toMatchObject({
         method: "GET",
-        path: "/api/conversations/conv-abc",
-        headers: { "X-Session-API-Key": "session-xyz" },
+        url: "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc",
+        headers: expect.objectContaining({
+          "X-Session-API-Key": "session-xyz",
+        }),
       });
       expect(result.stats.usage_to_metrics.agent?.accumulated_cost).toBe(1.23);
     });
@@ -96,7 +96,7 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([localBackend]);
       setActiveSelection({ backendId: localBackend.id });
-      vi.mocked(axios.post).mockReset();
+      vi.mocked(axios.request).mockReset();
     });
 
     it("targets the conversation_url host (not the active backend host) and forwards X-Session-API-Key", async () => {
@@ -121,7 +121,7 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       );
 
       // Assert
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(axios.request).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledOnce();
       const call = fetchMock.mock.calls[0] as unknown as [
         RequestInfo,

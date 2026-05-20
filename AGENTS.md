@@ -205,15 +205,16 @@ const data = await fetch(`/api/conversations/${id}`);
 **Allowed exceptions** (files that may use axios directly for infrastructure reasons):
 
 - `src/api/automation-service/automation-service.api.ts`
-- `src/api/cloud/proxy.ts` -- the proxy envelope POST itself
+- `src/api/cloud/proxy.ts` -- the direct cloud request itself
 
 ### Rule 2 -- Cloud backend routes must go through `callCloudProxy`
 
 Any call from the browser to the cloud backend (`app.all-hands.dev`) or a cloud
 runtime sandbox (`*.prod-runtime.all-hands.dev`) **must** go through `callCloudProxy()`
-in `src/api/cloud/proxy.ts`. These origins do not permit CORS from `localhost`;
-`callCloudProxy` POSTs the request envelope to `/api/cloud-proxy` on the local
-agent-server, which forwards it server-side.
+in `src/api/cloud/proxy.ts`. The SaaS exposes permissive CORS for API-key
+authenticated requests so `callCloudProxy` issues the request directly to the
+upstream host; the helper handles bearer/session-key auth, the `X-Org-Id` rule,
+and timeouts.
 
 ```ts
 import { callCloudProxy } from "../cloud/proxy";
@@ -375,7 +376,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 
 - Conversation history is loaded lazily, REST-first then WebSocket:
   - `useConversationHistory` (in `src/hooks/query/use-conversation-history.ts`) fetches only the most recent `INITIAL_HISTORY_PAGE_SIZE` (default 50) events using `sort_order='TIMESTAMP_DESC'`, then reverses to chronological order. Older pages are paginated in via `useLoadOlderEvents` when the user scrolls near the top of the chat.
-  - `EventService.searchEvents(conversationId, conversationUrl, sessionApiKey, options)` returns the raw `EventSearchPage` (`{ items, next_page_id }`); options support `limit`, `pageId`, `sortOrder`, `timestampGte`, `timestampLt`. Both the local and cloud-proxy code paths forward the new params.
+  - `EventService.searchEvents(conversationId, conversationUrl, sessionApiKey, options)` returns the raw `EventSearchPage` (`{ items, next_page_id }`); options support `limit`, `pageId`, `sortOrder`, `timestampGte`, `timestampLt`. Both the local and cloud code paths forward the new params.
   - The main `ConversationWebSocketProvider` waits for the REST query to settle before opening its socket, then connects with `resend_mode='since'` and `after_timestamp=<latest preloaded event ts>` (falling back to `'all'` when the REST result is empty or errored). The legacy `resend_all=true` flag is removed for the main connection; the planning-agent sub-conversation still uses `resend_all` until it is migrated to the same REST-then-WS pattern.
   - The event store gained a bulk `addEvents(events)` action (used for the initial REST seed and for "scroll-up" pagination) that re-sorts by timestamp once at the end so older pages can be merged in cheaply. Per-event dedup still works via the existing `eventIds` set.
   - `ChatInterface` wires `useLoadOlderEvents` into its scroll handler (threshold 80px from the top), shows a `data-testid="loading-older-events"` spinner during pagination, and preserves the visible scroll offset by storing the previous `scrollHeight` and adding the height delta after the older page renders.
@@ -415,7 +416,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
   - The terminal tab (`components/features/terminal/terminal.tsx`) is `React.lazy`'d in `conversation-tab-content.tsx` alongside the other tabs, so xterm + addon-fit + xterm.css don't enter the conversation route's eager graph (they ship as a separate `terminal-*.js` chunk now).
   - Avoid importing app code through `#/components/conversation-events/chat` or its `event-message-components/index.ts` barrel — they exist for `lib/index.ts` (npm subpath) consumers only. Internal callers use deep paths (`./messages`, `./event-message-components/<name>`, `./event-content-helpers/should-render-event`) so Vite dev doesn't fan out the barrel.
 
-- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` through the bundled `/api/cloud-proxy`). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`, which now opts into a one-shot re-probe for previously disabled backends so opening the modal can clear stale persisted error state when a server has recovered. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
+- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` direct call to the cloud host). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`, which now opts into a one-shot re-probe for previously disabled backends so opening the modal can clear stale persisted error state when a server has recovered. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
 
 - Manage Backends modal: `src/components/features/backends/manage-backends-modal.tsx` lets users edit (host/name/api-key/kind) and remove existing backends, plus add new ones inline via a "+ Add Backend" footer button that opens a `BackendFormModal`. Both the dropdown footer's "Add backend" and the manage modal's "+ Add Backend" reuse `BackendFormModal` (see `backend-form-modal.tsx`), with `mode="add"` or `mode="edit"`; `AddBackendModal` is now a thin compatibility wrapper for `BackendFormModal mode="add"`. The modal is also auto-rendered (with a no-op `onClose`) by `src/root.tsx` when the active backend is unreachable, replacing the old full-screen `MissingAgentServerNotice` onboarding screen.
 

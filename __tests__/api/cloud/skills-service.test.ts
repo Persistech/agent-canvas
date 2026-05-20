@@ -23,7 +23,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -32,8 +32,8 @@ afterEach(() => {
 });
 
 describe("SkillsService.getSkills against cloud backend", () => {
-  it("paginates /api/v1/skills/search via the local cloud-proxy and returns the merged list", async () => {
-    vi.mocked(axios.post)
+  it("paginates /api/v1/skills/search and returns the merged list", async () => {
+    vi.mocked(axios.request)
       .mockResolvedValueOnce({
         data: {
           items: [
@@ -57,21 +57,17 @@ describe("SkillsService.getSkills against cloud backend", () => {
 
     const skills = await SkillsService.getSkills();
 
-    expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(2);
 
-    const [firstUrl, firstBody] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(firstUrl).toMatch(/\/api\/cloud-proxy$/);
-    expect(firstBody).toMatchObject({
-      host: cloudBackend.host,
-      method: "GET",
-    });
-    expect((firstBody as { path: string }).path).toMatch(
-      /^\/api\/v1\/skills\/search\?/,
+    const [firstConfig] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(firstConfig).toMatchObject({ method: "GET" });
+    expect((firstConfig as { url: string }).url).toMatch(
+      new RegExp(`^${cloudBackend.host}/api/v1/skills/search\\?`),
     );
-    expect((firstBody as { path: string }).path).not.toContain("page_id=");
+    expect((firstConfig as { url: string }).url).not.toContain("page_id=");
 
-    const [, secondBody] = vi.mocked(axios.post).mock.calls[1]!;
-    expect((secondBody as { path: string }).path).toContain("page_id=beta");
+    const [secondConfig] = vi.mocked(axios.request).mock.calls[1]!;
+    expect((secondConfig as { url: string }).url).toContain("page_id=beta");
 
     expect(skills.map((s) => s.name)).toEqual(["alpha", "beta", "gamma"]);
     expect(skills[1]).toMatchObject({ triggers: ["foo"] });

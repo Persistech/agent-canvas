@@ -504,10 +504,10 @@ class AgentServerConversationService {
       stats?: RuntimeConversationInfo["stats"];
     };
 
-    // Cloud mode: route through the cloud-proxy to the runtime sandbox at
-    // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
-    // mode forwards conversationUrl so the host explicitly resolves to the
-    // conversation's runtime instead of falling back to the active backend.
+    // Cloud mode: call the runtime sandbox at the conversation's runtime
+    // URL directly — same pattern as getVSCodeUrl. Local mode forwards
+    // conversationUrl so the host explicitly resolves to the conversation's
+    // runtime instead of falling back to the active backend.
     const response =
       active.kind === "cloud" && conversationUrl
         ? await callCloudProxy<RawRuntime>({

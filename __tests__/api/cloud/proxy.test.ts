@@ -10,17 +10,9 @@ import type { Backend } from "#/api/backend-registry/types";
 
 vi.mock("axios");
 
-const localBackend: Backend = {
-  id: "local-1",
-  name: "Local",
-  host: "http://localhost:9000",
-  apiKey: "local-key",
-  kind: "local",
-};
-
 const cloudPersonal: Backend = {
   id: "cloud-personal",
-  name: "Production - Personal",
+  name: "Production",
   host: "https://app.all-hands.dev",
   apiKey: "personal-key",
   kind: "cloud",
@@ -37,22 +29,20 @@ const cloudAcme: Backend = {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.post).mockReset();
-  vi.mocked(axios.post).mockResolvedValue({ data: {} });
+  vi.mocked(axios.request).mockReset();
+  vi.mocked(axios.request).mockResolvedValue({ data: {} });
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
-describe("callCloudProxy X-Org-Id injection", () => {
-  it("sends X-Org-Id when targeting the active cloud backend with a selected orgId", async () => {
-    // Arrange — active selection points at the cloud backend with a
-    // resolved orgId. This is the steady-state case after the user picks
-    // an org row in the BackendSelector.
-    setRegisteredBackends([localBackend, cloudPersonal]);
+describe("callCloudProxy", () => {
+  it("calls the cloud host directly with bearer auth and the active backend's X-Org-Id", async () => {
+    // Arrange — the user has picked Production + an org in the selector.
+    setRegisteredBackends([cloudPersonal]);
     setActiveSelection({
       backendId: cloudPersonal.id,
       orgId: "org-personal-uuid",
@@ -65,20 +55,25 @@ describe("callCloudProxy X-Org-Id injection", () => {
       path: "/api/v1/app-conversations/search",
     });
 
-    // Assert — the upstream envelope carries the X-Org-Id of the active
-    // selection so the cloud backend can scope this request to the user's
-    // locally-chosen org without depending on user.current_org_id.
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    // Assert — request goes directly to the cloud, no local-server hop.
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      method: "GET",
+      url: `${cloudPersonal.host}/api/v1/app-conversations/search`,
+    });
     expect(
-      (body as { headers: Record<string, string> }).headers["X-Org-Id"],
-    ).toBe("org-personal-uuid");
+      (config as { headers: Record<string, string> }).headers,
+    ).toMatchObject({
+      Authorization: "Bearer personal-key",
+      "X-Org-Id": "org-personal-uuid",
+    });
   });
 
-  it("omits X-Org-Id when targeting a different cloud backend than the active one", async () => {
-    // Arrange — the BackendSelector fan-out (e.g. useAllCloudOrganizations)
-    // calls callCloudProxy(b) for every registered cloud backend. Sending
-    // the active backend's orgId across an unrelated API key would cause
-    // the cloud backend to 403 on api_key_org_id / X-Org-Id mismatch.
+  it("omits X-Org-Id when targeting a cloud backend that is not the active one", async () => {
+    // Arrange — fan-out: useAllCloudOrganizations calls callCloudProxy
+    // for every registered cloud backend. Sending the active backend's
+    // orgId across an unrelated API key would 403 on org-binding
+    // mismatch upstream.
     setRegisteredBackends([cloudPersonal, cloudAcme]);
     setActiveSelection({
       backendId: cloudPersonal.id,
@@ -93,9 +88,36 @@ describe("callCloudProxy X-Org-Id injection", () => {
     });
 
     // Assert
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(
-      (body as { headers: Record<string, string> }).headers,
+      (config as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
+  });
+
+  it("targets hostOverride with X-Session-API-Key for runtime-sandbox calls", async () => {
+    // Arrange — cloud sandbox endpoints live at the conversation's
+    // runtime URL and authenticate via X-Session-API-Key, not bearer.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({ backendId: cloudPersonal.id });
+
+    // Act
+    await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      hostOverride: "http://abc.runtime.all-hands.dev",
+      path: "/api/conversations/conv-1",
+      authMode: "session-api-key",
+      sessionApiKey: "sess-xyz",
+    });
+
+    // Assert
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      method: "GET",
+      url: "http://abc.runtime.all-hands.dev/api/conversations/conv-1",
+    });
+    const headers = (config as { headers: Record<string, string> }).headers;
+    expect(headers).toMatchObject({ "X-Session-API-Key": "sess-xyz" });
+    expect(headers).not.toHaveProperty("Authorization");
   });
 });

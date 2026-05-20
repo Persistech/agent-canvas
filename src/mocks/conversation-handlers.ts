@@ -23,11 +23,6 @@ type MockConversation = DirectConversationInfo & {
   git_provider?: string | null;
 };
 
-type CloudProxyEnvelope = {
-  method?: string;
-  path?: string;
-};
-
 const conversations: MockConversation[] = [
   {
     id: "1",
@@ -320,83 +315,72 @@ export const CONVERSATION_HANDLERS = [
     HttpResponse.json({ success: true }),
   ),
 
-  http.post("*/api/cloud-proxy", async ({ request }) => {
-    const envelope = (await request.json()) as CloudProxyEnvelope;
-    const upstreamPath = envelope.path ?? "/";
-    const upstreamUrl = new URL(upstreamPath, "https://mock-cloud.test");
-
-    if (upstreamUrl.pathname === "/api/v1/app-conversations") {
-      const ids = upstreamUrl.searchParams.getAll("ids");
-      if (ids.length > 0) {
-        return HttpResponse.json(
-          ids.map((id) =>
-            id === PAGINATION_CLOUD_CONVERSATION_ID
-              ? CLOUD_PAGINATION_CONVERSATION
-              : null,
-          ),
-        );
-      }
+  http.get("*/api/v1/app-conversations", ({ request }) => {
+    const ids = new URL(request.url).searchParams.getAll("ids");
+    if (ids.length > 0) {
+      return HttpResponse.json(
+        ids.map((id) =>
+          id === PAGINATION_CLOUD_CONVERSATION_ID
+            ? CLOUD_PAGINATION_CONVERSATION
+            : null,
+        ),
+      );
     }
+    return HttpResponse.json([]);
+  }),
 
-    if (upstreamUrl.pathname === "/api/v1/app-conversations/search") {
-      return HttpResponse.json({
-        items: [CLOUD_PAGINATION_CONVERSATION],
-        next_page_id: null,
-      });
-    }
+  http.get("*/api/v1/app-conversations/search", () =>
+    HttpResponse.json({
+      items: [CLOUD_PAGINATION_CONVERSATION],
+      next_page_id: null,
+    }),
+  ),
 
-    if (
-      upstreamUrl.pathname ===
-      `/api/v1/conversation/${PAGINATION_CLOUD_CONVERSATION_ID}/events/search`
-    ) {
+  http.get(
+    `*/api/v1/conversation/${PAGINATION_CLOUD_CONVERSATION_ID}/events/search`,
+    async ({ request }) => {
       const paginationPage = await maybeReturnPaginationEvents(
         PAGINATION_CLOUD_CONVERSATION_ID,
-        upstreamUrl.searchParams,
+        new URL(request.url).searchParams,
       );
       return HttpResponse.json(paginationPage);
-    }
+    },
+  ),
 
-    if (upstreamUrl.pathname === "/api/v1/settings") {
-      return HttpResponse.json({
-        llm_model: "openhands/claude-haiku-4-5-20251001",
-        llm_base_url: "",
-        llm_api_key: null,
-        llm_api_key_set: false,
-        search_api_key_set: false,
-        agent: "CodeActAgent",
-        language: "en",
-        user_consents_to_analytics: false,
-        provider_tokens_set: { github: "" },
-      });
-    }
+  http.get("*/api/v1/settings", () =>
+    HttpResponse.json({
+      llm_model: "openhands/claude-haiku-4-5-20251001",
+      llm_base_url: "",
+      llm_api_key: null,
+      llm_api_key_set: false,
+      search_api_key_set: false,
+      agent: "CodeActAgent",
+      language: "en",
+      user_consents_to_analytics: false,
+      provider_tokens_set: { github: "" },
+    }),
+  ),
 
-    if (upstreamUrl.pathname === "/api/keys/current") {
-      return HttpResponse.json({
-        id: "mock-key",
-        name: "Mock key",
-        org_id: "org-1",
-        user_id: "user-1",
-        auth_type: "api_key",
-      });
-    }
+  http.get("*/api/keys/current", () =>
+    HttpResponse.json({
+      id: "mock-key",
+      name: "Mock key",
+      org_id: "org-1",
+      user_id: "user-1",
+      auth_type: "api_key",
+    }),
+  ),
 
-    if (upstreamUrl.pathname === "/api/organizations") {
-      return HttpResponse.json({
-        items: [{ id: "org-1", name: "Mock Org", is_personal: true }],
-        current_org_id: "org-1",
-      });
-    }
+  http.get("*/api/organizations", () =>
+    HttpResponse.json({
+      items: [{ id: "org-1", name: "Mock Org", is_personal: true }],
+      current_org_id: "org-1",
+    }),
+  ),
 
-    if (upstreamUrl.pathname === "/api/organizations/org-1/me") {
-      return HttpResponse.json({ org_id: "org-1", user_id: "org-1" });
-    }
-
-    if (upstreamUrl.pathname === "/api/authenticate") {
-      return HttpResponse.json({ ok: true });
-    }
-
-    return HttpResponse.json({});
-  }),
+  http.get("*/api/organizations/org-1/me", () =>
+    HttpResponse.json({ org_id: "org-1", user_id: "org-1" }),
+  ),
 
   http.post("*/api/conversations/:conversationId/ask_agent", async () =>
     HttpResponse.json({ response: "Mock agent response" }),

@@ -37,9 +37,6 @@ function resolveBackend(backend?: Backend): Backend {
  * Fetch the org list for a cloud backend. With no argument, uses the active
  * cloud backend; pass `backend` explicitly to fetch for an inactive cloud
  * (used by the selector to flatten all cloud rows).
- *
- * Routed through the bundled agent-server's `/api/cloud-proxy` to avoid
- * cross-origin browser calls.
  */
 export async function getCloudOrganizations(
   backend?: Backend,

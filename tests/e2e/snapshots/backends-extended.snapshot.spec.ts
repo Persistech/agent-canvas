@@ -67,8 +67,8 @@ const CLOUD_BACKEND: Backend = {
 /**
  * Seed localStorage with one or two backends and navigate to the
  * conversations list so the BackendSelector is visible in the sidebar.
- * Routes file API and cloud-proxy requests so they don't produce
- * console errors that could affect timing.
+ * Routes file API requests so workspace-scan 404s don't produce console
+ * errors that could affect timing.
  */
 async function setupPage(
   page: Page,

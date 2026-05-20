@@ -52,9 +52,8 @@ function getActiveCloudBackend(): Backend {
 
 /**
  * Search the cloud app-conversations list. Mirrors the local
- * `AgentServerConversationService.searchConversations` interface but routes
- * through the bundled agent-server's cloud proxy and hits the cloud
- * endpoint `/api/v1/app-conversations/search`.
+ * `AgentServerConversationService.searchConversations` interface but calls
+ * the cloud endpoint `/api/v1/app-conversations/search` directly.
  */
 export async function searchCloudConversations(
   limit: number = 20,
@@ -134,8 +133,7 @@ export async function createCloudAppConversation(
 /**
  * Download a v1 app-conversation as a ZIP from the cloud backend. Mirrors
  * the local `AgentServerConversationService.downloadConversation` interface but
- * routes through the bundled agent-server's cloud proxy and hits
- * `GET /api/v1/app-conversations/{id}/download`, which returns
+ * hits `GET /api/v1/app-conversations/{id}/download` directly, which returns
  * `application/zip` with `Content-Disposition` set by the cloud backend.
  */
 export async function downloadCloudConversation(
@@ -152,9 +150,8 @@ export async function downloadCloudConversation(
 
 /**
  * Delete a v1 app-conversation on the cloud backend. Mirrors the local
- * `AgentServerConversationService.deleteConversation` interface but routes
- * through the bundled agent-server's cloud proxy and hits
- * `DELETE /api/v1/app-conversations/{id}`, which returns a JSON
+ * `AgentServerConversationService.deleteConversation` interface but hits
+ * `DELETE /api/v1/app-conversations/{id}` directly, which returns a JSON
  * `Success` envelope (discarded here — the caller only needs to know
  * the request didn't error).
  */
@@ -172,9 +169,8 @@ export async function deleteCloudConversation(
 /**
  * Toggle the public-sharing flag on a cloud v1 app-conversation. Mirrors
  * OpenHands' `AgentServerConversationService.updateConversationPublicFlag` —
- * routes through the bundled agent-server's cloud proxy and hits
- * `PATCH /api/v1/app-conversations/{id}` with `{ public }`, returning
- * the updated conversation.
+ * hits `PATCH /api/v1/app-conversations/{id}` directly with `{ public }`,
+ * returning the updated conversation.
  */
 export async function updateCloudConversationPublicFlag(
   conversationId: string,
@@ -192,10 +188,9 @@ export async function updateCloudConversationPublicFlag(
 
 /**
  * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
- * OpenHands' `SandboxService.pauseSandbox` — routes through the
- * bundled agent-server's cloud proxy and hits
- * `POST /api/v1/sandboxes/{sandboxId}/pause` on the cloud backend, which stops
- * the runtime owning the conversation.
+ * OpenHands' `SandboxService.pauseSandbox` — hits
+ * `POST /api/v1/sandboxes/{sandboxId}/pause` directly on the cloud backend,
+ * which stops the runtime owning the conversation.
  */
 export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
   const backend = getActiveCloudBackend();
@@ -208,8 +203,7 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
 
 /**
  * Resume a paused cloud sandbox. Mirrors OpenHands' `SandboxService.resumeSandbox`
- * — routes through the bundled agent-server's cloud proxy and hits
- * `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
+ * — hits `POST /api/v1/sandboxes/{sandboxId}/resume` directly on the SaaS.
  *
  * This is the correct endpoint for waking a PAUSED sandbox. It is a
  * lightweight unpause — NOT the same as creating a new start task via

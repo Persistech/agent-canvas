@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe("EventService.searchEvents — cloud branch", () => {
-  it("forwards all pagination params to the cloud proxy and clamps limit to <=100", async () => {
+  it("forwards all pagination params to the cloud call and clamps limit to <=100", async () => {
     const options = {
       limit: 500,
       sortOrder: "TIMESTAMP_DESC" as const,

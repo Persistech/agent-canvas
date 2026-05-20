@@ -1,9 +1,5 @@
-import axios from "axios";
-import {
-  getActiveBackend,
-  getEffectiveLocalBackend,
-} from "../backend-registry/active-store";
-import { getAgentServerHeaders } from "../agent-server-config";
+import axios, { type Method } from "axios";
+import { getActiveBackend } from "../backend-registry/active-store";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
@@ -25,11 +21,10 @@ interface CloudProxyRequest {
   /** Override the upstream timeout, in seconds. */
   timeoutSeconds?: number;
   /**
-   * Override the upstream host. When set, the proxy targets this host
+   * Override the upstream host. When set, the request targets this host
    * instead of `backend.host`. Used for runtime-sandbox calls where the
    * upstream lives at the conversation's runtime URL (e.g.
    * `http://<id>.prod-runtime.all-hands.dev`) rather than the cloud API.
-   * The host must still pass the proxy's allowlist server-side.
    */
   hostOverride?: string;
   /**
@@ -43,9 +38,9 @@ interface CloudProxyRequest {
   /** Required when `authMode === "session-api-key"`. */
   sessionApiKey?: string | null;
   /**
-   * Axios responseType for the inner POST to the bundled agent-server.
-   * Set to "blob" when the upstream cloud endpoint returns a binary
-   * payload (e.g. ZIP downloads); leave undefined for default JSON.
+   * Axios responseType. Set to "blob" when the upstream endpoint returns
+   * a binary payload (e.g. ZIP downloads); leave undefined for default
+   * JSON.
    */
   responseType?: "blob";
 }
@@ -62,29 +57,19 @@ function buildUpstreamAuthHeaders(
 }
 
 /**
- * POST a cloud-proxy envelope to the local agent-server. The local server
- * forwards the request to the upstream host server-side, which sidesteps
- * the cross-origin restrictions that would block a direct browser → cloud
- * or browser → runtime-sandbox call.
+ * Call the upstream cloud (or sandbox) host directly from the browser.
  *
- * Auth headers (bearer or session-api-key) are attached server-side; they
- * never cross an origin boundary in the browser.
+ * Relies on the OpenHands SaaS exposing permissive CORS for API-key
+ * authenticated requests, so no local agent-server hop is needed.
+ *
+ * Auth headers (bearer or session-api-key) are attached client-side; the
+ * `X-Org-Id` header is added only when the request targets the active
+ * backend, so per-backend bookkeeping calls don't carry the active orgId
+ * across an unrelated API key.
  */
 export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
-  const local = getEffectiveLocalBackend();
-  const localAuthHeaders = {
-    ...buildAuthHeaders(local),
-    ...getAgentServerHeaders(),
-  };
-  // Send `X-Org-Id` so the upstream scopes per-request to the org the user
-  // selected locally, instead of the user's globally-shared
-  // `current_org_id` on the cloud backend. Restricted to calls against the active
-  // backend: the selector also fans out per-backend bookkeeping calls
-  // (e.g. `getCloudOrganizations(b)`) that would otherwise carry the
-  // active backend's orgId across an unrelated API key, which the cloud backend
-  // rejects when api_key_org_id and X-Org-Id disagree.
   const active = getActiveBackend();
   const orgIdHeader =
     active.backend.id === req.backend.id && active.orgId
@@ -96,27 +81,19 @@ export async function callCloudProxy<TResponse = unknown>(
     ...(req.headers ?? {}),
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
+  const url = `${upstreamHost.replace(/\/+$/, "")}${req.path}`;
+  const timeoutMs = req.timeoutSeconds
+    ? Math.round(req.timeoutSeconds * 1000)
+    : 30_000;
 
-  // Talk directly to the local agent-server, bypassing the global
-  // local agent-server client configuration (which would otherwise read host + auth
-  // from the active backend — wrong for this call: we need the local
-  // backend's host and session key explicitly, not the active one).
-  const response = await axios.post<TResponse>(
-    `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,
-    {
-      host: upstreamHost,
-      method: req.method,
-      path: req.path,
-      headers: upstreamHeaders,
-      body: req.body ?? null,
-      ...(req.timeoutSeconds ? { timeout_seconds: req.timeoutSeconds } : {}),
-    },
-    {
-      headers: localAuthHeaders,
-      timeout: 30_000,
-      ...(req.responseType ? { responseType: req.responseType } : {}),
-    },
-  );
+  const response = await axios.request<TResponse>({
+    method: req.method as Method,
+    url,
+    data: req.body ?? null,
+    headers: upstreamHeaders,
+    timeout: timeoutMs,
+    ...(req.responseType ? { responseType: req.responseType } : {}),
+  });
 
   return response.data;
 }

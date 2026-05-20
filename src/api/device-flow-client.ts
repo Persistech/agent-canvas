@@ -1,17 +1,12 @@
 /**
  * OAuth 2.0 Device Flow client implementation (RFC 8628).
  *
- * Used for one-click authentication with cloud backends.
- * The flow allows users to authenticate in their browser while the
- * application polls for the resulting API key.
- *
- * All device flow requests are proxied through the local agent-server's
- * cloud-proxy endpoint to avoid CORS issues. Since a local agent-server
- * is required to use the frontend, the proxy is always available.
+ * Used for one-click authentication with cloud backends. The flow allows
+ * users to authenticate in their browser while the application polls for
+ * the resulting API key. Calls go directly to the cloud host; the SaaS
+ * exposes permissive CORS on `/oauth/device/*` because these endpoints
+ * are unauthenticated by design.
  */
-
-import { getEffectiveLocalBackend } from "./backend-registry/active-store";
-import { buildAuthHeaders } from "./backend-registry/auth";
 
 export class DeviceFlowError extends Error {
   constructor(
@@ -74,10 +69,13 @@ export function isOpenHandsCloudHost(host: string): boolean {
 }
 
 /**
- * Make a proxied request through the local agent-server's cloud-proxy endpoint.
- * This avoids CORS issues when calling OpenHands Cloud endpoints.
+ * Issue a device-flow request directly against the cloud host.
+ *
+ * The SaaS `ApiKeyAwareCORSMiddleware` exposes `/oauth/device/*` cross-origin
+ * with `Access-Control-Allow-Origin: *` and no credentials, so the browser
+ * can call these endpoints from `http://localhost:3000` without a proxy.
  */
-async function makeProxiedRequest(
+async function makeDeviceFlowRequest(
   upstreamHost: string,
   method: "GET" | "POST",
   path: string,
@@ -85,31 +83,26 @@ async function makeProxiedRequest(
   contentType?: string,
   signal?: AbortSignal,
 ): Promise<Response> {
-  const local = getEffectiveLocalBackend();
-  const proxyUrl = `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`;
+  const url = `${upstreamHost.replace(/\/+$/, "")}${path}`;
+  const headers: Record<string, string> = contentType
+    ? { "Content-Type": contentType }
+    : {};
 
-  const response = await fetch(proxyUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...buildAuthHeaders(local),
-    },
-    body: JSON.stringify({
-      host: upstreamHost,
-      method,
-      path,
-      headers: contentType ? { "Content-Type": contentType } : {},
-      body: body ?? null,
-    }),
+  let payload: BodyInit | undefined;
+  if (body !== undefined && body !== null) {
+    payload = typeof body === "string" ? body : JSON.stringify(body);
+  }
+
+  return fetch(url, {
+    method,
+    headers,
+    body: payload,
     signal,
   });
-
-  return response;
 }
 
 /**
  * Start the OAuth 2.0 Device Flow by requesting a device code.
- * All requests are proxied through the local agent-server to avoid CORS issues.
  *
  * @param host - The cloud backend host URL (e.g., "https://app.all-hands.dev")
  * @returns DeviceAuthorizationResponse with device_code, user_code, verification URLs, etc.
@@ -121,7 +114,7 @@ export async function startDeviceFlow(
   const normalizedHost = host.replace(/\/+$/, "");
 
   try {
-    const response = await makeProxiedRequest(
+    const response = await makeDeviceFlowRequest(
       normalizedHost,
       "POST",
       "/oauth/device/authorize",
@@ -180,7 +173,6 @@ export interface PollOptions {
 
 /**
  * Poll for the API key after user authorization.
- * All requests are proxied through the local agent-server to avoid CORS issues.
  *
  * @param host - The cloud backend host URL
  * @param deviceCode - The device code from startDeviceFlow
@@ -211,7 +203,7 @@ export async function pollForToken(
         device_code: deviceCode,
       }).toString();
 
-      const response = await makeProxiedRequest(
+      const response = await makeDeviceFlowRequest(
         normalizedHost,
         "POST",
         "/oauth/device/token",

@@ -76,20 +76,17 @@ function eventSearchRequestFor(conversationId: string) {
   };
 }
 
-function parseCloudProxyPath(request: Request): string {
-  const body = JSON.parse(request.postData() ?? "{}") as { path?: string };
-  return body.path ?? "";
-}
-
 function cloudEventSearchRequestFor(conversationId: string) {
   return (request: Request) => {
-    if (request.method() !== "POST") return false;
-    if (!request.url().includes("/api/cloud-proxy")) return false;
-    const path = parseCloudProxyPath(request);
-    return (
-      path.includes(`/api/v1/conversation/${conversationId}/events/search`) &&
-      path.includes("timestamp__lt")
-    );
+    if (request.method() !== "GET") return false;
+    if (
+      !request
+        .url()
+        .includes(`/api/v1/conversation/${conversationId}/events/search`)
+    ) {
+      return false;
+    }
+    return new URL(request.url()).searchParams.has("timestamp__lt");
   };
 }
 
@@ -184,20 +181,22 @@ test.describe("conversation event pagination", () => {
     await seedBackendSelection(page, "cloud", CLOUD_CONVERSATION_ID);
 
     const initialRequestPromise = page.waitForRequest((request) => {
-      if (request.method() !== "POST") return false;
-      if (!request.url().includes("/api/cloud-proxy")) return false;
-      const path = parseCloudProxyPath(request);
-      return (
-        path.includes(
-          `/api/v1/conversation/${CLOUD_CONVERSATION_ID}/events/search`,
-        ) && !path.includes("timestamp__lt")
-      );
+      if (request.method() !== "GET") return false;
+      if (
+        !request
+          .url()
+          .includes(
+            `/api/v1/conversation/${CLOUD_CONVERSATION_ID}/events/search`,
+          )
+      ) {
+        return false;
+      }
+      return !new URL(request.url()).searchParams.has("timestamp__lt");
     });
 
     await page.goto(`/conversations/${CLOUD_CONVERSATION_ID}`);
 
-    const initialPath = parseCloudProxyPath(await initialRequestPromise);
-    const initialUrl = new URL(initialPath, "https://mock-cloud.test");
+    const initialUrl = new URL((await initialRequestPromise).url());
     expect(initialUrl.searchParams.get("limit")).toBe(String(PAGE_SIZE));
     expect(initialUrl.searchParams.get("sort_order")).toBe("TIMESTAMP_DESC");
     await expect(
@@ -215,8 +214,7 @@ test.describe("conversation event pagination", () => {
     await expect(page.getByTestId("loading-older-events")).toContainText(
       "Fetching older messages",
     );
-    const olderPath = parseCloudProxyPath(await olderRequestPromise);
-    const olderUrl = new URL(olderPath, "https://mock-cloud.test");
+    const olderUrl = new URL((await olderRequestPromise).url());
     expect(olderUrl.pathname).toBe(
       `/api/v1/conversation/${CLOUD_CONVERSATION_ID}/events/search`,
     );

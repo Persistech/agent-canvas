@@ -204,11 +204,12 @@ flag it -- the allowlist should not grow casually.
 
 ### Rule 2 -- All cloud backend calls must go through `callCloudProxy`
 
-**DO NOT APPROVE** a PR that issues a direct browser `fetch` or `axios` call to the
-cloud backend (`app.all-hands.dev`) or a cloud runtime sandbox
-(`*.prod-runtime.all-hands.dev`). Both origins block CORS from `localhost`. Cloud calls
-must go through `callCloudProxy()` in `src/api/cloud/proxy.ts`, which routes them
-server-side through `/api/cloud-proxy` on the local agent-server.
+**DO NOT APPROVE** a PR that issues an ad-hoc `fetch` or `axios` call to the cloud
+backend (`app.all-hands.dev`) or a cloud runtime sandbox
+(`*.prod-runtime.all-hands.dev`). Cloud calls must go through `callCloudProxy()`
+in `src/api/cloud/proxy.ts`, which centralises bearer/session-key auth, the
+`X-Org-Id` rule, and timeouts. The SaaS exposes permissive CORS for API-key
+requests, so the helper issues the request directly to the upstream host.
 
 Correct pattern -- cloud:
 ```ts

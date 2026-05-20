@@ -13,7 +13,7 @@ export function useUrlSearch(
   useEffect(() => {
     const handleUrlSearch = async () => {
       // Guard against null/undefined provider to prevent sending
-      // requests via the cloud proxy before providers have loaded
+      // requests before providers have loaded
       if (!provider) {
         setUrlSearchResults([]);
         return;
