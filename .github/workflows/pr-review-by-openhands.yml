@@ -17,6 +17,23 @@ permissions:
 
 jobs:
   authorize-pr-review:
+    if: |
+      (
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        ) ||
+        (
+          github.event_name == 'pull_request_target' &&
+          (
+            github.event.pull_request.head.repo.full_name != github.repository ||
+            (
+              github.event.pull_request.draft == true &&
+              github.event.action == 'review_requested'
+            )
+          )
+        )
+      )
     runs-on: ubuntu-24.04
     outputs:
       should_run: ${{ steps.evaluate.outputs.should_run }}
