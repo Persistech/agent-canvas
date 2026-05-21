@@ -1,3 +1,4 @@
+// @spec BM-008 — Per-backend conversation memory
 // Per-(backend, org) memory of the most recently selected conversation.
 //
 // Used by `BackendSelector` so that flipping from backend A → B while a

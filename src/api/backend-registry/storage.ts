@@ -29,6 +29,7 @@ function normalizeHostForComparison(host: string): string {
   }
 }
 
+// @spec BM-007 — Default backend API key stays in sync with env
 function syncDefaultLocalBackendAuth(backend: Backend): Backend {
   const defaultBackend = makeDefaultLocalBackend();
 

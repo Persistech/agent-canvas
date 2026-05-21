@@ -365,6 +365,7 @@ describe("BackendSelector", () => {
     });
   });
 
+  // @spec BM-005 — Switch active backend
   it("switches the active backend when an option is selected", async () => {
     renderWithProviders(
       <TestSeed
@@ -536,6 +537,7 @@ describe("BackendSelector", () => {
     ).toBeInTheDocument();
   });
 
+  // @spec BM-006 — Remove a backend
   it("opens the manage backends modal and removes a backend", async () => {
     renderWithProviders(
       <TestSeed

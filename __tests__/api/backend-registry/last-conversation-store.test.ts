@@ -14,6 +14,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
+// @spec BM-008 — Per-backend conversation memory
 describe("last-conversation-store", () => {
   it("returns null when nothing has been remembered for a backend", () => {
     expect(getLastConversationId("backend-a", null)).toBeNull();

@@ -51,6 +51,7 @@ export function ActiveBackendProvider({
     getSnapshot,
   );
 
+  // @spec BM-005 — Switch active backend
   const setActive = React.useCallback(
     (backendId: string, orgId?: string | null) => {
       const prevBackendId = getActiveSelection()?.backendId ?? null;
@@ -73,6 +74,7 @@ export function ActiveBackendProvider({
     [],
   );
 
+  // @spec BM-004 — Add a backend
   // @spec BM-001 — Auto-switch to newly connected backend
   const addBackend = React.useCallback(
     (backend: Omit<Backend, "id">): Backend => {
@@ -111,6 +113,7 @@ export function ActiveBackendProvider({
     [],
   );
 
+  // @spec BM-006 — Remove a backend
   const removeBackend = React.useCallback((id: string) => {
     const list = getRegisteredBackends().filter((b) => b.id !== id);
     setRegisteredBackends(list);

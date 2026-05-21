@@ -52,6 +52,7 @@ describe("ActiveBackendProvider", () => {
     });
   });
 
+  // @spec BM-004 — Add a backend
   it("addBackend persists and exposes the new backend alongside the seeded default", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
@@ -100,6 +101,7 @@ describe("ActiveBackendProvider", () => {
     expect(result.current.backends.find((b) => b.id === DEFAULT_LOCAL_BACKEND_ID)).toBeDefined();
   });
 
+  // @spec BM-005 — Switch active backend
   it("setActive switches the active backend without touching unrelated React Query cache entries", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(["dummy"], { value: 1 });
@@ -131,6 +133,7 @@ describe("ActiveBackendProvider", () => {
     expect(queryClient.getQueryData(["dummy"])).toEqual({ value: 1 });
   });
 
+  // @spec BM-006 — Remove a backend
   // @spec BM-003 — Fallback on active backend removal
   it("removeBackend falls back to the seeded default when the active backend is removed", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
@@ -160,6 +163,7 @@ describe("ActiveBackendProvider", () => {
     expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
   });
 
+  // @spec BM-006 — Remove a backend
   // @spec BM-003 — Fallback on active backend removal
   it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
@@ -227,6 +231,7 @@ describe("ActiveBackendProvider", () => {
     expect(getBackendHealthEntry(id)).toBeNull();
   });
 
+  // @spec BM-006 — Remove a backend
   it("removeBackend drops the backend's persisted health entry", () => {
     // Arrange
     const { result } = renderHook(() => useActiveBackendContext(), {
