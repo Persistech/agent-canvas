@@ -328,12 +328,30 @@ class AgentServerConversationService {
       return createCloudAppConversation(request);
     }
 
+    console.debug(
+      "[LLM Config Debug] AgentServerConversationService.createConversation called",
+    );
+
     const settings = await SettingsService.getSettings();
+    console.debug("[LLM Config Debug] Loaded settings for conversation:", {
+      llm_model: settings.llm_model,
+      llm_base_url: settings.llm_base_url,
+      llm_api_key_set: settings.llm_api_key_set,
+      agent_settings_llm: (
+        settings.agent_settings as Record<string, unknown> | undefined
+      )?.llm
+        ? "[present]"
+        : "[missing]",
+    });
+
     const conversationId = uuidv4();
     const workingDir =
       workingDirOverride ?? buildConversationWorkingDir(conversationId);
 
     // Use encrypted settings to avoid exposing secrets in the browser
+    console.debug(
+      "[LLM Config Debug] Building conversation request with encrypted settings...",
+    );
     const payload = await buildStartConversationRequestWithEncryptedSettings({
       settings,
       query: initialUserMsg,
@@ -343,9 +361,49 @@ class AgentServerConversationService {
       workingDir,
     });
 
-    const data = await new ConversationClient(
-      getAgentServerClientOptions(),
-    ).createConversation<DirectConversationInfo>(payload);
+    console.debug(
+      "[LLM Config Debug] Sending createConversation request to agent-server...",
+    );
+    console.debug(
+      "[LLM Config Debug] Backend host:",
+      getAgentServerClientOptions().host,
+    );
+
+    let data: DirectConversationInfo;
+    try {
+      data = await new ConversationClient(
+        getAgentServerClientOptions(),
+      ).createConversation<DirectConversationInfo>(payload);
+      console.debug(
+        "[LLM Config Debug] Conversation created successfully:",
+        data.id,
+      );
+    } catch (error) {
+      console.error("[LLM Config Debug] ERROR creating conversation:", error);
+      console.error(
+        "[LLM Config Debug] Payload that failed (secrets redacted):",
+        JSON.stringify(
+          {
+            ...payload,
+            agent: payload.agent
+              ? {
+                  ...(payload.agent as Record<string, unknown>),
+                  llm: (payload.agent as Record<string, unknown>)?.llm
+                    ? {
+                        ...((payload.agent as Record<string, unknown>)
+                          .llm as Record<string, unknown>),
+                        api_key: "[REDACTED]",
+                      }
+                    : "[NO LLM]",
+                }
+              : "[NO AGENT]",
+          },
+          null,
+          2,
+        ),
+      );
+      throw error;
+    }
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/

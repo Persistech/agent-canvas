@@ -265,8 +265,24 @@ class SettingsService {
     conversationSettings: Record<string, SettingsValue>;
     secretsEncrypted: boolean;
   }> {
+    console.debug("[LLM Config Debug] getSettingsForConversation called");
+
     // Check cache first
     if (isCacheValid() && settingsCache.encrypted) {
+      console.debug("[LLM Config Debug] Using cached encrypted settings");
+      const cachedLlm = settingsCache.encrypted.agent_settings?.llm as
+        | Record<string, unknown>
+        | undefined;
+      console.debug(
+        "[LLM Config Debug] Cached llm config:",
+        JSON.stringify({
+          model: cachedLlm?.model,
+          base_url: cachedLlm?.base_url,
+          api_key: cachedLlm?.api_key
+            ? `[CACHED: ${String(cachedLlm.api_key).slice(0, 15)}...]`
+            : "[NOT SET]",
+        }),
+      );
       return {
         agentSettings: settingsCache.encrypted.agent_settings,
         conversationSettings: settingsCache.encrypted.conversation_settings,
@@ -274,9 +290,32 @@ class SettingsService {
       };
     }
 
+    console.debug(
+      "[LLM Config Debug] Fetching fresh encrypted settings from API",
+    );
+
     // Fetch encrypted settings - this MUST succeed for conversations to work.
     // Do not fall back to redacted settings as that would cause auth failures.
     const response = await this.fetchSettingsFromApi("encrypted");
+
+    const llm = response.agent_settings?.llm as
+      | Record<string, unknown>
+      | undefined;
+    console.debug(
+      "[LLM Config Debug] API response llm config:",
+      JSON.stringify({
+        model: llm?.model,
+        base_url: llm?.base_url,
+        api_key: llm?.api_key
+          ? `[ENCRYPTED: ${String(llm.api_key).slice(0, 15)}...]`
+          : "[NOT SET]",
+      }),
+    );
+    console.debug(
+      "[LLM Config Debug] API response llm_api_key_is_set:",
+      response.llm_api_key_is_set,
+    );
+
     settingsCache.encrypted = response;
     if (!settingsCache.timestamp) {
       settingsCache.timestamp = Date.now();
@@ -313,6 +352,12 @@ class SettingsService {
   static async saveSettings(
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
+    console.debug("[LLM Config Debug] saveSettings called");
+    console.debug(
+      "[LLM Config Debug] Input settings keys:",
+      Object.keys(settings),
+    );
+
     // Split app-level user-preference fields (language, git identity, sound
     // notifications, analytics consent) off before building the diff payload.
     // The local agent-server's PATCH /api/settings has no schema for these
@@ -334,6 +379,23 @@ class SettingsService {
       | undefined;
     if (agentSettingsDiff && Object.keys(agentSettingsDiff).length > 0) {
       payload.agent_settings_diff = agentSettingsDiff;
+
+      // Debug: log LLM settings being saved
+      const llmDiff = agentSettingsDiff.llm as
+        | Record<string, unknown>
+        | undefined;
+      if (llmDiff) {
+        console.debug(
+          "[LLM Config Debug] Saving LLM settings diff:",
+          JSON.stringify({
+            model: llmDiff.model,
+            base_url: llmDiff.base_url,
+            api_key: llmDiff.api_key
+              ? `[SET: ${String(llmDiff.api_key).length} chars]`
+              : "[NOT IN DIFF]",
+          }),
+        );
+      }
     }
 
     // Extract conversation_settings_diff

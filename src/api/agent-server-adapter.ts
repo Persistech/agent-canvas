@@ -519,22 +519,57 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   const agentSettings = toRecord(settings.agent_settings);
   const llm = toRecord(agentSettings.llm);
 
+  // Debug: Log incoming settings
+  console.debug("[LLM Config Debug] buildConfiguredAgentSettings called");
+  console.debug(
+    "[LLM Config Debug] Raw settings.agent_settings:",
+    JSON.stringify(settings.agent_settings, null, 2),
+  );
+  console.debug(
+    "[LLM Config Debug] Extracted llm object:",
+    JSON.stringify(llm, null, 2),
+  );
+
   llm.model =
     typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
 
+  console.debug("[LLM Config Debug] llm.model after normalization:", llm.model);
+
   const apiKey = normalizeSecretString(llm.api_key);
+  console.debug(
+    "[LLM Config Debug] llm.api_key exists:",
+    !!apiKey,
+    "length:",
+    apiKey?.length ?? 0,
+  );
   if (apiKey) {
     llm.api_key = apiKey;
   } else {
+    console.warn("[LLM Config Debug] WARNING: No API key found in settings!");
     delete llm.api_key;
   }
 
   const baseUrl = normalizeSecretString(llm.base_url);
+  console.debug("[LLM Config Debug] llm.base_url:", baseUrl || "(not set)");
   if (baseUrl) {
     llm.base_url = baseUrl;
   } else {
     delete llm.base_url;
   }
+
+  console.debug(
+    "[LLM Config Debug] Final llm config (api_key redacted):",
+    JSON.stringify(
+      {
+        ...llm,
+        api_key: llm.api_key
+          ? `[SET: ${String(llm.api_key).length} chars]`
+          : "[NOT SET]",
+      },
+      null,
+      2,
+    ),
+  );
 
   const condenser = buildCondenserConfig(llm, agentSettings.condenser);
   const includeDefaultTools = getBuiltInToolNames(agentSettings);
@@ -759,16 +794,76 @@ export interface StartConversationOptions {
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ) {
+  console.debug("[LLM Config Debug] buildStartConversationRequest called");
+  console.debug(
+    "[LLM Config Debug] options.encryptedAgentSettings provided:",
+    !!options.encryptedAgentSettings,
+  );
+  console.debug(
+    "[LLM Config Debug] options.secretsEncrypted:",
+    options.secretsEncrypted,
+  );
+
   // Use encrypted settings if provided, otherwise fall back to regular settings
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
 
+  console.debug(
+    "[LLM Config Debug] sourceAgentSettings.agent_settings:",
+    JSON.stringify(sourceAgentSettings.agent_settings, null, 2),
+  );
+
   const acpMode = isAcpAgent(sourceAgentSettings);
+  console.debug("[LLM Config Debug] acpMode:", acpMode);
+
   const agentSettings = acpMode
     ? buildConfiguredAcpAgentSettings(sourceAgentSettings)
     : buildConfiguredAgentSettings(sourceAgentSettings);
+
+  console.debug(
+    "[LLM Config Debug] Built agentSettings (llm.api_key redacted):",
+    JSON.stringify(
+      {
+        ...agentSettings,
+        llm: agentSettings.llm
+          ? {
+              ...(agentSettings.llm as Record<string, unknown>),
+              api_key: (agentSettings.llm as Record<string, unknown>)?.api_key
+                ? `[SET: ${String((agentSettings.llm as Record<string, unknown>).api_key).length} chars]`
+                : "[NOT SET]",
+            }
+          : "[NO LLM CONFIG]",
+      },
+      null,
+      2,
+    ),
+  );
+
   const agent = createAgentFromSettings(agentSettings, { acp: acpMode });
+
+  // Log agent with redacted secrets
+  const agentForLog = agent as Record<string, unknown>;
+  const agentLlm = agentForLog.llm as Record<string, unknown> | undefined;
+  console.debug(
+    "[LLM Config Debug] Created agent object (secrets redacted):",
+    JSON.stringify(
+      {
+        ...agentForLog,
+        llm: agentLlm
+          ? {
+              ...agentLlm,
+              api_key: agentLlm.api_key
+                ? `[SET: ${String(agentLlm.api_key).length} chars]`
+                : "[NOT SET]",
+            }
+          : "[NO LLM]",
+      },
+      null,
+      2,
+    ),
+  );
+
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
     : undefined;
@@ -932,6 +1027,23 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   conversationId?: string;
   workingDir?: string;
 }): Promise<Record<string, unknown>> {
+  console.debug(
+    "[LLM Config Debug] buildStartConversationRequestWithEncryptedSettings called",
+  );
+  console.debug(
+    "[LLM Config Debug] Input options.settings.llm_model:",
+    options.settings?.llm_model,
+  );
+  console.debug(
+    "[LLM Config Debug] Input options.settings.agent_settings?.llm:",
+    JSON.stringify(
+      (options.settings?.agent_settings as Record<string, unknown> | undefined)
+        ?.llm,
+      null,
+      2,
+    ),
+  );
+
   // Import SecretsService dynamically to avoid circular dependencies
   const { SecretsService } = await import("./secrets-service");
 
@@ -944,13 +1056,55 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
 
-  return buildStartConversationRequest({
+  console.debug(
+    "[LLM Config Debug] Fetched encrypted agentSettings:",
+    JSON.stringify(
+      {
+        ...agentSettings,
+        llm: agentSettings?.llm
+          ? {
+              ...(agentSettings.llm as Record<string, unknown>),
+              api_key: (agentSettings.llm as Record<string, unknown>)?.api_key
+                ? `[ENCRYPTED: ${String((agentSettings.llm as Record<string, unknown>).api_key).slice(0, 20)}...]`
+                : "[NOT SET]",
+            }
+          : "[NO LLM]",
+      },
+      null,
+      2,
+    ),
+  );
+  console.debug("[LLM Config Debug] secretsEncrypted:", secretsEncrypted);
+  console.debug(
+    "[LLM Config Debug] customSecrets count:",
+    customSecrets?.length ?? 0,
+  );
+
+  const payload = buildStartConversationRequest({
     ...options,
     encryptedAgentSettings: agentSettings,
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
   });
+
+  // Log the final payload with redacted secrets
+  const payloadAgent = payload.agent as Record<string, unknown> | undefined;
+  const payloadLlm = payloadAgent?.llm as Record<string, unknown> | undefined;
+  console.debug("[LLM Config Debug] Final conversation payload summary:", {
+    hasAgent: !!payloadAgent,
+    agentKind: payloadAgent?.kind,
+    hasLlm: !!payloadLlm,
+    llmModel: payloadLlm?.model,
+    llmBaseUrl: payloadLlm?.base_url,
+    llmApiKeySet: !!payloadLlm?.api_key,
+    llmApiKeyLength: payloadLlm?.api_key
+      ? String(payloadLlm.api_key).length
+      : 0,
+    secretsEncrypted: payload.secrets_encrypted,
+  });
+
+  return payload;
 }
 
 export function emptyHooksResponse(): GetHooksResponse {
