@@ -138,8 +138,10 @@ describe("device-flow-client", () => {
       expect(body.host).toBe(TEST_HOST_URL);
     });
 
-    it("uses the browser origin for the local proxy when a remote browser has a loopback backend", async () => {
-      mockWindowLocation("https://work-1.example.dev/settings");
+    it("uses the browser origin for the local proxy when a proxy-capable runtime browser has a loopback backend", async () => {
+      mockWindowLocation(
+        "https://work-1-abc.prod-runtime.all-hands.dev/settings",
+      );
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () =>
@@ -156,7 +158,30 @@ describe("device-flow-client", () => {
       await startDeviceFlow(TEST_HOST_URL);
 
       expect(fetch).toHaveBeenCalledWith(
-        "https://work-1.example.dev/api/cloud-proxy",
+        "https://work-1-abc.prod-runtime.all-hands.dev/api/cloud-proxy",
+        expect.any(Object),
+      );
+    });
+
+    it("uses loopback for the local proxy on separately hosted frontends", async () => {
+      mockWindowLocation("https://agent-canvas.example.com/settings");
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            device_code: "dc",
+            user_code: "uc",
+            verification_uri: "v",
+            verification_uri_complete: "vc",
+            expires_in: 600,
+            interval: 5,
+          }),
+      });
+
+      await startDeviceFlow(TEST_HOST_URL);
+
+      expect(fetch).toHaveBeenCalledWith(
+        "http://localhost:18000/api/cloud-proxy",
         expect.any(Object),
       );
     });

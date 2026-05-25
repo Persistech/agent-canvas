@@ -31,8 +31,10 @@ afterEach(() => {
 });
 
 describe("agent server client options", () => {
-  it("routes stored loopback local backends through the browser origin for remote browsers", () => {
-    mockWindowLocation("https://work-1.example.dev/conversations");
+  it("routes stored loopback local backends through the browser origin for proxy-capable runtime browsers", () => {
+    mockWindowLocation(
+      "https://work-1-abc.prod-runtime.all-hands.dev/conversations",
+    );
     const backend: Backend = {
       id: "local-1",
       name: "Local",
@@ -44,7 +46,25 @@ describe("agent server client options", () => {
     setActiveSelection({ backendId: backend.id, orgId: null });
 
     expect(getAgentServerClientOptions()).toMatchObject({
-      host: "https://work-1.example.dev",
+      host: "https://work-1-abc.prod-runtime.all-hands.dev",
+      apiKey: "session-key",
+    });
+  });
+
+  it("preserves stored loopback local backends for separately hosted frontends", () => {
+    mockWindowLocation("https://agent-canvas.example.com/conversations");
+    const backend: Backend = {
+      id: "local-1",
+      name: "Local",
+      host: "http://127.0.0.1:18000",
+      apiKey: "session-key",
+      kind: "local",
+    };
+    setRegisteredBackends([backend]);
+    setActiveSelection({ backendId: backend.id, orgId: null });
+
+    expect(getAgentServerClientOptions()).toMatchObject({
+      host: "http://127.0.0.1:18000",
       apiKey: "session-key",
     });
   });

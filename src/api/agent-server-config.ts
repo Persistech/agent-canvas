@@ -85,6 +85,35 @@ function getConfiguredSessionApiKey(): string | null {
   return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
 }
 
+const LOOPBACK_HOSTNAMES = new Set([
+  "127.0.0.1",
+  "localhost",
+  "0.0.0.0",
+  "::1",
+  "[::1]",
+]);
+
+// Only origins known to proxy /api and /sockets back into the same runtime
+// should rewrite loopback backends. Generic hosted frontends must preserve
+// loopback because it may intentionally point at the user's local machine.
+const LOOPBACK_PROXY_HOST_SUFFIXES = [
+  ".prod-runtime.all-hands.dev",
+  ".staging-runtime.all-hands.dev",
+];
+
+function isLoopbackHostname(hostname: string): boolean {
+  return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase());
+}
+
+function browserOriginCanProxyLoopback(): boolean {
+  const browserHostname = window.location.hostname.toLowerCase();
+
+  return LOOPBACK_PROXY_HOST_SUFFIXES.some(
+    (suffix) =>
+      browserHostname === suffix.slice(1) || browserHostname.endsWith(suffix),
+  );
+}
+
 function shouldUseProxyOrigin(baseUrl: string): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -92,11 +121,12 @@ function shouldUseProxyOrigin(baseUrl: string): boolean {
 
   try {
     const configuredUrl = new URL(baseUrl);
-    const localHosts = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
     const browserHostname = window.location.hostname;
 
     return (
-      localHosts.has(configuredUrl.hostname) && !localHosts.has(browserHostname)
+      isLoopbackHostname(configuredUrl.hostname) &&
+      !isLoopbackHostname(browserHostname) &&
+      browserOriginCanProxyLoopback()
     );
   } catch {
     return false;

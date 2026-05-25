@@ -31,14 +31,28 @@ afterEach(() => {
 });
 
 describe("agent server config", () => {
-  it("uses the browser origin when a remote browser is pointed at localhost backend config", () => {
-    mockWindowLocation("https://work-1.example.dev/settings");
+  it("uses the browser origin when a proxy-capable runtime browser is pointed at localhost backend config", () => {
+    mockWindowLocation(
+      "https://work-1-abc.prod-runtime.all-hands.dev/settings",
+    );
     window.localStorage.setItem(
       AGENT_SERVER_CONFIG_STORAGE_KEY,
       JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
     );
 
-    expect(getAgentServerBaseUrl()).toBe("https://work-1.example.dev");
+    expect(getAgentServerBaseUrl()).toBe(
+      "https://work-1-abc.prod-runtime.all-hands.dev",
+    );
+  });
+
+  it("preserves loopback backend URLs for separately hosted frontends", () => {
+    mockWindowLocation("https://agent-canvas.example.com/settings");
+    window.localStorage.setItem(
+      AGENT_SERVER_CONFIG_STORAGE_KEY,
+      JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
+    );
+
+    expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
   });
 
   it("preserves a non-local backend URL from stored config", () => {
@@ -51,12 +65,14 @@ describe("agent server config", () => {
     expect(getAgentServerBaseUrl()).toBe("https://agent.example.com");
   });
 
-  it("resolves stored loopback backend hosts through the browser origin for remote browsers", () => {
-    mockWindowLocation("https://work-1.example.dev/conversations");
+  it("resolves stored loopback backend hosts through the browser origin for proxy-capable runtime browsers", () => {
+    mockWindowLocation(
+      "https://work-1-abc.prod-runtime.all-hands.dev/conversations",
+    );
 
     expect(
       resolveBrowserReachableAgentServerBaseUrl("http://localhost:18000"),
-    ).toBe("https://work-1.example.dev");
+    ).toBe("https://work-1-abc.prod-runtime.all-hands.dev");
   });
 
   it("prefills the settings form from environment defaults when local settings are empty", () => {
