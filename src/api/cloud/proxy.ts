@@ -3,7 +3,10 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
-import { getAgentServerHeaders } from "../agent-server-config";
+import {
+  getAgentServerHeaders,
+  resolveBrowserReachableAgentServerBaseUrl,
+} from "../agent-server-config";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
@@ -74,6 +77,9 @@ export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
   const local = getEffectiveLocalBackend();
+  const localHost = resolveBrowserReachableAgentServerBaseUrl(
+    local.host,
+  ).replace(/\/+$/, "");
   const localAuthHeaders = {
     ...buildAuthHeaders(local),
     ...getAgentServerHeaders(),
@@ -102,7 +108,7 @@ export async function callCloudProxy<TResponse = unknown>(
   // from the active backend — wrong for this call: we need the local
   // backend's host and session key explicitly, not the active one).
   const response = await axios.post<TResponse>(
-    `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,
+    `${localHost}/api/cloud-proxy`,
     {
       host: upstreamHost,
       method: req.method,

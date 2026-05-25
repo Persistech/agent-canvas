@@ -108,11 +108,20 @@ function resolveAgentServerBaseUrl(baseUrl: string | null): string | null {
     return null;
   }
 
-  if (shouldUseProxyOrigin(baseUrl)) {
+  return resolveBrowserReachableAgentServerBaseUrl(baseUrl);
+}
+
+export function resolveBrowserReachableAgentServerBaseUrl(
+  baseUrl: string,
+): string {
+  const normalizedUrl =
+    normalizeBaseUrl(baseUrl) ?? baseUrl.replace(/\/+$/, "");
+
+  if (shouldUseProxyOrigin(normalizedUrl)) {
     return window.location.origin;
   }
 
-  return baseUrl;
+  return normalizedUrl;
 }
 
 export function getAgentServerFormDefaults(): AgentServerFormDefaults {

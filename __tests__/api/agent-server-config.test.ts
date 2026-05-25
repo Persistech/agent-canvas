@@ -7,6 +7,7 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  resolveBrowserReachableAgentServerBaseUrl,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
@@ -48,6 +49,14 @@ describe("agent server config", () => {
     );
 
     expect(getAgentServerBaseUrl()).toBe("https://agent.example.com");
+  });
+
+  it("resolves stored loopback backend hosts through the browser origin for remote browsers", () => {
+    mockWindowLocation("https://work-1.example.dev/conversations");
+
+    expect(
+      resolveBrowserReachableAgentServerBaseUrl("http://localhost:18000"),
+    ).toBe("https://work-1.example.dev");
   });
 
   it("prefills the settings form from environment defaults when local settings are empty", () => {

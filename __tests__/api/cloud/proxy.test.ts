@@ -10,6 +10,15 @@ import type { Backend } from "#/api/backend-registry/types";
 
 vi.mock("axios");
 
+const ORIGINAL_LOCATION = window.location;
+
+function mockWindowLocation(url: string) {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: new URL(url),
+  });
+}
+
 const localBackend: Backend = {
   id: "local-1",
   name: "Local",
@@ -45,6 +54,10 @@ afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(axios.post).mockReset();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: ORIGINAL_LOCATION,
+  });
 });
 
 describe("callCloudProxy X-Org-Id injection", () => {
@@ -97,5 +110,26 @@ describe("callCloudProxy X-Org-Id injection", () => {
     expect(
       (body as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
+  });
+
+  it("posts through the browser origin when the stored local backend is loopback-only", async () => {
+    mockWindowLocation("https://work-1.example.dev/conversations");
+    setRegisteredBackends([
+      { ...localBackend, host: "http://127.0.0.1:18000" },
+      cloudPersonal,
+    ]);
+    setActiveSelection({
+      backendId: cloudPersonal.id,
+      orgId: null,
+    });
+
+    await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      path: "/api/v1/app-conversations/search",
+    });
+
+    const [url] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(url).toBe("https://work-1.example.dev/api/cloud-proxy");
   });
 });

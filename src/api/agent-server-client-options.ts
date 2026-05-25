@@ -2,6 +2,7 @@ import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  resolveBrowserReachableAgentServerBaseUrl,
 } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { DEFAULT_LOCAL_BACKEND_ID } from "./backend-registry/default-backend";
@@ -24,7 +25,7 @@ export interface AgentServerClientOptions {
 }
 
 function normalizeHost(host: string): string {
-  return host.replace(/\/+$/, "");
+  return resolveBrowserReachableAgentServerBaseUrl(host).replace(/\/+$/, "");
 }
 
 function resolveHost(

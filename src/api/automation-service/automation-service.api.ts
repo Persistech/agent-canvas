@@ -10,6 +10,7 @@ import {
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
+import { resolveBrowserReachableAgentServerBaseUrl } from "../agent-server-config";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
 
@@ -30,8 +31,12 @@ localAutomationAxios.interceptors.request.use((config) => {
   // currently-active local backend (and any host edits made via the
   // manage-backends UI), rather than freezing whatever value the
   // agent-server-config produced at module load time.
-  // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+  if (!config.baseURL) {
+    // eslint-disable-next-line no-param-reassign
+    config.baseURL = resolveBrowserReachableAgentServerBaseUrl(
+      getEffectiveLocalBackend().host,
+    );
+  }
 
   const apiKey = import.meta.env.VITE_AUTOMATION_API_KEY?.trim();
   if (apiKey) {

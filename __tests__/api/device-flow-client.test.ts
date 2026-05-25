@@ -19,6 +19,14 @@ vi.mock("../../src/api/backend-registry/auth", () => ({
 }));
 
 const TEST_HOST_URL = "https://app.all-hands.dev";
+const ORIGINAL_LOCATION = window.location;
+
+function mockWindowLocation(url: string) {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: new URL(url),
+  });
+}
 
 describe("device-flow-client", () => {
   beforeEach(() => {
@@ -28,6 +36,10 @@ describe("device-flow-client", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: ORIGINAL_LOCATION,
+    });
   });
 
   describe("isOpenHandsCloudHost", () => {
@@ -124,6 +136,29 @@ describe("device-flow-client", () => {
       const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
       expect(body.host).toBe(TEST_HOST_URL);
+    });
+
+    it("uses the browser origin for the local proxy when a remote browser has a loopback backend", async () => {
+      mockWindowLocation("https://work-1.example.dev/settings");
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            device_code: "dc",
+            user_code: "uc",
+            verification_uri: "v",
+            verification_uri_complete: "vc",
+            expires_in: 600,
+            interval: 5,
+          }),
+      });
+
+      await startDeviceFlow(TEST_HOST_URL);
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://work-1.example.dev/api/cloud-proxy",
+        expect.any(Object),
+      );
     });
 
     it("throws DeviceFlowError on HTTP error", async () => {
