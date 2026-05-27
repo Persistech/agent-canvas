@@ -189,9 +189,14 @@ async function verifyOpenAICompat(
  * reach the LLM provider.
  *
  * Returns `{ status: 'unsupported' }` when:
- *  - No API key is provided (user may rely on server-side env vars)
- *  - The provider is known to block direct browser requests
+ *  - The provider is known to block direct browser requests (Azure, Bedrock…)
  *  - The provider is unrecognised and no base URL was given
+ *
+ * Note: an empty `apiKey` does NOT skip verification for known providers —
+ * the request is still sent so that the server's 401 is surfaced to the user
+ * as an auth_error rather than silently saving an unusable configuration.
+ * Custom base URLs pointing to auth-free local servers (e.g. Ollama) will
+ * simply succeed with an empty token, which is the correct behaviour.
  */
 export async function verifyLlmConfig(
   model: string,
@@ -199,12 +204,6 @@ export async function verifyLlmConfig(
   baseUrl?: string,
 ): Promise<VerifyResult> {
   const trimmedKey = apiKey.trim();
-
-  // Nothing to test without an API key
-  if (!trimmedKey) {
-    return { status: "unsupported" };
-  }
-
   const provider = getProvider(model);
 
   if (UNSUPPORTED_PROVIDERS.has(provider)) {
@@ -219,6 +218,6 @@ export async function verifyLlmConfig(
     return verifyOpenAICompat(model, trimmedKey, baseUrl, provider);
   }
 
-  // Unknown provider and no base URL: cannot verify
+  // Unknown provider with no base URL and no API key: nothing to verify.
   return { status: "unsupported" };
 }
