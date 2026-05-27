@@ -10,18 +10,6 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 
-const useActiveConversationMock = vi.fn<
-  () => {
-    data:
-      | {
-          conversation_id: string;
-          agent_kind?: "openhands" | "acp";
-          llm_model: string | null;
-        }
-      | undefined;
-  }
->(() => ({ data: undefined }));
-
 vi.mock("#/components/features/controls/agent-status", () => ({
   AgentStatus: () => <div data-testid="agent-status-stub" />,
 }));
@@ -30,12 +18,14 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
   ChangeAgentButton: () => <div data-testid="change-agent-button-stub" />,
 }));
 
-vi.mock("#/components/features/chat/switch-profile-button", () => ({
-  SwitchProfileButton: () => <div data-testid="switch-profile-button-stub" />,
-}));
-
-vi.mock("#/hooks/query/use-active-conversation", () => ({
-  useActiveConversation: () => useActiveConversationMock(),
+// The unified model picker owns the native/ACP/cloud differentiation
+// internally (see agent-model-picker + use-active-agent-bundle-context tests);
+// here we stub it and assert ChatInputActions wires it into the actions row.
+vi.mock("#/components/features/chat/components/agent-model-picker", () => ({
+  AgentModelPicker: () => <div data-testid="agent-model-picker-stub" />,
+  AgentModelPickerMenuContent: () => (
+    <div data-testid="agent-model-picker-menu-stub" />
+  ),
 }));
 
 vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
@@ -61,51 +51,17 @@ describe("ChatInputActions", () => {
   afterEach(() => {
     window.localStorage.clear();
     __resetActiveStoreForTests();
-    useActiveConversationMock.mockReset();
-    useActiveConversationMock.mockReturnValue({ data: undefined });
   });
 
-  it("renders the SwitchProfileButton on a local backend", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
-    });
-
+  it("wires in the unified model picker on a local backend", () => {
     renderWithProviders(<ChatInputActions disabled={false} />);
 
-    expect(
-      screen.getByTestId("switch-profile-button-stub"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("chat-input-llm-model"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-model-picker-stub")).toBeInTheDocument();
   });
 
-  it("renders the static model label for local ACP conversations", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: {
-        conversation_id: "test-conversation-id",
-        agent_kind: "acp",
-        llm_model: "claude-sonnet-4-6",
-      },
-    });
-
-    renderWithProviders(<ChatInputActions disabled={false} />);
-
-    expect(screen.getByTestId("chat-input-llm-model")).toHaveAttribute(
-      "title",
-      "claude-sonnet-4-6",
-    );
-    expect(
-      screen.queryByTestId("switch-profile-button-stub"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders the active conversation model on a cloud backend", () => {
+  it("wires in the unified model picker on a cloud backend", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
-    });
 
     renderWithProviders(
       <ActiveBackendProvider>
@@ -113,30 +69,7 @@ describe("ChatInputActions", () => {
       </ActiveBackendProvider>,
     );
 
-    expect(screen.getByTestId("chat-input-llm-model")).toHaveTextContent(
-      "gpt-4o",
-    );
-    expect(
-      screen.queryByTestId("switch-profile-button-stub"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("omits the model label on cloud when the active conversation has no llm_model", () => {
-    setRegisteredBackends([cloudBackend]);
-    setActiveSelection({ backendId: cloudBackend.id });
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: null },
-    });
-
-    renderWithProviders(
-      <ActiveBackendProvider>
-        <ChatInputActions disabled={false} />
-      </ActiveBackendProvider>,
-    );
-
-    expect(
-      screen.queryByTestId("chat-input-llm-model"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-model-picker-stub")).toBeInTheDocument();
   });
 
   it("hides the Change Agent button on a local backend", () => {

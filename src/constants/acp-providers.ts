@@ -102,6 +102,24 @@ export interface ACPProviderConfig {
   /** Model ID preselected for built-in providers so Canvas never saves blank. */
   default_model?: string;
   /**
+   * ``true`` if this provider supports ``session/set_model`` for runtime,
+   * mid-conversation model switching — the capability the unified model
+   * picker reads to decide whether a same-provider model row can switch
+   * live (vs. requiring a new conversation). Mirrored from the SDK ACP
+   * registry via the typescript-client; previously dropped on the Canvas
+   * side, which let the picker offer a switch the agent-server rejects.
+   */
+  supports_runtime_model_switch?: boolean;
+  /**
+   * ``true`` if this provider selects its initial model via the
+   * ``set_session_model`` protocol call (rather than session ``_meta``).
+   * Mirrored from the SDK registry; not yet consumed by Canvas but kept
+   * so the registry stays a faithful mirror.
+   */
+  supports_set_session_model?: boolean;
+  /** Top-level ``_meta`` key for model selection, or ``null``. */
+  session_meta_key?: string | null;
+  /**
    * i18n key for the one-line provider description rendered under the
    * onboarding tile. Stored on the registry so adding a new ACP
    * provider only requires editing this file (not the onboarding tile
@@ -164,6 +182,9 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
       label: model.label,
     })),
     default_model: info?.default_model ?? undefined,
+    supports_runtime_model_switch: info?.supports_runtime_model_switch ?? false,
+    supports_set_session_model: info?.supports_set_session_model ?? false,
+    session_meta_key: info?.session_meta_key ?? null,
     description_key: ui.description_key,
     icon: ui.icon,
   };

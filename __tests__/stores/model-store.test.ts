@@ -52,7 +52,7 @@ describe("model store", () => {
       }),
     ]);
     // recordSwitch also tags this as the conversation's optimistic active
-    // profile so the SwitchProfileButton reflects the new selection instantly.
+    // profile so the model picker reflects the new selection instantly.
     expect(useModelStore.getState().activeProfileByConversation[CONV_A]).toBe(
       "gpt",
     );

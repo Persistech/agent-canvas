@@ -23,9 +23,9 @@ export interface AcpModelContext {
 
 /**
  * Shared source of truth for "is this an ACP model context, and where does
- * the model affordance link?". The chat model affordance consumes this through
- * ``useChatInputModelState`` so inline and overflow surfaces can't drift on the
- * home-page-ACP rule or on the destination path/label.
+ * the model affordance link?". The unified model picker consumes this through
+ * ``useActiveAgentBundleContext`` so inline and overflow surfaces can't drift
+ * on the home-page-ACP rule or on the destination path/label.
  */
 export function useAcpModelContext(): AcpModelContext {
   const { t } = useTranslation("openhands");

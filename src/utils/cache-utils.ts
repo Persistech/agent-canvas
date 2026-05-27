@@ -49,9 +49,9 @@ export const handleActionEventCacheInvalidation = (
   }
 
   // When the agent autonomously swaps the LLM via SwitchLLMTool, refresh the
-  // conversation so SwitchProfileButton / ChatInputModel pick up the new
-  // `llm_model`, and drop any previously-set optimistic profile name (it
-  // would now misrepresent the agent's choice).
+  // conversation so the unified model picker picks up the new `llm_model`,
+  // and drop any previously-set optimistic profile name (it would now
+  // misrepresent the agent's choice).
   if (event.tool_name === "SwitchLLMTool") {
     queryClient.invalidateQueries({
       queryKey: ["user", "conversation", conversationId],

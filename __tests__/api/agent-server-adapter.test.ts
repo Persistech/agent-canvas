@@ -549,7 +549,7 @@ describe("toAppConversation", () => {
   it("marks ACP conversations and surfaces the configured acp_model", () => {
     // The SDK's ACPAgent may still carry a sentinel ``llm`` (``acp-managed``)
     // for cost-attribution. Consumers should see the concrete ACP model Canvas
-    // configured, while SwitchProfileButton remains gated by agent_kind.
+    // configured, while the native profile picker remains gated by agent_kind.
     const result = toAppConversation({
       ...baseInfo,
       agent: {

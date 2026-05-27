@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
-import { Provider } from "#/types/settings";
+import { Provider, type SettingsValue } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 
 interface CreateConversationVariables {
@@ -18,6 +18,12 @@ interface CreateConversationVariables {
   agentType?: "default" | "plan";
   plugins?: PluginSpec[];
   workingDir?: string;
+  /**
+   * Per-launch agent/model override (local only) — used by the picker's
+   * "start a new conversation with X" fork so the new conversation runs a
+   * different agent/model than the saved default, without persisting it.
+   */
+  agentSettingsOverride?: Record<string, SettingsValue>;
 }
 
 interface CreateConversationResponse {
@@ -44,24 +50,41 @@ export const useCreateConversation = () => {
         workingDir,
         parentConversationId,
         agentType,
+        agentSettingsOverride,
       } = variables;
 
-      const conversation =
-        await AgentServerConversationService.createConversation(
-          query,
-          conversationInstructions,
-          plugins,
-          repository
-            ? {
-                selected_repository: repository.name,
-                selected_branch: repository.branch ?? null,
-                git_provider: repository.gitProvider,
-              }
-            : null,
-          workingDir,
-          parentConversationId,
-          agentType,
-        );
+      const metadata = repository
+        ? {
+            selected_repository: repository.name,
+            selected_branch: repository.branch ?? null,
+            git_provider: repository.gitProvider,
+          }
+        : null;
+
+      // Only widen the call with the override (and the cloud-only sandboxId
+      // slot it sits behind) when actually forking, so the common create path
+      // keeps its original argument shape.
+      const conversation = agentSettingsOverride
+        ? await AgentServerConversationService.createConversation(
+            query,
+            conversationInstructions,
+            plugins,
+            metadata,
+            workingDir,
+            parentConversationId,
+            agentType,
+            undefined, // sandboxId — cloud-only, unused on the local fork path
+            agentSettingsOverride,
+          )
+        : await AgentServerConversationService.createConversation(
+            query,
+            conversationInstructions,
+            plugins,
+            metadata,
+            workingDir,
+            parentConversationId,
+            agentType,
+          );
 
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

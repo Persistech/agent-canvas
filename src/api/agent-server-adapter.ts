@@ -706,14 +706,32 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * Per-launch agent-settings override for the "start a new conversation
+   * with X" fork — reconfigures the new conversation's agent/model without
+   * persisting the user's saved default. Shallow-merged over the resolved
+   * ``agent_settings``; {@link buildConfiguredAgentSettings} then reads only
+   * the chosen ``agent_kind``'s fields, so leftover fields from the other
+   * kind are ignored.
+   */
+  agentSettingsOverride?: Record<string, SettingsValue>;
 }
 
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ): StartConversationPayload {
-  const sourceAgentSettings = options.encryptedAgentSettings
+  const baseAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
+  const sourceAgentSettings: Settings = options.agentSettingsOverride
+    ? {
+        ...baseAgentSettings,
+        agent_settings: {
+          ...toRecord(baseAgentSettings.agent_settings),
+          ...options.agentSettingsOverride,
+        } as Record<string, SettingsValue>,
+      }
+    : baseAgentSettings;
 
   const acpMode = isAcpAgent(sourceAgentSettings);
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
@@ -829,6 +847,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  agentSettingsOverride?: Record<string, SettingsValue>;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

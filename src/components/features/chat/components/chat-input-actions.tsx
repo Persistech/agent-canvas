@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Cpu } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { ChangeAgentButton } from "../change-agent-button";
-import { ChatInputModel, ChatInputModelMenuContent } from "./chat-input-model";
-import { SwitchProfileButton } from "../switch-profile-button";
+import {
+  AgentModelPicker,
+  AgentModelPickerMenuContent,
+} from "./agent-model-picker";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
 import CarretRightFillIcon from "#/icons/carret-right-fill.svg?react";
@@ -17,7 +19,6 @@ import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -55,7 +56,6 @@ export function ChatInputActions({
   const { conversationId } = useOptionalConversationId();
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
-  const modelState = useChatInputModelState();
   // The change-agent button can never be enabled on the home page (no
   // conversation → no WebSocket → permanently disabled), so hide it there
   // entirely. It is still shown inside a conversation on cloud backends.
@@ -365,8 +365,7 @@ export function ChatInputActions({
               testId="overflow-model-submenu"
               className="min-w-[220px] max-w-[320px] max-h-[60vh] overflow-y-auto gap-0"
             >
-              <ChatInputModelMenuContent
-                model={modelState}
+              <AgentModelPickerMenuContent
                 onClose={closeOverflowMenus}
                 dividerInset="menu"
                 settingsLinkClassName={cn(
@@ -404,11 +403,7 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud || modelState.isAcpContext ? (
-              <ChatInputModel />
-            ) : (
-              <SwitchProfileButton />
-            )}
+            <AgentModelPicker />
           </div>
 
           {hasOverflowItems && (

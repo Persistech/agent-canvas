@@ -9,7 +9,7 @@ import {
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
 import { v4 as uuidv4 } from "uuid";
-import { Provider } from "#/types/settings";
+import { Provider, type SettingsValue } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
@@ -353,6 +353,13 @@ class AgentServerConversationService {
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
+    /**
+     * Per-launch agent-settings override for the "start a new conversation
+     * with X" fork. Local-backend only (ACP/profile switching is local-only);
+     * ignored on the cloud path. Reconfigures the new conversation's
+     * agent/model without persisting the user's saved default.
+     */
+    agentSettingsOverride?: Record<string, SettingsValue>,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
       // Cloud path mirrors OpenHands' frontend: build a flat
@@ -392,6 +399,7 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      agentSettingsOverride,
     });
 
     const data = await new ConversationClient(
