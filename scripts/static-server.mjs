@@ -194,9 +194,12 @@ async function serveInjectedIndexHtml(req, res, indexPath, sessionApiKey) {
 
   const script = makeConfigInjectionScript(sessionApiKey);
   // Inject right before </head> so the key is available before any app code runs.
+  // replace() targets the first (and only) </head> in well-formed HTML.
   const injected = content.includes("</head>")
     ? content.replace("</head>", `${script}\n</head>`)
-    : script + content;
+    : content.includes("</body>")
+      ? content.replace("</body>", `${script}\n</body>`)
+      : script + content;
 
   const buf = Buffer.from(injected, "utf8");
   res.writeHead(200, {

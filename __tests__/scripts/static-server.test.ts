@@ -172,6 +172,26 @@ describe("static-server.mjs", () => {
       const body = await response.text();
       expect(body).not.toContain("openhands-agent-server-config");
     });
+
+    it("injects session key into HTML without </head> tag (falls back to </body>)", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><body>no-head</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "no-head-key");
+      const response = await fetch(`${origin}/`);
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("no-head-key");
+      expect(body).toContain("openhands-agent-server-config");
+      // Script should appear before </body>, not at the very front of the document
+      expect(body.indexOf("no-head-key")).toBeLessThan(body.indexOf("</body>"));
+      expect(body.indexOf("no-head-key")).toBeGreaterThan(0);
+    });
   });
 
   it("serves nested build assets on all platforms", async () => {
