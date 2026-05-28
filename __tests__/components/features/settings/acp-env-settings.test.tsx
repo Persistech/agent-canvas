@@ -25,9 +25,10 @@ describe("AcpEnvSettings", () => {
     vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
   });
 
-  it("renders the empty state when no env vars are configured", () => {
+  it("renders only the inline add form when no env vars exist", () => {
     renderWithClient(<AcpEnvSettings envKeys={[]} />);
-    expect(screen.getByTestId("acp-env-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("acp-env-list")).not.toBeInTheDocument();
+    expect(screen.getByTestId("acp-env-add-form")).toBeInTheDocument();
   });
 
   it("renders one row per env var name, alphabetised", () => {
@@ -46,24 +47,28 @@ describe("AcpEnvSettings", () => {
     );
   });
 
-  it("opens the add form when the Add button is clicked", async () => {
+  it("Add button is disabled until both name and value are filled", async () => {
     const user = userEvent.setup();
     renderWithClient(<AcpEnvSettings envKeys={[]} />);
 
-    expect(screen.queryByTestId("acp-env-form")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("acp-env-add-button"));
-    expect(screen.getByTestId("acp-env-form")).toBeInTheDocument();
+    const addBtn = screen.getByTestId("acp-env-add-button");
+    expect(addBtn).toBeDisabled();
+
+    await user.type(screen.getByTestId("acp-env-name-input"), "FOO");
+    expect(addBtn).toBeDisabled();
+
+    await user.type(screen.getByTestId("acp-env-value-input"), "bar");
+    expect(addBtn).not.toBeDisabled();
   });
 
-  it("submits the add form as a single-key acp_env PATCH", async () => {
+  it("submits Add as a single-key acp_env PATCH and clears the form", async () => {
     const user = userEvent.setup();
     const save = vi.spyOn(SettingsService, "saveSettings");
     renderWithClient(<AcpEnvSettings envKeys={[]} />);
 
-    await user.click(screen.getByTestId("acp-env-add-button"));
     await user.type(screen.getByTestId("acp-env-name-input"), "FOO");
     await user.type(screen.getByTestId("acp-env-value-input"), "bar");
-    await user.click(screen.getByTestId("acp-env-submit-button"));
+    await user.click(screen.getByTestId("acp-env-add-button"));
 
     await waitFor(() => {
       expect(save).toHaveBeenCalledTimes(1);
@@ -72,21 +77,41 @@ describe("AcpEnvSettings", () => {
       agent_settings_diff?: Record<string, unknown>;
     };
     expect(call.agent_settings_diff).toEqual({ acp_env: { FOO: "bar" } });
+
+    // After success the form clears so the next add is friction-free.
+    await waitFor(() => {
+      expect(screen.getByTestId("acp-env-name-input")).toHaveValue("");
+      expect(screen.getByTestId("acp-env-value-input")).toHaveValue("");
+    });
   });
 
-  it("rejects duplicates against an existing key", async () => {
+  it("rejects an Add whose name duplicates an existing key", async () => {
     const user = userEvent.setup();
     const save = vi.spyOn(SettingsService, "saveSettings");
     renderWithClient(<AcpEnvSettings envKeys={["EXISTING_KEY"]} />);
 
-    await user.click(screen.getByTestId("acp-env-add-button"));
     await user.type(screen.getByTestId("acp-env-name-input"), "EXISTING_KEY");
     await user.type(screen.getByTestId("acp-env-value-input"), "x");
-    await user.click(screen.getByTestId("acp-env-submit-button"));
+    await user.click(screen.getByTestId("acp-env-add-button"));
 
     expect(save).not.toHaveBeenCalled();
-    expect(screen.getByTestId("acp-env-form-error")).toHaveTextContent(
+    expect(screen.getByTestId("acp-env-add-error")).toHaveTextContent(
       "SETTINGS$AGENT_ENV_NAME_DUPLICATE",
+    );
+  });
+
+  it("rejects invalid env-var names", async () => {
+    const user = userEvent.setup();
+    const save = vi.spyOn(SettingsService, "saveSettings");
+    renderWithClient(<AcpEnvSettings envKeys={[]} />);
+
+    await user.type(screen.getByTestId("acp-env-name-input"), "1BAD");
+    await user.type(screen.getByTestId("acp-env-value-input"), "x");
+    await user.click(screen.getByTestId("acp-env-add-button"));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByTestId("acp-env-add-error")).toHaveTextContent(
+      "SETTINGS$AGENT_ENV_NAME_INVALID",
     );
   });
 

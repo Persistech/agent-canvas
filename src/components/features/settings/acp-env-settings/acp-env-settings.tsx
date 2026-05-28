@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { AxiosError } from "axios";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -8,46 +8,72 @@ import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import {
-  settingsListIconActionButtonClassName,
-  settingsListScrollContainerClassName,
-  settingsListTableCellClassName,
-  settingsListTableHeadClassName,
-  settingsListTableHeaderCellClassName,
-  settingsListTableRowClassName,
-} from "#/utils/settings-list-classes";
+import { formControlSettingsFieldClassName } from "#/utils/form-control-classes";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-import { AcpEnvForm } from "./acp-env-form";
+
+const ENV_VAR_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 
 interface AcpEnvSettingsProps {
-  /** Names of env vars already configured on the server. Values are not
-   * surfaced — the server redacts them on GET, and the editor never
-   * round-trips existing values. */
   envKeys: string[];
 }
 
 export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
   const { t } = useTranslation("openhands");
-  const [view, setView] = React.useState<"list" | "form">("list");
-  const [pendingDelete, setPendingDelete] = React.useState<string | null>(null);
   const { mutate: saveSettings, isPending } = useSaveSettings();
+  const [name, setName] = React.useState("");
+  const [value, setValue] = React.useState("");
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = React.useState<string | null>(null);
 
   const sortedKeys = React.useMemo(
     () => [...envKeys].sort((a, b) => a.localeCompare(b)),
     [envKeys],
   );
 
+  const validateNewName = (trimmed: string): string | null => {
+    if (!ENV_VAR_NAME_PATTERN.test(trimmed)) {
+      return t(I18nKey.SETTINGS$AGENT_ENV_NAME_INVALID);
+    }
+    if (envKeys.includes(trimmed)) {
+      return t(I18nKey.SETTINGS$AGENT_ENV_NAME_DUPLICATE);
+    }
+    return null;
+  };
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    const error = validateNewName(trimmed);
+    if (error) {
+      setAddError(error);
+      return;
+    }
+    setAddError(null);
+    saveSettings(
+      { agent_settings_diff: { acp_env: { [trimmed]: value } } },
+      {
+        onError: (err) => {
+          const message = retrieveAxiosErrorMessage(err as AxiosError);
+          displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+        },
+        onSuccess: () => {
+          displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
+          setName("");
+          setValue("");
+        },
+      },
+    );
+  };
+
   const handleConfirmDelete = () => {
     if (!pendingDelete) return;
-    const name = pendingDelete;
+    const key = pendingDelete;
     saveSettings(
-      // null is the documented "delete this key" signal handled by the
-      // agent-server's PersistedSettings.update pre-processor.
-      { agent_settings_diff: { acp_env: { [name]: null } } },
+      { agent_settings_diff: { acp_env: { [key]: null } } },
       {
         onError: (err) => {
           const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -56,125 +82,91 @@ export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
         onSuccess: () => {
           displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
         },
-        onSettled: () => {
-          setPendingDelete(null);
-        },
+        onSettled: () => setPendingDelete(null),
       },
     );
   };
 
   return (
-    <div className="flex flex-col gap-4" data-testid="acp-env-settings">
-      {view === "list" ? (
-        <>
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 space-y-1">
-              <Typography.Text className="text-sm font-medium">
-                {t(I18nKey.SETTINGS$AGENT_ENV_TITLE)}
-              </Typography.Text>
-              <Typography.Text className="block text-xs text-[#717888]">
-                {t(I18nKey.SETTINGS$AGENT_ENV_DESCRIPTION)}
-              </Typography.Text>
-            </div>
-            <BrandButton
-              testId="acp-env-add-button"
-              type="button"
-              variant="primary"
-              className="shrink-0 whitespace-nowrap"
-              onClick={() => setView("form")}
-            >
-              {t(I18nKey.SETTINGS$AGENT_ENV_ADD_NEW)}
-            </BrandButton>
-          </div>
+    <div className="flex flex-col gap-2" data-testid="acp-env-settings">
+      <Typography.Text className="text-sm font-medium">
+        {t(I18nKey.SETTINGS$AGENT_ENV_TITLE)}
+      </Typography.Text>
+      <Typography.Text className="text-xs text-tertiary-light">
+        {t(I18nKey.SETTINGS$AGENT_ENV_DESCRIPTION)}
+      </Typography.Text>
 
-          {sortedKeys.length === 0 ? (
-            <Typography.Text
-              className="text-xs text-[#717888] italic"
-              testId="acp-env-empty"
+      {sortedKeys.length > 0 && (
+        <ul className="flex flex-col mt-1" data-testid="acp-env-list">
+          {sortedKeys.map((key) => (
+            <li
+              key={key}
+              data-testid={`acp-env-row-${key}`}
+              className="flex items-center justify-between gap-2 py-1.5 border-b border-[var(--oh-border)] last:border-b-0"
             >
-              {t(I18nKey.SETTINGS$AGENT_ENV_EMPTY)}
-            </Typography.Text>
-          ) : (
-            <div className={settingsListScrollContainerClassName}>
-              <table className="w-full min-w-full table-fixed">
-                <thead className={settingsListTableHeadClassName}>
-                  <tr>
-                    <th
-                      className={cn(
-                        settingsListTableHeaderCellClassName,
-                        "w-3/4",
-                      )}
-                    >
-                      {t(I18nKey.SETTINGS$NAME)}
-                    </th>
-                    <th
-                      className={cn(
-                        settingsListTableHeaderCellClassName,
-                        "w-1/4 text-right",
-                      )}
-                    >
-                      {t(I18nKey.SETTINGS$ACTIONS)}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedKeys.map((name) => (
-                    <tr
-                      key={name}
-                      data-testid={`acp-env-row-${name}`}
-                      className={settingsListTableRowClassName}
-                    >
-                      <td
-                        className={cn(
-                          settingsListTableCellClassName,
-                          "text-content-2 truncate font-mono",
-                        )}
-                        title={name}
-                      >
-                        {name}
-                      </td>
-                      <td className={settingsListTableCellClassName}>
-                        <div className="flex items-center justify-end gap-0.5">
-                          <button
-                            data-testid={`acp-env-delete-${name}`}
-                            type="button"
-                            onClick={() => setPendingDelete(name)}
-                            aria-label={`Delete ${name}`}
-                            className={settingsListIconActionButtonClassName}
-                          >
-                            <Trash2
-                              aria-hidden
-                              className="size-4"
-                              strokeWidth={2}
-                            />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-            data-testid="acp-env-back"
-          >
-            <ArrowLeft size={20} aria-hidden />
-            <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-          </button>
-          <Typography.H3>{t(I18nKey.SETTINGS$AGENT_ENV_ADD_NEW)}</Typography.H3>
-          <AcpEnvForm
-            existingKeys={envKeys}
-            onSaved={() => setView("list")}
-            onCancel={() => setView("list")}
-          />
-        </div>
+              <code className="text-sm font-mono text-white truncate min-w-0">
+                {key}
+              </code>
+              <button
+                type="button"
+                data-testid={`acp-env-delete-${key}`}
+                onClick={() => setPendingDelete(key)}
+                aria-label={`Delete ${key}`}
+                disabled={isPending}
+                className="text-tertiary-light hover:text-red-400 disabled:opacity-50 p-1 shrink-0"
+              >
+                <Trash2 aria-hidden className="size-4" strokeWidth={2} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        onSubmit={handleAdd}
+        data-testid="acp-env-add-form"
+        className="flex items-stretch gap-2 mt-1"
+      >
+        <input
+          data-testid="acp-env-name-input"
+          type="text"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (addError) setAddError(null);
+          }}
+          placeholder={t(I18nKey.SETTINGS$AGENT_ENV_NAME_PLACEHOLDER)}
+          required
+          disabled={isPending}
+          className={cn(formControlSettingsFieldClassName, "flex-1 min-w-0")}
+        />
+        <input
+          data-testid="acp-env-value-input"
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={t(I18nKey.SETTINGS$AGENT_ENV_VALUE_PLACEHOLDER)}
+          required
+          disabled={isPending}
+          className={cn(formControlSettingsFieldClassName, "flex-1 min-w-0")}
+        />
+        <BrandButton
+          testId="acp-env-add-button"
+          type="submit"
+          variant="secondary"
+          isDisabled={isPending || !name.trim() || !value}
+        >
+          {t(I18nKey.SETTINGS$AGENT_ENV_ADD)}
+        </BrandButton>
+      </form>
+      {addError && (
+        <p
+          role="alert"
+          data-testid="acp-env-add-error"
+          className="text-xs text-red-400"
+        >
+          {addError}
+        </p>
       )}
 
       {pendingDelete && (

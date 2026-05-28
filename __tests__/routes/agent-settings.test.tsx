@@ -714,7 +714,7 @@ describe("AgentSettingsScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("adds an acp_env entry via the dedicated form (own PATCH)", async () => {
+  it("adds an acp_env entry via the inline form (own PATCH)", async () => {
     const user = userEvent.setup();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
@@ -732,14 +732,12 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("acp-env-settings");
 
-    await user.click(screen.getByTestId("acp-env-add-button"));
-    await screen.findByTestId("acp-env-form");
     await user.type(
       screen.getByTestId("acp-env-name-input"),
       "ANTHROPIC_API_KEY",
     );
     await user.type(screen.getByTestId("acp-env-value-input"), "sk-test");
-    await user.click(screen.getByTestId("acp-env-submit-button"));
+    await user.click(screen.getByTestId("acp-env-add-button"));
 
     await waitFor(() => {
       expect(save).toHaveBeenCalledTimes(1);
