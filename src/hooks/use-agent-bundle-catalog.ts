@@ -31,18 +31,22 @@ export function useAgentBundleCatalog(): AgentBundleGroup[] {
   const { backend } = useActiveBackend();
   const isLocal = backend.kind === "local";
   const { data: profilesData } = useLlmProfiles({ enabled: isLocal });
-  const profiles = profilesData?.profiles ?? [];
+  // Depend on the (referentially stable) react-query field directly, not on
+  // a freshly-allocated ``?? []`` — otherwise the memo's profiles dep changes
+  // on every render while ``profilesData`` is undefined, defeating the memo.
+  const profiles = profilesData?.profiles;
 
   return useMemo<AgentBundleGroup[]>(() => {
     if (!isLocal) return [];
 
     const groups: AgentBundleGroup[] = [];
 
-    if (profiles.length > 0) {
+    const profileList = profiles ?? [];
+    if (profileList.length > 0) {
       groups.push({
         key: "openhands",
         label: OPENHANDS_GROUP_LABEL,
-        bundles: profiles.map(
+        bundles: profileList.map(
           (p): AgentModelBundle => ({
             kind: "openhands",
             id: bundleId.openhands(p.name),

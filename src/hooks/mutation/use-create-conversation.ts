@@ -61,30 +61,26 @@ export const useCreateConversation = () => {
           }
         : null;
 
-      // Only widen the call with the override (and the cloud-only sandboxId
-      // slot it sits behind) when actually forking, so the common create path
-      // keeps its original argument shape.
+      // Dedupe the shared positional args while keeping the common-path call
+      // shape unchanged (no trailing ``undefined`` slots), so existing
+      // ``toHaveBeenCalledWith`` assertions across callers stay valid and a
+      // future signature change only needs to be made in one place.
+      const baseArgs = [
+        query,
+        conversationInstructions,
+        plugins,
+        metadata,
+        workingDir,
+        parentConversationId,
+        agentType,
+      ] as const;
       const conversation = agentSettingsOverride
         ? await AgentServerConversationService.createConversation(
-            query,
-            conversationInstructions,
-            plugins,
-            metadata,
-            workingDir,
-            parentConversationId,
-            agentType,
+            ...baseArgs,
             undefined, // sandboxId — cloud-only, unused on the local fork path
             agentSettingsOverride,
           )
-        : await AgentServerConversationService.createConversation(
-            query,
-            conversationInstructions,
-            plugins,
-            metadata,
-            workingDir,
-            parentConversationId,
-            agentType,
-          );
+        : await AgentServerConversationService.createConversation(...baseArgs);
 
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

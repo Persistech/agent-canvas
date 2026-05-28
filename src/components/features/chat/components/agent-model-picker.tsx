@@ -324,7 +324,7 @@ export function AgentModelPicker() {
         title={ctx.currentLabel}
         data-testid="agent-model-picker"
         aria-expanded={isOpen}
-        aria-haspopup="dialog"
+        aria-haspopup="menu"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
