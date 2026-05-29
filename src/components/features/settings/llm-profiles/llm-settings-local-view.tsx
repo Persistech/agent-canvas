@@ -3,12 +3,21 @@ import { useTranslation } from "react-i18next";
 import { LlmProfilesManager } from "./llm-profiles-manager";
 import { ProfileNameInput } from "./profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
+import {
+  AcpProfileForm,
+  type AcpProfileFormValue,
+} from "#/components/features/settings/agent-profiles/acp-profile-form";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import ProfilesService, {
   ProfileInfo,
 } from "#/api/profiles-service/profiles-service.api";
+import {
+  ACP_PROVIDERS,
+  ACP_CUSTOM_PRESET_KEY,
+} from "#/constants/acp-providers";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -25,22 +34,34 @@ import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
 
 type ViewMode = "list" | "create" | "edit";
+type ProfileKind = "openhands" | "acp";
 
 interface EditingProfile {
   profile: ProfileInfo;
   initialValues: SettingsFormValues;
 }
 
-/**
- * LlmSettingsLocalView provides an integrated view for managing LLM profiles
- * in local agent-server mode. It supports listing, creating, and editing profiles.
- *
- * Note: This component manages multiple responsibilities (view state, validation,
- * form coordination, save logic). A future refactoring could extract these into
- * separate hooks (e.g., useProfileForm, useProfileSave) for better testability.
- * See PR review feedback for details.
- */
+function defaultAcpValue(): AcpProfileFormValue {
+  const first = ACP_PROVIDERS[0];
+  return {
+    acpServer: first?.key ?? ACP_CUSTOM_PRESET_KEY,
+    command: first ? [...first.default_command] : [],
+    acpModel: first?.default_model ?? "",
+    env: {},
+  };
+}
 
+function asString(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+/**
+ * Unified AgentProfile editor for local agent-server mode (Settings → Agent).
+ * Lists profiles and creates/edits them; a kind toggle switches the form
+ * between an OpenHands profile (LLM config) and an ACP profile
+ * (provider / command / model / env). Saving persists the profile via
+ * /api/profiles (kind-aware) and activates it, so "save" is all the user needs.
+ */
 export function LlmSettingsLocalView() {
   const { t } = useTranslation("openhands");
   const { setHideSectionHeader } = useSettingsSectionHeader();
@@ -49,6 +70,9 @@ export function LlmSettingsLocalView() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
+  const [kind, setKind] = useState<ProfileKind>("openhands");
+  const [acpValue, setAcpValue] =
+    useState<AcpProfileFormValue>(defaultAcpValue);
   const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
     null,
   );
@@ -62,19 +86,14 @@ export function LlmSettingsLocalView() {
     return () => setHideSectionHeader(false);
   }, [viewMode, setHideSectionHeader]);
 
-  // Get existing profile names for validation
   const existingNames = useMemo(
     () => new Set(profilesData?.profiles.map((p) => p.name) ?? []),
     [profilesData],
   );
 
-  // Validate profile name. The shared validator rejects any whitespace, so
-  // duplicate checks below compare the raw value directly.
   const isNameValid = useMemo(() => {
     if (!isProfileNameValid(profileName, { isRequired: true })) return false;
-    // In create mode, check for duplicates
     if (viewMode === "create" && existingNames.has(profileName)) return false;
-    // In edit mode, name can match current profile name
     if (
       viewMode === "edit" &&
       profileName !== editingProfile?.profile.name &&
@@ -87,6 +106,8 @@ export function LlmSettingsLocalView() {
 
   const handleAddProfile = useCallback(() => {
     setProfileName("");
+    setKind("openhands");
+    setAcpValue(defaultAcpValue());
     setEditingProfile(null);
     setViewMode("create");
   }, []);
@@ -94,24 +115,37 @@ export function LlmSettingsLocalView() {
   const handleEditProfile = useCallback(
     async (profile: ProfileInfo) => {
       try {
-        // Fetch profile details with encrypted secrets to preserve API key
         const detail = await ProfilesService.getProfile(
           profile.name,
           "encrypted",
         );
-
-        // Profile config contains llm settings directly at the top level
-        // The structure is: { model, api_key, base_url, ... }
-        // (NOT nested under a "llm" key)
         const config = (detail.config ?? {}) as Record<string, unknown>;
 
-        const initialValues: SettingsFormValues = {
-          "llm.model": (config.model as string) ?? "",
-          "llm.api_key": (config.api_key as string) ?? "",
-          "llm.base_url": (config.base_url as string) ?? "",
-        };
-
-        setEditingProfile({ profile, initialValues });
+        if (config.agent_kind === "acp" || profile.kind === "acp") {
+          setKind("acp");
+          setAcpValue({
+            acpServer: asString(config.acp_server) || ACP_CUSTOM_PRESET_KEY,
+            command: Array.isArray(config.acp_command)
+              ? (config.acp_command as unknown[]).map((c) => String(c))
+              : [],
+            acpModel: asString(config.acp_model),
+            env:
+              config.acp_env && typeof config.acp_env === "object"
+                ? (config.acp_env as Record<string, string>)
+                : {},
+          });
+          setEditingProfile({ profile, initialValues: {} });
+        } else {
+          setKind("openhands");
+          setEditingProfile({
+            profile,
+            initialValues: {
+              "llm.model": asString(config.model),
+              "llm.api_key": asString(config.api_key),
+              "llm.base_url": asString(config.base_url),
+            },
+          });
+        }
         setProfileName(profile.name);
         setViewMode("edit");
       } catch (error) {
@@ -132,99 +166,74 @@ export function LlmSettingsLocalView() {
   const handleSaveControlChange = useCallback(
     (control: SdkSectionSaveControl) => {
       setSaveControl(control);
-
-      // Auto-derive profile name from model in create mode.
-      // Note: The uniqueness check uses existingNames from state, which is derived
-      // from profilesData at component render time. If another client creates a
-      // profile with the same derived name while this form is open, the client-side
-      // check would pass but the server save would fail with a conflict error.
-      // This is acceptable for the current use case; the server error is handled
-      // gracefully in handleSave.
-      if (viewMode === "create" && !profileName) {
+      if (viewMode === "create" && kind === "openhands" && !profileName) {
         const modelValue = control.values["llm.model"];
         if (typeof modelValue === "string" && modelValue) {
           const derived = deriveProfileNameFromModel(modelValue);
-          if (!existingNames.has(derived)) {
-            setProfileName(derived);
-          }
+          if (!existingNames.has(derived)) setProfileName(derived);
         }
       }
     },
-    [viewMode, profileName, existingNames],
+    [viewMode, kind, profileName, existingNames],
   );
 
   const handleSave = useCallback(async () => {
-    if (!saveControl || !isNameValid) return;
-
-    const values = saveControl.values;
-    const model =
-      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
-    const apiKey =
-      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
-    const baseUrl =
-      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
-
-    if (!model) {
-      displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
-      return;
-    }
-
+    if (!isNameValid) return;
     const trimmedName = profileName.trim();
     const originalName = editingProfile?.profile.name;
     const isRename =
       viewMode === "edit" && originalName && originalName !== trimmedName;
-    const wasActive = profilesData?.active_profile === originalName;
+
+    // Build the kind-aware save request.
+    let request: Parameters<typeof saveProfile.mutateAsync>[0]["request"];
+    if (kind === "acp") {
+      if (!acpValue.acpServer || acpValue.command.length === 0) {
+        displayErrorToast(t(I18nKey.SETTINGS$AGENT_COMMAND));
+        return;
+      }
+      request = {
+        agent_settings: {
+          agent_kind: "acp",
+          acp_server: acpValue.acpServer,
+          acp_command: acpValue.command,
+          acp_args: [],
+          acp_model: acpValue.acpModel.trim() || null,
+          acp_env: acpValue.env,
+        },
+        include_secrets: true,
+      };
+    } else {
+      if (!saveControl) return;
+      const values = saveControl.values;
+      const model = asString(values["llm.model"]);
+      if (!model) {
+        displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
+        return;
+      }
+      const apiKey = asString(values["llm.api_key"]);
+      const baseUrl = asString(values["llm.base_url"]);
+      const llm: Record<string, unknown> = { model };
+      if (apiKey) llm.api_key = apiKey;
+      else if (
+        viewMode === "edit" &&
+        editingProfile?.initialValues["llm.api_key"]
+      )
+        llm.api_key = editingProfile.initialValues["llm.api_key"];
+      if (baseUrl) llm.base_url = baseUrl;
+      request = {
+        llm: llm as { model: string; api_key?: string; base_url?: string },
+        include_secrets: true,
+      };
+    }
 
     setIsSaving(true);
     try {
-      // If editing and name changed, rename the profile first
       if (isRename) {
         await ProfilesService.renameProfile(originalName, trimmedName);
       }
-
-      // Build the LLM config object
-      const llmConfig: Record<string, unknown> = { model };
-
-      // API key handling:
-      // - If user entered a new key, use it
-      // - In edit mode with no new key, preserve the existing encrypted key
-      //   (fetched with exposeSecrets='encrypted' and passed back to server)
-      // - In create mode with no key, omit api_key entirely
-      //
-      // Note: The current UX doesn't support explicitly clearing an API key.
-      // If needed, a future enhancement could add a "Clear API Key" option.
-      // The encrypted key format is stable and can be round-tripped to the server.
-      if (apiKey) {
-        llmConfig.api_key = apiKey;
-      } else if (
-        viewMode === "edit" &&
-        editingProfile?.initialValues["llm.api_key"]
-      ) {
-        llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
-      }
-
-      // Only include base_url if set
-      if (baseUrl) {
-        llmConfig.base_url = baseUrl;
-      }
-
-      await saveProfile.mutateAsync({
-        name: trimmedName,
-        request: {
-          llm: llmConfig as {
-            model: string;
-            api_key?: string;
-            base_url?: string;
-          },
-          include_secrets: true,
-        },
-      });
-
-      // If the renamed profile was the active profile, re-activate it
-      // (the rename operation doesn't automatically update active_profile)
-      if (isRename && wasActive) {
-        await ProfilesService.activateProfile(trimmedName);
-      }
+      await saveProfile.mutateAsync({ name: trimmedName, request });
+      // "Save and that's it": the saved profile becomes the active one.
+      await ProfilesService.activateProfile(trimmedName);
 
       displaySuccessToast(
         viewMode === "create"
@@ -239,18 +248,18 @@ export function LlmSettingsLocalView() {
       setIsSaving(false);
     }
   }, [
-    saveControl,
     isNameValid,
     profileName,
+    kind,
+    acpValue,
+    saveControl,
     viewMode,
     editingProfile,
-    profilesData?.active_profile,
     saveProfile,
     t,
     handleBackToList,
   ]);
 
-  // List view: show profiles manager
   if (viewMode === "list") {
     return (
       <LlmProfilesManager
@@ -260,21 +269,15 @@ export function LlmSettingsLocalView() {
     );
   }
 
-  const profileEditorTitle =
-    viewMode === "edit"
-      ? t(I18nKey.SETTINGS$EDIT_LLM_PROFILE)
-      : t(I18nKey.SETTINGS$ADD_LLM_PROFILE);
-  const profileEditorDescription =
-    viewMode === "edit" && editingProfile
-      ? t(I18nKey.SETTINGS$PROFILE_LOADED, {
-          name: editingProfile.profile.name,
-        })
-      : t(I18nKey.SETTINGS$PROFILE_SAVE_HINT);
+  const saveDisabled =
+    !isNameValid ||
+    isSaving ||
+    (kind === "openhands"
+      ? !saveControl
+      : !acpValue.acpServer || acpValue.command.length === 0);
 
-  // Create/Edit view: show form with profile name input
   return (
     <div className="flex flex-col gap-6">
-      {/* Header with back button */}
       <div className="flex flex-col gap-2">
         <button
           type="button"
@@ -286,17 +289,22 @@ export function LlmSettingsLocalView() {
           <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
         </button>
         <Typography.H2 testId="profile-editor-title">
-          {profileEditorTitle}
+          {viewMode === "edit"
+            ? t(I18nKey.SETTINGS$EDIT_LLM_PROFILE)
+            : t(I18nKey.SETTINGS$ADD_LLM_PROFILE)}
         </Typography.H2>
         <p
           data-testid="profile-editor-description"
           className="text-sm leading-5 text-tertiary-light"
         >
-          {profileEditorDescription}
+          {viewMode === "edit" && editingProfile
+            ? t(I18nKey.SETTINGS$PROFILE_LOADED, {
+                name: editingProfile.profile.name,
+              })
+            : t(I18nKey.SETTINGS$PROFILE_SAVE_HINT)}
         </p>
       </div>
 
-      {/* Profile name input */}
       <ProfileNameInput
         testId="profile-name-input"
         value={profileName}
@@ -304,26 +312,39 @@ export function LlmSettingsLocalView() {
         isRequired
       />
 
-      {/* Profile form - key ensures form remounts when switching profiles */}
-      <LlmSettingsScreen
-        key={
-          viewMode === "edit"
-            ? `edit-${editingProfile?.profile.name}`
-            : "new-profile"
-        }
-        embedded
-        hideSaveButton
-        initialValueOverrides={
-          viewMode === "edit" && editingProfile?.initialValues
-            ? // Edit mode: use the existing profile values
-              editingProfile.initialValues
-            : // Create mode: start with empty fields for a fresh profile
-              { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
-        }
-        onSaveControlChange={handleSaveControlChange}
+      {/* Agent kind toggle: OpenHands profile (LLM) vs ACP profile. */}
+      <SettingsDropdownInput
+        testId="profile-kind-selector"
+        name="profile-kind"
+        label={t(I18nKey.SETTINGS$NAV_AGENT)}
+        items={[
+          { key: "openhands", label: t(I18nKey.SETTINGS$AGENT_TYPE_OPENHANDS) },
+          { key: "acp", label: t(I18nKey.SETTINGS$AGENT_TYPE_ACP) },
+        ]}
+        selectedKey={kind}
+        onSelectionChange={(key) => key && setKind(key as ProfileKind)}
       />
 
-      {/* Action buttons */}
+      {kind === "openhands" ? (
+        <LlmSettingsScreen
+          key={
+            viewMode === "edit"
+              ? `edit-${editingProfile?.profile.name}`
+              : "new-profile"
+          }
+          embedded
+          hideSaveButton
+          initialValueOverrides={
+            viewMode === "edit" && editingProfile?.initialValues
+              ? editingProfile.initialValues
+              : { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
+          }
+          onSaveControlChange={handleSaveControlChange}
+        />
+      ) : (
+        <AcpProfileForm value={acpValue} onChange={setAcpValue} />
+      )}
+
       <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
         <BrandButton
           testId="cancel-profile-btn"
@@ -338,7 +359,7 @@ export function LlmSettingsLocalView() {
           type="button"
           variant="primary"
           onClick={handleSave}
-          isDisabled={!isNameValid || isSaving || !saveControl}
+          isDisabled={saveDisabled}
           aria-busy={isSaving}
         >
           {isSaving ? t(I18nKey.STATUS$SAVING) : t(I18nKey.BUTTON$SAVE)}

@@ -60,20 +60,20 @@ describe("useSettingsNavItems", () => {
     });
   });
 
-  it("returns the LLM settings item unchanged on local backends", () => {
+  it("returns a non-special settings item unchanged on local backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
     const { result } = renderHook(() => useSettingsNavItems());
-    const llmItem = result.current.find(
-      (item) => item.type === "item" && item.item.to === "/settings/llm",
+    const condenserItem = result.current.find(
+      (item) => item.type === "item" && item.item.to === "/settings/condenser",
     );
 
-    const baseLlm = OSS_NAV_ITEMS.find(
-      (item) => item.to === "/settings/llm",
+    const baseCondenser = OSS_NAV_ITEMS.find(
+      (item) => item.to === "/settings/condenser",
     )!;
-    expect(llmItem).toEqual({
+    expect(condenserItem).toEqual({
       type: "item",
-      item: baseLlm,
+      item: baseCondenser,
     });
   });
 
@@ -120,7 +120,7 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/mcp");
   });
 
-  it("disables LLM + Condenser when the active agent_kind is acp", () => {
+  it("disables Condenser + Verification when the active agent_kind is acp", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useSettingsMock.mockReturnValue({ data: acpClaudeCodeSettings });
 
@@ -134,17 +134,17 @@ describe("useSettingsNavItems", () => {
         ),
     );
 
-    const llm = byPath.get("/settings/llm");
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("Claude Code");
-    }
-
     const condenser = byPath.get("/settings/condenser");
     expect(condenser?.type).toBe("item");
     if (condenser?.type === "item") {
       expect(condenser.disabled).toBe(true);
+      expect(condenser.disabledAgentName).toBe("Claude Code");
+    }
+
+    const verification = byPath.get("/settings/verification");
+    expect(verification?.type).toBe("item");
+    if (verification?.type === "item") {
+      expect(verification.disabled).toBe(true);
     }
 
     // Items without `disabledByAcp` stay enabled.

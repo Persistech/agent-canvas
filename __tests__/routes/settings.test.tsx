@@ -74,6 +74,8 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
+      // /settings/llm no longer exists (folded into Agent), so it is an
+      // unavailable path the loader redirects to the first available route.
       request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
@@ -159,7 +161,7 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
-      request: new Request("http://localhost/settings/llm"),
+      request: new Request("http://localhost/settings/condenser"),
       params: {},
       context: {},
     } as never)) as Response;

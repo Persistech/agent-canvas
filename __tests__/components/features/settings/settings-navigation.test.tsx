@@ -29,14 +29,14 @@ vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
   ),
 }));
 
-const llmItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings/llm")!;
+const verificationItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings/verification")!;
 const condenserItem = OSS_NAV_ITEMS.find(
   (item) => item.to === "/settings/condenser",
 )!;
 
 const baseItems: SettingsNavRenderedItem[] = [
   { type: "header", text: "SETTINGS$TITLE" as never },
-  { type: "item", item: llmItem },
+  { type: "item", item: verificationItem },
   { type: "divider" },
   { type: "item", item: condenserItem },
 ];
@@ -67,7 +67,7 @@ describe("SettingsNavigation", () => {
 
     expect(screen.getByTestId("settings-navbar")).toBeInTheDocument();
     expect(screen.getAllByText("SETTINGS$TITLE").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SETTINGS$NAV_LLM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("SETTINGS$NAV_VERIFICATION").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("SETTINGS$NAV_CONDENSER").length,
     ).toBeGreaterThan(0);
@@ -101,13 +101,13 @@ describe("SettingsNavigation", () => {
     );
 
     const mobileNav = screen.getByTestId("settings-navbar");
-    await userEvent.click(within(mobileNav).getByText("SETTINGS$NAV_LLM"));
+    await userEvent.click(within(mobileNav).getByText("SETTINGS$NAV_VERIFICATION"));
 
     expect(onCloseMobileMenu).toHaveBeenCalledTimes(1);
   });
 
   it("renders disabled-by-ACP items as disabled in the desktop sidebar", () => {
-    // Regression guard: when ACP is active, the LLM and Condenser items
+    // Regression guard: when ACP is active, the Verification and Condenser items
     // come through with ``disabled: true`` from ``useSettingsNavItems``;
     // both the mobile drawer (via SettingsNavLink) and the desktop
     // sidebar (via SidebarNavLink) must propagate that. Earlier the
@@ -119,7 +119,7 @@ describe("SettingsNavigation", () => {
         navigationItems={[
           {
             type: "item",
-            item: llmItem,
+            item: verificationItem,
             disabled: true,
             disabledAgentName: "Claude Code",
           },
@@ -137,13 +137,13 @@ describe("SettingsNavigation", () => {
 
     // SidebarNavLink renders disabled items as a non-link span with
     // ``aria-disabled="true"`` and ``opacity-50`` styling.
-    const llmLink = within(desktopNav).getByTestId(
-      "sidebar-settings-/settings/llm",
+    const verificationLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings/verification",
     );
     const condenserLink = within(desktopNav).getByTestId(
       "sidebar-settings-/settings/condenser",
     );
-    expect(llmLink).toHaveAttribute("aria-disabled", "true");
+    expect(verificationLink).toHaveAttribute("aria-disabled", "true");
     expect(condenserLink).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -152,14 +152,14 @@ describe("SettingsNavigation", () => {
       <SettingsNavigation
         isMobileMenuOpen={false}
         onCloseMobileMenu={vi.fn()}
-        navigationItems={[{ type: "item", item: llmItem }]}
+        navigationItems={[{ type: "item", item: verificationItem }]}
       />,
     );
     const desktopNav = screen.getByTestId("settings-navbar-desktop");
-    const llmLink = within(desktopNav).getByTestId(
-      "sidebar-settings-/settings/llm",
+    const verificationLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings/verification",
     );
-    expect(llmLink).not.toHaveAttribute("aria-disabled", "true");
+    expect(verificationLink).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("wraps disabled-by-ACP desktop items in the explanatory tooltip", () => {

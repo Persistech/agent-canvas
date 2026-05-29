@@ -180,7 +180,10 @@ describe("LlmSettingsRoute - backend mode rendering", () => {
     );
   });
 
-  it("renders LlmSettingsLocalView (profile manager) for local backends", async () => {
+  // The standalone LLM page is folded into Settings → Agent (#669); the route
+  // now redirects there, so it renders neither the local profile manager nor
+  // the cloud LLM form itself.
+  it("redirects local backends away from the standalone LLM page", () => {
     vi.spyOn(activeBackendContext, "useActiveBackend").mockReturnValue({
       backend: mockLocalBackend,
       orgId: null,
@@ -188,39 +191,18 @@ describe("LlmSettingsRoute - backend mode rendering", () => {
 
     renderLlmSettingsRoute();
 
-    // Local mode shows the "Add LLM Profile" button from LlmProfilesManager
-    await screen.findByTestId("add-llm-profile");
-    expect(screen.getByTestId("add-llm-profile")).toBeInTheDocument();
+    expect(screen.queryByTestId("add-llm-profile")).not.toBeInTheDocument();
   });
 
-  it("renders standard LlmSettingsScreen (no profiles) for cloud backends", async () => {
+  it("redirects cloud backends away from the standalone LLM page", () => {
     vi.spyOn(activeBackendContext, "useActiveBackend").mockReturnValue({
       backend: mockCloudBackend,
       orgId: "org-123",
     });
 
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({
-        llm_model: "openai/gpt-4o",
-        llm_api_key_set: true,
-        agent_settings: {
-          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          llm: {
-            model: "openai/gpt-4o",
-            api_key: null,
-            base_url: "",
-          },
-        },
-      }),
-    );
-
     renderLlmSettingsRoute();
 
-    // Cloud mode shows the standard LLM settings form (not profile manager)
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("llm-settings-screen")).toBeInTheDocument();
-
-    // Should NOT show the "Add LLM Profile" button
+    expect(screen.queryByTestId("llm-settings-screen")).not.toBeInTheDocument();
     expect(screen.queryByTestId("add-llm-profile")).not.toBeInTheDocument();
   });
 });

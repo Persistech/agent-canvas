@@ -1,4 +1,5 @@
 import React from "react";
+import { Navigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
@@ -11,11 +12,9 @@ import {
   SdkSectionPage,
   SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
-import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   inferInitialView,
   type SettingsFormValues,
@@ -308,26 +307,13 @@ export function LlmSettingsScreen({
 }
 
 /**
- * Default export for the route renders different views based on backend type:
- * - Local backends: LlmSettingsLocalView with profile management
- * - Cloud backends: Standard LlmSettingsScreen (profiles are not supported)
+ * The standalone LLM settings page has been folded into Settings → Agent
+ * (#669): for OpenHands the Agent page now owns the LLM config, and profiles
+ * are managed there. Redirect any remaining /settings/llm links accordingly.
  *
- * The LlmSettingsScreen component is also exported for embedded use cases
- * (e.g., onboarding, profile editing forms).
- *
- * Note: This is a route file, only the router should import the default export.
- * Other consumers should use the named export `LlmSettingsScreen` for embedded
- * use cases.
+ * The named {@link LlmSettingsScreen} export remains for embedded use
+ * (onboarding, the Agent page's OpenHands profile form, cloud).
  */
 export default function LlmSettingsRoute() {
-  const { backend } = useActiveBackend();
-  const isCloud = backend.kind === "cloud";
-
-  // Cloud backends use the standard LLM settings form (no profiles support)
-  if (isCloud) {
-    return <LlmSettingsScreen />;
-  }
-
-  // Local backends use the profile management view
-  return <LlmSettingsLocalView />;
+  return <Navigate to="/settings/agent" replace />;
 }
