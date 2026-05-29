@@ -107,4 +107,38 @@ describe("ChatInputModelMenuContent disabled-profile section", () => {
       screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
     ).toBeInTheDocument();
   });
+
+  it("switches the ACP model live when a switch-live ACP profile is clicked", () => {
+    const switchLiveAcpProfile: ProfileWithPlan = {
+      profile: {
+        name: "Claude Sonnet daily",
+        kind: "acp",
+        model: "claude-sonnet-4-6",
+        base_url: null,
+        acp_server: "claude-code",
+        acp_model: "claude-sonnet-4-6",
+        api_key_set: true,
+      },
+      plan: { action: "switch-live", mutableFields: ["acp_model"] },
+    };
+    useProfileRuntimePlansMock.mockReturnValue({
+      profiles: [switchLiveAcpProfile],
+      activeProfileName: null,
+      isAcpContext: true,
+    });
+
+    renderWithProviders(
+      <ChatInputModelMenuContent model={acpModelState} onClose={() => {}} />,
+    );
+
+    const row = screen.getByTestId(
+      "chat-input-profile-option-Claude Sonnet daily",
+    );
+    expect(row).not.toBeDisabled();
+    row.click();
+    expect(switchAcpModelMutate).toHaveBeenCalledWith({
+      conversationId: "conv-1",
+      model: "claude-sonnet-4-6",
+    });
+  });
 });

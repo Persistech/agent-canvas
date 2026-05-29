@@ -106,9 +106,14 @@ export function useProfileRuntimePlans(): ProfileRuntimePlans {
         providerSupportsRuntimeSwitch:
           backend.kind !== "cloud" &&
           (provider?.available_models?.length ?? 0) > 0,
-        // The ACP wrapper rejects a runtime switch before the first message
-        // (no session yet); treat an active conversation as initialized.
-        sessionInitialized: Boolean(conversationId),
+        // `useSwitchAcpModel` handles both selection paths: on the home page it
+        // persists the choice as the agent-settings default (always valid), and
+        // inside a conversation it does a live `session/set_model` (surfacing
+        // the pre-first-message 409 as a toast). Neither path needs us to
+        // pre-disable here, so the picker treats the context as switchable; the
+        // `session-not-initialized` reason stays reserved for when the backend
+        // exposes that state explicitly.
+        sessionInitialized: true,
       };
     }
     return {
@@ -129,24 +134,30 @@ export function useProfileRuntimePlans(): ProfileRuntimePlans {
     settings?.agent_settings?.acp_server,
     settings?.llm_model,
     backend.kind,
-    conversationId,
   ]);
 
   const withPlans = useMemo<ProfileWithPlan[]>(
     () =>
-      profiles.map((profile) => ({
-        profile,
-        plan: deriveProfileRuntimePlan({
-          profile: normalizeLlmProfile(profile),
-          context,
-          // Saved profiles are OpenHands (LLM) profiles. In an ACP context the
-          // running agent is *not* any of them — `active_profile` is just the
-          // default LLM profile, not what this ACP conversation runs — so none
-          // is "current"; they must all show disabled with a reason.
-          isActive: !isAcpContext && profile.name === activeProfileName,
-        }),
-      })),
-    [profiles, context, activeProfileName, isAcpContext],
+      profiles.map((profile) => {
+        const normalized = normalizeLlmProfile(profile);
+        return {
+          profile,
+          plan: deriveProfileRuntimePlan({
+            profile: normalized,
+            context,
+            // Mark "current" only when the profile's kind matches the running
+            // context AND it's the active profile. The kind guard prevents a
+            // same-named cross-kind profile (e.g. an OpenHands profile in an
+            // ACP conversation) from being mislabeled current; within-kind
+            // config equality in deriveProfileRuntimePlan also resolves
+            // "current" on cold loads where active_profile isn't known.
+            isActive:
+              normalized.kind === context.kind &&
+              profile.name === activeProfileName,
+          }),
+        };
+      }),
+    [profiles, context, activeProfileName],
   );
 
   return { profiles: withPlans, activeProfileName, isAcpContext };

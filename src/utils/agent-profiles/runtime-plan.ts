@@ -244,6 +244,20 @@ export function deriveProfileRuntimePlan({
  * they default to ``kind: "openhands"`` per the issue's migration direction.
  */
 export function normalizeLlmProfile(profile: ProfileInfo): AgentProfile {
+  if (profile.kind === "acp") {
+    // The list summary only carries the launch *identity* we can compare
+    // against a running ACP conversation: provider + model. command/args/env
+    // aren't in the summary (they live in the full profile config), and for
+    // built-in providers they're derived from acp_server anyway — so leaving
+    // them undefined makes the runtime-plan comparison reduce to
+    // provider + model, which is the correct switch-live test for ACP.
+    return {
+      kind: "acp",
+      name: profile.name,
+      acpServer: profile.acp_server ?? "",
+      acpModel: profile.acp_model ?? null,
+    };
+  }
   return {
     kind: "openhands",
     name: profile.name,

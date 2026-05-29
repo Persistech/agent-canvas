@@ -263,4 +263,23 @@ describe("normalizeLlmProfile", () => {
       llm: { model: null, baseUrl: null },
     });
   });
+
+  it("maps a kind=acp ProfileInfo to an ACP AgentProfile (provider + model)", () => {
+    expect(
+      normalizeLlmProfile({
+        name: "Local Codex",
+        kind: "acp",
+        model: "gpt-5-codex",
+        base_url: null,
+        acp_server: "codex",
+        acp_model: "gpt-5-codex",
+        api_key_set: true,
+      }),
+    ).toEqual({
+      kind: "acp",
+      name: "Local Codex",
+      acpServer: "codex",
+      acpModel: "gpt-5-codex",
+    });
+  });
 });

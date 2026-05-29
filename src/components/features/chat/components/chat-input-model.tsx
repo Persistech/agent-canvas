@@ -55,15 +55,25 @@ export function ChatInputModelMenuContent({
   const switchAcpModel = useSwitchAcpModel();
   const { profiles } = useProfileRuntimePlans();
   const hasModelRows = model.showAcpPicker || Boolean(model.displayModel);
-  // Saved AgentProfiles that can't be switched into this conversation live
-  // (e.g. an OpenHands profile while an ACP agent is running). The issue
-  // requires these to be visible-but-disabled with a reason rather than
-  // hidden, so the user understands the profile exists but needs a new
-  // conversation. Cloud backends have no profiles, so this stays empty there.
-  const incompatibleProfiles = profiles.filter(
-    (entry) => entry.plan.action === "disabled",
-  );
-  const hasProfilesSection = incompatibleProfiles.length > 0;
+  // Saved AgentProfiles, shown plan-driven: a same-provider ACP profile whose
+  // only difference is the model is switchable live; current is checked;
+  // incompatible ones (different provider, or an OpenHands profile while ACP
+  // runs) stay visible-but-disabled with a reason. Cloud backends have no
+  // profiles, so this section stays empty there.
+  const hasProfilesSection = profiles.length > 0;
+
+  // Switching to a switch-live ACP profile is a live acp_model swap (same
+  // endpoint as picking a raw model). Only `switch-live` acts; `current` is a
+  // no-op and `disabled` rows are non-interactive.
+  const handleSelectProfile = (entry: (typeof profiles)[number]) => {
+    if (entry.plan.action === "switch-live" && entry.profile.acp_model) {
+      switchAcpModel.mutate({
+        conversationId: model.switchConversationId,
+        model: entry.profile.acp_model,
+      });
+    }
+    onClose();
+  };
 
   const handleSelectAcpModel = (modelId: string) => {
     if (modelId !== model.currentModelId) {
@@ -136,9 +146,10 @@ export function ChatInputModelMenuContent({
               {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
             </Typography.Text>
           </li>
-          {incompatibleProfiles.map(({ profile, plan }) => {
-            // `plan.action` is "disabled" by construction of
-            // `incompatibleProfiles`; narrow it for `reason` access.
+          {profiles.map((entry) => {
+            const { profile, plan } = entry;
+            const isCurrent = plan.action === "current";
+            const isDisabled = plan.action === "disabled";
             const reasonLabel =
               plan.action === "disabled"
                 ? t(reasonToI18nKey(plan.reason))
@@ -147,15 +158,22 @@ export function ChatInputModelMenuContent({
               <ContextMenuListItem
                 key={profile.name}
                 testId={`chat-input-profile-option-${profile.name}`}
-                isDisabled
-                // Disabled rows never act; the empty handler keeps the shared
-                // button API satisfied without applying anything.
-                onClick={() => {}}
-                className="flex flex-col gap-0.5 h-auto"
+                isDisabled={isDisabled}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  // Disabled rows are already non-interactive via isDisabled;
+                  // current is a no-op close; only switch-live acts.
+                  handleSelectProfile(entry);
+                }}
+                className={cn(
+                  "flex flex-col gap-0.5 h-auto",
+                  isCurrent && "bg-[var(--oh-interactive-hover)]",
+                )}
               >
                 <span
                   className="flex items-center gap-2 min-w-0"
-                  title={reasonLabel ?? undefined}
+                  title={reasonLabel ?? profile.model ?? undefined}
                 >
                   <CircuitIcon
                     width={16}
@@ -166,6 +184,14 @@ export function ChatInputModelMenuContent({
                   <span className="flex-1 truncate text-sm leading-5">
                     {profile.name}
                   </span>
+                  {isCurrent && (
+                    <CheckIcon
+                      width={14}
+                      height={14}
+                      className="shrink-0"
+                      aria-hidden
+                    />
+                  )}
                 </span>
                 {reasonLabel && (
                   <span
