@@ -8,6 +8,16 @@ import { recordBackendSuccess } from "#/api/backend-registry/health-store";
 
 const handle401Error = (error: AxiosError, client: QueryClient) => {
   if (error?.response?.status === 401 || error?.status === 401) {
+    // [DEBUG] A 401 was received. This invalidates the auth query which
+    // temporarily sets userIsAuthenticated to undefined, which in turn
+    // disables usePaginatedConversations via `enabled: !!userIsAuthenticated`.
+    // This is the mechanism behind the "conversations flicker" bug on Docker
+    // restart when the session key in localStorage is stale.
+    const url = error?.config?.url ?? "unknown";
+    console.debug(
+      `[agent-canvas] 401 received for "${url}" — invalidating ["user","authenticated"]. ` +
+        "conversations query will be briefly disabled during re-auth.",
+    );
     client.invalidateQueries({ queryKey: ["user", "authenticated"] });
   }
 };

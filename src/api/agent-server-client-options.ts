@@ -37,6 +37,9 @@ function resolveHost(
   return normalizeHost(backend.host);
 }
 
+// [DEBUG] Track the last key source to avoid logging on every API call.
+let _lastApiKeySource: string | null = null;
+
 export function getAgentServerClientOptions(
   overrides: AgentServerClientOverrides = {},
 ): AgentServerClientOptions {
@@ -44,12 +47,35 @@ export function getAgentServerClientOptions(
   const configuredSessionApiKey = getAgentServerSessionApiKey();
   const defaultLocalApiKeyOverride =
     backend.id === DEFAULT_LOCAL_BACKEND_ID ? configuredSessionApiKey : null;
-  const apiKey =
-    overrides.sessionApiKey ??
-    overrides.apiKey ??
-    defaultLocalApiKeyOverride ??
-    backend.apiKey ??
-    undefined;
+
+  // [DEBUG] Determine which key source wins so we can trace auth failures.
+  let apiKeySource: string;
+  let apiKey: string | undefined;
+  if (overrides.sessionApiKey != null) {
+    apiKey = overrides.sessionApiKey;
+    apiKeySource = "override.sessionApiKey";
+  } else if (overrides.apiKey != null) {
+    apiKey = overrides.apiKey;
+    apiKeySource = "override.apiKey";
+  } else if (defaultLocalApiKeyOverride != null) {
+    apiKey = defaultLocalApiKeyOverride;
+    apiKeySource = "defaultLocalApiKeyOverride (openhands-agent-server-config / VITE_SESSION_API_KEY)";
+  } else if (backend.apiKey) {
+    apiKey = backend.apiKey;
+    apiKeySource = `backend.apiKey (backend: "${backend.id}")`;
+  } else {
+    apiKey = undefined;
+    apiKeySource = "none — request will be unauthenticated";
+  }
+
+  // Log only when the effective source changes to avoid console noise on each call.
+  if (_lastApiKeySource !== apiKeySource) {
+    _lastApiKeySource = apiKeySource;
+    console.debug(
+      `[agent-canvas] getAgentServerClientOptions: key source changed → ${apiKeySource}` +
+        (apiKey ? ` (key length: ${apiKey.length})` : ""),
+    );
+  }
 
   return {
     host: resolveHost(overrides, backend),

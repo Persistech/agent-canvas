@@ -78,11 +78,43 @@ function getConfiguredBaseUrl(): string | null {
   return normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL);
 }
 
+// [DEBUG] Track source so the first read logs where the key came from without
+// spamming the console on every API call.
+let _sessionApiKeySource: "localStorage" | "vite-env" | "none" | null = null;
+
 function getConfiguredSessionApiKey(): string | null {
   const storedKey = trimToNull(readStoredConfig().sessionApiKey);
-  if (storedKey) return storedKey;
+  if (storedKey) {
+    if (_sessionApiKeySource !== "localStorage") {
+      _sessionApiKeySource = "localStorage";
+      console.debug(
+        "[agent-canvas] session API key source: localStorage (openhands-agent-server-config). " +
+          "If conversations are missing after a Docker restart, this stored key may be stale. " +
+          `Key length: ${storedKey.length}`,
+      );
+    }
+    return storedKey;
+  }
 
-  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  const envKey = trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  if (envKey) {
+    if (_sessionApiKeySource !== "vite-env") {
+      _sessionApiKeySource = "vite-env";
+      console.debug(
+        `[agent-canvas] session API key source: VITE_SESSION_API_KEY env variable. Key length: ${envKey.length}`,
+      );
+    }
+    return envKey;
+  }
+
+  if (_sessionApiKeySource !== "none") {
+    _sessionApiKeySource = "none";
+    console.warn(
+      "[agent-canvas] no session API key found in localStorage or VITE_SESSION_API_KEY. " +
+        "API calls will be unauthenticated.",
+    );
+  }
+  return null;
 }
 
 function shouldUseProxyOrigin(baseUrl: string): boolean {

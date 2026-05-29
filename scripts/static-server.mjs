@@ -173,8 +173,16 @@ function makeConfigInjectionScript(sessionApiKey) {
     `if(!_c.sessionApiKey){` +
     `_c.sessionApiKey=${keyLiteral};` +
     `localStorage.setItem(_k,JSON.stringify(_c));` +
+    // [DEBUG] Log that the key was written to localStorage
+    `console.debug('[agent-canvas] session key injected into localStorage (was absent)');` +
+    `}else{` +
+    // [DEBUG] Log that injection was skipped — the existing key may be stale after a Docker restart
+    `console.debug('[agent-canvas] session key injection skipped: key already present in localStorage. ` +
+    `If conversations are missing after a Docker restart this stored key may be stale.');` +
     `}` +
-    `}catch(e){}` +
+    `}catch(e){` +
+    `console.warn('[agent-canvas] session key injection failed:', e);` +
+    `}` +
     `}());` +
     `</script>`
   );
@@ -190,6 +198,21 @@ async function serveInjectedIndexHtml(req, res, indexPath, sessionApiKey) {
     content = await readFile(indexPath, "utf8");
   } catch {
     return false;
+  }
+
+  // [DEBUG] Log session key injection status on every index.html serve.
+  // The key prefix (first 6 chars) is logged to correlate with the backend
+  // without exposing the full secret.
+  if (sessionApiKey) {
+    const keyPrefix = sessionApiKey.slice(0, 6);
+    console.debug(
+      `[agent-canvas] serving index.html with session key injection ` +
+        `(key prefix: ${keyPrefix}...) for ${req.method} ${req.url}`,
+    );
+  } else {
+    console.debug(
+      `[agent-canvas] serving index.html WITHOUT session key injection for ${req.method} ${req.url}`,
+    );
   }
 
   const script = makeConfigInjectionScript(sessionApiKey);

@@ -46,6 +46,15 @@ function syncDefaultLocalBackendAuth(backend: Backend): Backend {
     return backend;
   }
 
+  // [DEBUG] The stored backend's apiKey differs from the one derived from
+  // openhands-agent-server-config / VITE_SESSION_API_KEY. This sync updates
+  // the registry entry in memory. If conversations are still missing, the
+  // source key in openhands-agent-server-config localStorage may itself be
+  // stale (e.g. not updated after a Docker restart with a new session key).
+  console.debug(
+    `[agent-canvas] syncDefaultLocalBackendAuth: apiKey updated for backend "${backend.id}" ` +
+      `(stored length: ${backend.apiKey?.length ?? 0} → config length: ${defaultBackend.apiKey.length})`,
+  );
   return {
     ...backend,
     apiKey: defaultBackend.apiKey,

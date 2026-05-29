@@ -191,6 +191,7 @@ export function ConversationPanel({
     data,
     isLoading,
     isFetched,
+    isError,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -203,6 +204,45 @@ export function ConversationPanel({
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data],
   );
+
+  // [DEBUG] Log when the conversation list changes size (especially N → 0)
+  // and when loading/error state changes, to trace the disappearing-conversations bug.
+  const prevConvCountRef = React.useRef<number | null>(null);
+  const prevIsLoadingRef = React.useRef<boolean | null>(null);
+  const prevIsErrorRef = React.useRef<boolean | null>(null);
+  React.useEffect(() => {
+    const count = conversations.length;
+    const prevCount = prevConvCountRef.current;
+
+    if (prevCount !== null && prevCount !== count) {
+      const msg =
+        count === 0 && prevCount > 0
+          ? `[agent-canvas] ConversationPanel: conversations dropped from ${prevCount} → 0. ` +
+            `isLoading=${isLoading} isFetched=${isFetched} isError=${isError}`
+          : `[agent-canvas] ConversationPanel: conversation count changed ${prevCount} → ${count}`;
+      console.debug(msg);
+    } else if (prevCount === null) {
+      console.debug(
+        `[agent-canvas] ConversationPanel: initial conversation count = ${count} ` +
+          `(isLoading=${isLoading} isFetched=${isFetched} isError=${isError})`,
+      );
+    }
+
+    if (prevIsLoadingRef.current !== null && prevIsLoadingRef.current !== isLoading) {
+      console.debug(
+        `[agent-canvas] ConversationPanel: isLoading changed ${prevIsLoadingRef.current} → ${isLoading}`,
+      );
+    }
+    if (prevIsErrorRef.current !== null && prevIsErrorRef.current !== isError) {
+      console.debug(
+        `[agent-canvas] ConversationPanel: isError changed ${prevIsErrorRef.current} → ${isError}`,
+      );
+    }
+
+    prevConvCountRef.current = count;
+    prevIsLoadingRef.current = isLoading;
+    prevIsErrorRef.current = isError;
+  }, [conversations, isLoading, isFetched, isError]);
 
   const scopedConversations = React.useMemo(() => {
     if (threadScope === "relevant") {

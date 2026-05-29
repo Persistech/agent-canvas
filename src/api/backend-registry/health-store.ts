@@ -59,6 +59,24 @@ export function recordBackendFailure(id: string, error: unknown): void {
     disabled,
   };
 
+  // [DEBUG] Log escalating failures and the transition to disabled state.
+  // When disabled becomes true, health probes stop firing and the backend
+  // won't self-recover until the user edits its host/apiKey — this can
+  // cause the conversation list to remain empty even after Docker restarts.
+  if (!prev?.disabled && disabled) {
+    console.warn(
+      `[agent-canvas] backend "${id}" is now DISABLED after ${consecutiveFailures} consecutive failures. ` +
+        "Health probes will stop. Edit the backend host or API key to re-arm.",
+      error,
+    );
+  } else {
+    console.debug(
+      `[agent-canvas] backend "${id}" failure #${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}` +
+        (disabled ? " (already disabled)" : ""),
+      error,
+    );
+  }
+
   commit({ ...healthMap, [id]: nextEntry });
 }
 
@@ -69,6 +87,12 @@ export function recordBackendFailure(id: string, error: unknown): void {
  */
 export function recordBackendSuccess(id: string): void {
   if (!(id in healthMap)) return;
+  const prev = healthMap[id];
+  // [DEBUG] Log when a previously failing/disabled backend recovers.
+  console.debug(
+    `[agent-canvas] backend "${id}" recovered — clearing health entry ` +
+      `(was: failures=${prev?.consecutiveFailures ?? 0}, disabled=${prev?.disabled ?? false})`,
+  );
   const { [id]: _removed, ...rest } = healthMap;
   commit(rest);
 }

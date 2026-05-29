@@ -65,17 +65,35 @@ export OH_SECRET_KEY
 # Session API key — generate one if not provided so the image doesn't run
 # wide-open by default. Persisted so restarts reuse the same key.
 SESSION_KEY_FILE="${STATE_DIR}/session-api-key.txt"
+
+# [DEBUG] Warn if the persistence directory is NOT a mounted volume.
+# Without a bind-mount (-v ~/.openhands:/home/openhands/.openhands) every
+# Docker restart generates a new session key while the browser keeps the old
+# one in localStorage, causing 401 errors and missing conversations.
+if mountpoint -q "${OPENHANDS_DIR}" 2>/dev/null; then
+  log "DEBUG: persistence directory ${OPENHANDS_DIR} is a mounted volume — session key will survive restarts"
+else
+  log "DEBUG: persistence directory ${OPENHANDS_DIR} is NOT a mounted volume — session key and conversations will be lost on container removal. Mount with: -v ~/.openhands:/home/openhands/.openhands"
+fi
+
 if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
   if [ -f "$SESSION_KEY_FILE" ]; then
     SESSION_API_KEY="$(cat "$SESSION_KEY_FILE")"
+    # [DEBUG] Log that the persisted key was loaded; prefix-only to avoid exposing it
+    KEY_PREFIX="$(printf '%s' "$SESSION_API_KEY" | cut -c1-6)"
+    log "DEBUG: session key loaded from ${SESSION_KEY_FILE} (prefix: ${KEY_PREFIX}...)"
   else
     SESSION_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     mkdir -p "$(dirname "$SESSION_KEY_FILE")"
     printf '%s' "$SESSION_API_KEY" > "$SESSION_KEY_FILE"
     chmod 600 "$SESSION_KEY_FILE"
-    log "Generated session API key (persisted to $SESSION_KEY_FILE)"
+    KEY_PREFIX="$(printf '%s' "$SESSION_API_KEY" | cut -c1-6)"
+    # [DEBUG] Log that a brand-new key was generated; existing localStorage entries will be stale
+    log "Generated session API key (persisted to $SESSION_KEY_FILE, prefix: ${KEY_PREFIX}...). Any browser with a previously stored key will receive 401s until localStorage is cleared."
   fi
   export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
+else
+  log "DEBUG: session key provided via environment variable (OH_SESSION_API_KEYS_0 or SESSION_API_KEY), skipping file-based generation"
 fi
 
 # Both backends share the same API key value and the same `X-Session-API-Key`
