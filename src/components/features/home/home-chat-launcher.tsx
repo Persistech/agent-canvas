@@ -170,6 +170,11 @@ export function HomeChatLauncher() {
         navigate(`/conversations/${targetConversationId}`);
       },
       onError: () => {
+        // Dismiss the loading toast only. Non-CORS errors (network timeouts,
+        // 5xx responses, SDK errors, etc.) bubble to the global
+        // MutationCache.onError handler in query-client-config.ts, which
+        // shows the appropriate error toast. Showing an additional toast here
+        // would duplicate the error message.
         toast.dismiss(toastId);
       },
     });

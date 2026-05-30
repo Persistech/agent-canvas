@@ -98,9 +98,7 @@ function getUnavailableReason(
 }
 
 function containsHtmlDocument(value: string): boolean {
-  return /(?:<!doctype\s+html|<html\b|&lt;!doctype\s+html|&lt;html\b)/i.test(
-    value,
-  );
+  return /(?:<!doctype\s+html|<html\b)/i.test(value);
 }
 
 function compactWhitespace(value: string): string {

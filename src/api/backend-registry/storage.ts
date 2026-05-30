@@ -81,7 +81,7 @@ function isAutoSeededDefaultLocalBackend(backend: Backend): boolean {
   const host = normalizeHostForComparison(backend.host);
   return (
     host === normalizeHostForComparison(defaultBackend.host) ||
-    host === LEGACY_FRONTEND_ONLY_DEV_BACKEND_URL
+    host === normalizeHostForComparison(LEGACY_FRONTEND_ONLY_DEV_BACKEND_URL)
   );
 }
 
