@@ -2,6 +2,15 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Simulate a deployed environment where backend defaults are configured,
+// so the default local backend is always seeded on first read.
+vi.mock("#/api/agent-server-config", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/api/agent-server-config")>();
+  return { ...actual, hasConfiguredAgentServerDefaults: () => true };
+});
+
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage";
