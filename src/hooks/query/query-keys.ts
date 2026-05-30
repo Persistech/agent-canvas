@@ -15,7 +15,13 @@ interface BackendQueryIdentity {
 const WEB_CLIENT_CONFIG_QUERY_KEY = ["web-client-config"] as const;
 
 export const QUERY_KEYS = {
-  /** Web client configuration from the server */
+  /**
+   * Web client configuration from the server.
+   * Also acts as a prefix that matches all `WEB_CLIENT_CONFIG_BY_BACKEND`
+   * entries in React Query prefix queries (e.g. `invalidateQueries`).
+   * Use the backend-scoped factory to target a specific backend's cache;
+   * use this base key to flush all web-client config entries at once.
+   */
   WEB_CLIENT_CONFIG: WEB_CLIENT_CONFIG_QUERY_KEY,
   WEB_CLIENT_CONFIG_BY_BACKEND: (backend: BackendQueryIdentity) =>
     [
