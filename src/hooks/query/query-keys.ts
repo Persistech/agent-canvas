@@ -9,6 +9,7 @@ interface BackendQueryIdentity {
   id: string;
   kind: string;
   host: string;
+  /** Included in the cache key to invalidate when credentials change. */
   apiKey?: string | null;
 }
 
