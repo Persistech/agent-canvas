@@ -173,9 +173,6 @@ export async function loadAgentServerInfo() {
 }
 
 export async function preflightAgentServerAccess() {
-  // Capture the backend at function entry so that both the reachability probe
-  // and the auth check target the same backend, even if the registry changes
-  // while the async loadAgentServerInfo() call is in-flight.
   const local = getEffectiveLocalBackend();
   const serverInfo = await loadAgentServerInfo();
 

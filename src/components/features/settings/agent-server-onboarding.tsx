@@ -47,9 +47,6 @@ export function AgentServerConnectionScreen({
 }: AgentServerConnectionScreenProps) {
   const { t } = useTranslation("openhands");
   const { backends } = useActiveBackendContext();
-  // Count only local backends: cloud backends do not target a local agent
-  // server, so having only cloud entries should not suppress the "no backend
-  // configured" message.
   const hasLocalBackends = backends.some((b) => b.kind === "local");
   const status = getStatusKeys(error, hasLocalBackends);
   const retryConnection = React.useCallback(() => {

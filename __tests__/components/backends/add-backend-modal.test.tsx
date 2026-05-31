@@ -150,8 +150,6 @@ describe("AddBackendModal – two-column layout", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    // No default backend is seeded in test environments without configured
-    // agent-server defaults, so only the explicitly added backend is present.
     expect(stored).toHaveLength(1);
     const added = stored.find((b: { name: string }) => b.name === "Local 1");
     expect(added).toMatchObject({

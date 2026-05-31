@@ -2,12 +2,6 @@ import type { Backend } from "#/api/backend-registry/types";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 
-// Browser-generated network error messages used to detect likely CORS
-// failures. These are English-only strings (Chrome, Safari, Firefox on
-// English locales). Non-English locales or future browser wording changes
-// will miss the match and fall back to the generic error path — intentional
-// graceful degradation: no false positives because the
-// `frontendOrigin !== backendOrigin` guard still applies.
 const FETCH_NETWORK_ERROR_FRAGMENTS = [
   "failed to fetch",
   "load failed",

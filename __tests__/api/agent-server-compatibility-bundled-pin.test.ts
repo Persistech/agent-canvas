@@ -1,9 +1,6 @@
 import { ServerClient } from "@openhands/typescript-client/clients";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Simulate a deployed environment where backend defaults are configured,
-// so hasEffectiveLocalBackend() returns true even with no local backends
-// registered, and loadAgentServerInfo() synthesises the env-derived local.
 vi.mock("#/api/agent-server-config", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("#/api/agent-server-config")>();

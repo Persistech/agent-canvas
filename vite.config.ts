@@ -41,8 +41,6 @@ const appBuildConfig = {
 };
 
 export default defineConfig(({ mode }) => {
-  // process.env spreads last so that actual shell/CI environment variables
-  // take precedence over .env file values — the standard dotenv convention.
   const {
     VITE_BACKEND_HOST: configuredBackendHost,
     VITE_USE_TLS = "false",

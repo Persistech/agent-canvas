@@ -3,8 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Simulate a deployed environment where backend defaults are configured,
-// so the default local backend is always seeded on first read.
 vi.mock("#/api/agent-server-config", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("#/api/agent-server-config")>();
