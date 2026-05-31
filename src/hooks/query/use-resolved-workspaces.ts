@@ -7,7 +7,7 @@ import {
 
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
-import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
+import { LocalWorkspace } from "#/types/workspace";
 
 interface UseResolvedWorkspacesResult {
   workspaces: LocalWorkspace[];
@@ -17,42 +17,10 @@ interface UseResolvedWorkspacesResult {
 }
 
 /**
- * Implicit workspace parents that are considered when resolving workspaces in
- * a launcher-managed dev stack. `/projects` is a well-known directory that
- * some agent-server setups use as the projects root. We surface its immediate
- * subdirectories as workspaces automatically when the launcher advertises that
- * it started an agent server.
- *
- * This is a development convenience only. Frontend-only dev may point at
- * arbitrary user-selected agent servers that do not expose the file-browser
- * endpoint; probing `/projects` there creates noisy 404s before the user has
- * added any workspace parent explicitly.
- */
-function shouldIncludeImplicitWorkspaceParents(): boolean {
-  if (!import.meta.env.DEV) return false;
-
-  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
-  if (!raw) return false;
-
-  try {
-    const parsed = JSON.parse(raw) as { services?: Record<string, unknown> };
-    return Boolean(parsed.services?.agent_server);
-  } catch {
-    return false;
-  }
-}
-
-const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
-  { id: "implicit:/projects", name: "/projects", path: "/projects" },
-];
-
-/**
  * Returns the merged list of workspaces to display:
  *   - workspaces explicitly added by the user (from the persisted store),
  *   - the immediate subdirectories of every saved "workspace parent",
- *     fetched dynamically, and
- *   - the immediate subdirectories of any implicit, built-in parents
- *     (currently just `/projects`).
+ *     fetched dynamically.
  *
  * Static workspaces always take precedence over a dynamic child with the
  * same path so that user-selected names/ids are preserved.
@@ -68,18 +36,11 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
   const workspaces = data?.workspaces ?? [];
   const storedParents = data?.workspaceParents ?? [];
 
-  // Merge stored parents with the implicit ones, deduping on path so a
-  // user-added `/projects` doesn't trigger a second query.
+  // Skip dynamic child scans entirely when the current agent-server does not
+  // support the workspaces API.
   const workspaceParents = useMemo(() => {
-    const seen = new Set(storedParents.map((p) => p.path));
-    // Filter out implicit parents that conflict with user-added ones (by path)
-    // so custom names/ids are preserved.
-    const implicitParents =
-      shouldIncludeImplicitWorkspaceParents() && !workspacesUnsupported
-        ? IMPLICIT_WORKSPACE_PARENTS
-        : [];
-    const extras = implicitParents.filter((p) => !seen.has(p.path));
-    return extras.length === 0 ? storedParents : [...storedParents, ...extras];
+    if (workspacesUnsupported) return [];
+    return storedParents;
   }, [storedParents, workspacesUnsupported]);
 
   const parentQueries = useQueries({

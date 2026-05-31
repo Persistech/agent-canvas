@@ -112,7 +112,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     expect(mockSearchSubdirectories).not.toHaveBeenCalledWith("/projects");
   });
 
-  it("scans the implicit /projects parent when a launcher-managed agent server is advertised", async () => {
+  it("does not scan an implicit /projects parent when a launcher-managed agent server is advertised", async () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
@@ -127,8 +127,10 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     renderForm();
 
     await waitFor(() => {
-      expect(mockSearchSubdirectories).toHaveBeenCalledWith("/projects");
+      expect(WorkspacesService.listWorkspaces).toHaveBeenCalledTimes(1);
     });
+
+    expect(mockSearchSubdirectories).not.toHaveBeenCalledWith("/projects");
   });
 
   it("renders workspaces returned by the agent-server in the dropdown", async () => {
