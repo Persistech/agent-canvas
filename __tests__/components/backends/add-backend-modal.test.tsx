@@ -84,7 +84,7 @@ describe("AddBackendModal – two-column layout", () => {
     expect(submit).not.toBeDisabled();
   });
 
-  it("allows submitting a local backend with a blank API key", async () => {
+  it("allows submitting a remote agent server with a blank API key", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
 
@@ -107,7 +107,7 @@ describe("AddBackendModal – two-column layout", () => {
       name: "Local Extra",
       host: "http://127.0.0.1:18002",
       apiKey: "",
-      kind: "local",
+      kind: "remote",
     });
   });
 
@@ -129,6 +129,37 @@ describe("AddBackendModal – two-column layout", () => {
 
     await user.type(screen.getByTestId("add-backend-api-key"), "token");
     expect(submit).not.toBeDisabled();
+  });
+
+  it("treats hosted non-cloud agent server URLs as remote", async () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    const submit = screen.getByTestId(
+      "add-backend-submit",
+    ) as HTMLButtonElement;
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("add-backend-name"), "Remote Work Host");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://work-2-pmmkfqeesqroywhw.prod-runtime.all-hands.dev",
+    );
+    expect(submit).not.toBeDisabled();
+
+    await user.click(submit);
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-backends") ?? "[]",
+    );
+    const added = stored.find(
+      (b: { name: string }) => b.name === "Remote Work Host",
+    );
+    expect(added).toMatchObject({
+      name: "Remote Work Host",
+      host: "https://work-2-pmmkfqeesqroywhw.prod-runtime.all-hands.dev",
+      apiKey: "",
+      kind: "remote",
+    });
   });
 
   it("saves the backend, switches to it, and closes", async () => {
@@ -156,7 +187,7 @@ describe("AddBackendModal – two-column layout", () => {
       name: "Local 1",
       host: "http://localhost:9000",
       apiKey: "k",
-      kind: "local",
+      kind: "remote",
     });
 
     // Active selection must point at the newly added backend.

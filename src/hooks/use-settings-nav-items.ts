@@ -5,6 +5,7 @@ import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 
 export type SettingsNavRenderedItem =
   | {
@@ -44,14 +45,12 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
       item.to === "/settings"
         ? {
             ...item,
-            text:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$LLM_PROFILES
-                : item.text,
-            subtitle:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE
-                : item.subtitle,
+            text: isAgentServerBackend(backend)
+              ? I18nKey.SETTINGS$LLM_PROFILES
+              : item.text,
+            subtitle: isAgentServerBackend(backend)
+              ? I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE
+              : item.subtitle,
           }
         : item;
 

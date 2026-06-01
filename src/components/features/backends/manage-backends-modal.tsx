@@ -4,7 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { ServerClient } from "@openhands/typescript-client/clients";
-import { type Backend } from "#/api/backend-registry/types";
+import {
+  isAgentServerBackend,
+  type Backend,
+} from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
@@ -43,7 +46,7 @@ function BackendVersion({ backend }: { backend: Backend }) {
     },
     retry: false,
     staleTime: 60_000,
-    enabled: backend.kind === "local",
+    enabled: isAgentServerBackend(backend),
   });
 
   if (!version) return null;
@@ -95,7 +98,9 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
       <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
         {backend.kind === "cloud"
           ? t(I18nKey.BACKEND$KIND_CLOUD)
-          : t(I18nKey.BACKEND$KIND_LOCAL)}
+          : backend.kind === "remote"
+            ? t(I18nKey.BACKEND$KIND_REMOTE)
+            : t(I18nKey.BACKEND$KIND_LOCAL)}
       </span>
       <div className="flex shrink-0 items-center gap-0.5">
         <button

@@ -17,7 +17,7 @@ import {
 } from "#/utils/extension-module-card-classes";
 
 interface MarketplaceSectionProps {
-  backendKind: "local" | "cloud";
+  backendKind: "local" | "remote" | "cloud";
   onSelect: (entry: MarketplaceEntry) => void;
   onAdd: (entry: MarketplaceEntry) => void;
   /** Empty string = no filter. */

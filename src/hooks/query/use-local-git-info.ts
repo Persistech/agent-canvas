@@ -3,6 +3,7 @@ import { useRef } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
@@ -97,7 +98,7 @@ export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
   const { backend } = useActiveBackend();
-  const isLocalBackend = backend.kind === "local";
+  const isLocalBackend = isAgentServerBackend(backend);
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;

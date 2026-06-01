@@ -1,6 +1,6 @@
 import { getAgentServerSessionApiKey } from "../agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_ID } from "./default-backend";
-import type { Backend } from "./types";
+import { isAgentServerBackend, type Backend } from "./types";
 
 /**
  * Build the auth headers to send to a backend.
@@ -9,7 +9,10 @@ import type { Backend } from "./types";
  * token in the `Authorization` header.
  */
 export function buildAuthHeaders(backend: Backend): Record<string, string> {
-  if (backend.kind === "local" && backend.id === DEFAULT_LOCAL_BACKEND_ID) {
+  if (
+    isAgentServerBackend(backend) &&
+    backend.id === DEFAULT_LOCAL_BACKEND_ID
+  ) {
     const configuredSessionApiKey = getAgentServerSessionApiKey();
     if (configuredSessionApiKey) {
       return { "X-Session-API-Key": configuredSessionApiKey };

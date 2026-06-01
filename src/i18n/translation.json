@@ -26281,6 +26281,23 @@
     "uk": "Локальний",
     "ca": "Local"
   },
+  "BACKEND$KIND_REMOTE": {
+    "en": "Remote",
+    "ja": "Remote",
+    "zh-CN": "Remote",
+    "zh-TW": "Remote",
+    "ko-KR": "Remote",
+    "no": "Remote",
+    "it": "Remote",
+    "pt": "Remote",
+    "es": "Remote",
+    "ar": "Remote",
+    "fr": "Remote",
+    "tr": "Remote",
+    "de": "Remote",
+    "uk": "Remote",
+    "ca": "Remote"
+  },
   "BACKEND$KIND_CLOUD": {
     "en": "Cloud",
     "ja": "クラウド",

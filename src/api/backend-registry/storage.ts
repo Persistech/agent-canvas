@@ -1,12 +1,17 @@
 import { syncBakedSessionApiKey } from "../agent-server-config";
 import { makeDefaultLocalBackend } from "./default-backend";
-import type { Backend, BackendKind, BackendSelection } from "./types";
+import {
+  isAgentServerBackend,
+  type Backend,
+  type BackendKind,
+  type BackendSelection,
+} from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
 
 function isValidKind(value: unknown): value is BackendKind {
-  return value === "local" || value === "cloud";
+  return value === "local" || value === "remote" || value === "cloud";
 }
 
 function isValidBackend(value: unknown): value is Backend {
@@ -35,7 +40,7 @@ function syncDefaultLocalBackendAuth(backend: Backend): Backend {
 
   if (
     backend.id !== defaultBackend.id ||
-    backend.kind !== "local" ||
+    !isAgentServerBackend(backend) ||
     !defaultBackend.apiKey ||
     normalizeHostForComparison(backend.host) !==
       normalizeHostForComparison(defaultBackend.host)

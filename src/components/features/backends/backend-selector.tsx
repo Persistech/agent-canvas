@@ -12,7 +12,10 @@ import {
   type BackendHealth,
 } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
-import type { Backend } from "#/api/backend-registry/types";
+import {
+  isAgentServerBackend,
+  type Backend,
+} from "#/api/backend-registry/types";
 // Import the trigger helpers from the lightweight store, not the overlay
 // component, so the eagerly-mounted sidebar/backend-selector graph does not
 // pull in the overlay's render code (the overlay is lazy-loaded from
@@ -57,7 +60,7 @@ function buildOptions(
 ): DropdownOption[] {
   const options: DropdownOption[] = [];
 
-  const locals = registered.filter((b) => b.kind === "local");
+  const locals = registered.filter(isAgentServerBackend);
   const clouds = registered.filter((b) => b.kind === "cloud");
 
   for (const b of locals) {

@@ -115,7 +115,9 @@ export function RecommendedAutomationsLauncher({
 
       const prompt = buildAutomationPrompt(
         automation.prompt,
-        activeBackend.backend.kind,
+        activeBackend.backend.kind === "remote"
+          ? "local"
+          : activeBackend.backend.kind,
         activeBackend.backend.host,
       );
 
@@ -210,14 +212,14 @@ export function RecommendedAutomationsLauncher({
 
   const installEntry = installQueue[0] ?? null;
 
-  // Recommended automations are a local-backend-only feature; cloud
-  // automations are managed elsewhere.
-  if (activeBackend.backend.kind === "cloud") return null;
+  // Recommended automations require the automation sidecar started by the
+  // local canvas launcher; remote/cloud backends are managed elsewhere.
+  if (activeBackend.backend.kind !== "local") return null;
 
   return (
     <>
       <RecommendedAutomationsSection
-        backendKind={activeBackend.backend.kind}
+        backendKind="local"
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}

@@ -2,6 +2,7 @@ import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-w
 import { useQuery } from "@tanstack/react-query";
 
 import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -55,7 +56,7 @@ export function useWorkspaceSession(): {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
-  const isLocal = getActiveBackend().backend.kind === "local";
+  const isLocal = isAgentServerBackend(getActiveBackend().backend);
 
   const enabled = runtimeIsReady && !!conversationId && isLocal;
 

@@ -5,7 +5,12 @@ import {
   writeStoredActiveBackend,
   writeStoredBackends,
 } from "./storage";
-import type { Backend, BackendSelection, ResolvedActiveBackend } from "./types";
+import {
+  isAgentServerBackend,
+  type Backend,
+  type BackendSelection,
+  type ResolvedActiveBackend,
+} from "./types";
 
 type Listener = () => void;
 
@@ -24,8 +29,8 @@ interface Snapshot {
  * synthesized entry is never persisted.
  */
 function pickLocalBackend(backends: Backend[]): Backend {
-  const firstLocal = backends.find((b) => b.kind === "local");
-  return firstLocal ?? makeDefaultLocalBackend();
+  const firstAgentServer = backends.find(isAgentServerBackend);
+  return firstAgentServer ?? makeDefaultLocalBackend();
 }
 
 function computeSnapshot(
@@ -86,7 +91,7 @@ export function getActiveBackend(): ResolvedActiveBackend {
  */
 export function getEffectiveLocalBackend(): Backend {
   const active = snapshot.active.backend;
-  if (active.kind === "local") return active;
+  if (isAgentServerBackend(active)) return active;
   return pickLocalBackend(snapshot.backends);
 }
 

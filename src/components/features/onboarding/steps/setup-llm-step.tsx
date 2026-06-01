@@ -5,6 +5,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
@@ -38,7 +39,7 @@ const ONBOARDING_LLM_OVERRIDES = {
 export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
-  const isLocalBackend = backend.kind === "local";
+  const isLocalBackend = isAgentServerBackend(backend);
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
   const [saveControl, setSaveControl] =

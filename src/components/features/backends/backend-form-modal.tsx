@@ -17,7 +17,11 @@ import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
-import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import {
+  isAgentServerBackend,
+  type Backend,
+  type BackendKind,
+} from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
@@ -31,12 +35,25 @@ interface BackendFormModalProps {
   onClose: () => void;
 }
 
+const CLOUD_BACKEND_HOSTS = new Set([
+  "app.all-hands.dev",
+  "app.openhands.dev",
+  "cloud.all-hands.dev",
+  "cloud.openhands.dev",
+]);
+
 function inferKindFromHost(host: string): BackendKind {
   const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
+  try {
+    const withScheme = /^https?:\/\//i.test(trimmed)
+      ? trimmed
+      : `https://${trimmed}`;
+    return CLOUD_BACKEND_HOSTS.has(new URL(withScheme).hostname)
+      ? "cloud"
+      : "remote";
+  } catch {
+    return "remote";
   }
-  return "local";
 }
 
 /**
@@ -149,7 +166,7 @@ function BackendStatusBadge({
     },
     retry: false,
     staleTime: 60_000,
-    enabled: backend.kind === "local" && !disabled,
+    enabled: isAgentServerBackend(backend) && !disabled,
   });
 
   let statusLabel: string;
@@ -164,7 +181,9 @@ function BackendStatusBadge({
   const kindLabel =
     backend.kind === "cloud"
       ? t(I18nKey.BACKEND$KIND_CLOUD)
-      : t(I18nKey.BACKEND$KIND_LOCAL);
+      : backend.kind === "remote"
+        ? t(I18nKey.BACKEND$KIND_REMOTE)
+        : t(I18nKey.BACKEND$KIND_LOCAL);
 
   return (
     <div className="flex flex-col gap-2">
@@ -293,13 +312,15 @@ export function BackendForm({
   const [nameTouched, setNameTouched] = React.useState(false);
   const [hostTouched, setHostTouched] = React.useState(false);
 
-  // Kind is inferred from the host on every change.
-  const kind: BackendKind = inferKindFromHost(host);
+  // Manual additions infer remote/cloud from the host; editing the bundled
+  // local entry preserves its local/canvas semantics.
+  const kind: BackendKind =
+    backend?.kind === "local" ? "local" : inferKindFromHost(host);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
-  const needsApiKey = requireApiKey || kind !== "local";
+  const needsApiKey = requireApiKey || kind === "cloud";
   const canSubmit =
     name.trim().length > 0 &&
     isValidHostUrl(host) &&
@@ -458,7 +479,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const canSubmit =
     name.trim().length > 0 &&
     isValidHostUrl(host) &&
-    (kind === "local" || apiKey.trim().length > 0);
+    (kind !== "cloud" || apiKey.trim().length > 0);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

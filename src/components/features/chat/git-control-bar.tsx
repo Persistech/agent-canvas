@@ -23,6 +23,7 @@ import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { useOptionalScrollContext } from "#/context/scroll-context";
 
@@ -44,7 +45,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     (state) => state.markPendingMessageError,
   );
   const { backend } = useActiveBackend();
-  const isLocalBackend = backend.kind === "local";
+  const isLocalBackend = isAgentServerBackend(backend);
   const { providers } = useUserProviders();
   const providerTokensReady = isLocalBackend || providers.length > 0;
 

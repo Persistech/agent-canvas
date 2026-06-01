@@ -7,6 +7,7 @@ import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-ancho
 import { LLM_PROFILES_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { useModelStore } from "#/stores/model-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { MODEL_COMMAND } from "#/utils/constants";
@@ -28,7 +29,7 @@ export const useModelInterceptor = (
   const queryClient = useQueryClient();
   const { switchAndLog } = useSwitchLlmProfileAndLog();
   const { backend, orgId } = useActiveBackend();
-  const isLocal = backend.kind === "local";
+  const isLocal = isAgentServerBackend(backend);
   const { t } = useTranslation();
 
   return useCallback(

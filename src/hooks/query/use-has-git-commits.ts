@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isAgentServerBackend } from "#/api/backend-registry/types";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 
@@ -31,7 +32,7 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
   const { backend } = useActiveBackend();
-  const isLocalBackend = backend.kind === "local";
+  const isLocalBackend = isAgentServerBackend(backend);
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;

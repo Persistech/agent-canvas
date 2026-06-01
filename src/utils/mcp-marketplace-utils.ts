@@ -149,11 +149,14 @@ function transportMatchesServer(
 
 export function isMarketplaceEntryAvailable(
   entry: MarketplaceEntry,
-  backendKind: "local" | "cloud",
+  backendKind: "local" | "remote" | "cloud",
 ): boolean {
   if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
     return true;
-  return entry.runtimeAvailability === backendKind;
+  return (
+    entry.runtimeAvailability ===
+    (backendKind === "remote" ? "local" : backendKind)
+  );
 }
 
 function normalize(query: string): string {
