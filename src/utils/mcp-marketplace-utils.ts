@@ -153,10 +153,10 @@ export function isMarketplaceEntryAvailable(
 ): boolean {
   if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
     return true;
-  return (
-    entry.runtimeAvailability ===
-    (backendKind === "remote" ? "local" : backendKind)
-  );
+  // Remote agent servers expose the same runtime capabilities as the local
+  // canvas-managed server, so they share marketplace availability.
+  const runtimeBackendKind = backendKind === "remote" ? "local" : backendKind;
+  return entry.runtimeAvailability === runtimeBackendKind;
 }
 
 function normalize(query: string): string {

@@ -60,10 +60,10 @@ function buildOptions(
 ): DropdownOption[] {
   const options: DropdownOption[] = [];
 
-  const locals = registered.filter(isAgentServerBackend);
+  const agentServers = registered.filter(isAgentServerBackend);
   const clouds = registered.filter((b) => b.kind === "cloud");
 
-  for (const b of locals) {
+  for (const b of agentServers) {
     options.push({
       value: makeOptionValue(b.id, null),
       label: b.name,

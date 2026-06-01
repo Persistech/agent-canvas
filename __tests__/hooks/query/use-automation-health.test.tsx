@@ -4,6 +4,13 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import AutomationService from "#/api/automation-service/automation-service.api";
 
+const mockUseActiveBackend = vi.hoisted(() =>
+  vi.fn(() => ({
+    backend: { id: "test-backend", kind: "local" },
+    orgId: null,
+  })),
+);
+
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
     checkHealth: vi.fn(),
@@ -11,10 +18,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
 }));
 
 vi.mock("#/contexts/active-backend-context", () => ({
-  useActiveBackend: () => ({
-    backend: { id: "test-backend", kind: "local" },
-    orgId: null,
-  }),
+  useActiveBackend: mockUseActiveBackend,
 }));
 
 function createWrapper() {
@@ -33,10 +37,36 @@ function createWrapper() {
 describe("useAutomationHealth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseActiveBackend.mockReturnValue({
+      backend: { id: "test-backend", kind: "local" },
+      orgId: null,
+    });
+  });
+
+  it("returns a synthetic error for remote backends without calling checkHealth", async () => {
+    mockUseActiveBackend.mockReturnValue({
+      backend: { id: "remote-backend", kind: "remote" },
+      orgId: null,
+    });
+
+    const { result } = renderHook(() => useAutomationHealth(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toEqual({
+      status: "error",
+      message:
+        "Remote agent servers do not include the local automation sidecar.",
+    });
+    expect(AutomationService.checkHealth).not.toHaveBeenCalled();
   });
 
   it("should return healthy status when backend is available", async () => {
-    vi.mocked(AutomationService.checkHealth).mockResolvedValue({ status: "ok" });
+    vi.mocked(AutomationService.checkHealth).mockResolvedValue({
+      status: "ok",
+    });
 
     const { result } = renderHook(() => useAutomationHealth(), {
       wrapper: createWrapper(),
