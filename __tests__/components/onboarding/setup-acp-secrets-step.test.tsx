@@ -200,6 +200,13 @@ describe("SetupAcpSecretsStep", () => {
     });
   });
 
+  it("disables the login probe when the step is not active", () => {
+    renderStep("claude-code", false);
+    expect(acpAuthStatusMock).toHaveBeenCalledWith("claude-code", {
+      enabled: false,
+    });
+  });
+
   it("shows the 'checking' banner while the login probe is in flight", () => {
     acpAuthStatusMock.mockReturnValue({
       status: "unknown",

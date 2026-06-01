@@ -95,6 +95,10 @@ export function useAcpAuthStatus(
     queryKey: ["acp-auth-status", active.backend.id, providerKey],
     queryFn: probeAcpAuth,
     enabled: queryEnabled,
+    // ``staleTime: Infinity`` = never re-probe while the result stays cached;
+    // ``gcTime`` then bounds that to ~15 min after the hook unmounts. So a
+    // user who dismisses and reopens onboarding >15 min later re-probes —
+    // intentional: it's a cheap one-off and their login state may have changed.
     staleTime: Infinity,
     gcTime: 1000 * 60 * 15,
     retry: false,

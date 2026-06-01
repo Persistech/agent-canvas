@@ -135,9 +135,14 @@ export function SetupAcpSecretsStep({
       {authStatus === "authenticated" ? (
         <div
           data-testid="onboarding-acp-auth-detected"
-          className="flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200"
+          // Matches the onboarding "backend connected" success banner
+          // (check-backend-step.tsx) for a consistent look.
+          className="flex items-start gap-2 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
         >
-          <Check className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <Check
+            className="mt-0.5 size-4 shrink-0 text-green-400"
+            aria-hidden
+          />
           <span>
             {t(I18nKey.ONBOARDING$ACP_AUTH_DETECTED, {
               provider: providerName,
