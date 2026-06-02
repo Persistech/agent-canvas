@@ -617,6 +617,20 @@ function getFrontendBackend(config) {
   return config.launchFrontend ? `http://localhost:${config.vitePort}` : null;
 }
 
+function buildViteBackendEnv(config, env = process.env) {
+  const backendBaseUrl = config.launchAgentServer
+    ? `http://127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_BASE_URL ?? "http://127.0.0.1:8000");
+  const backendHost = config.launchAgentServer
+    ? `127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_HOST ?? new URL(backendBaseUrl).host);
+
+  return {
+    VITE_BACKEND_HOST: backendHost,
+    VITE_BACKEND_BASE_URL: backendBaseUrl,
+  };
+}
+
 function buildAgentServerAutomationEnv(config) {
   return {
     // Make the session API key available to terminal commands spawned by the
@@ -849,9 +863,9 @@ function startVite(config) {
     : null;
 
   const viteEnv = {
-    // Point Vite at the ingress (so client-side fetches work)
-    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    // Full-stack mode points Vite at this launcher's ingress. Frontend-only
+    // mode uses the separately running backend ingress instead.
+    ...buildViteBackendEnv(config),
     VITE_WORKING_DIR:
       config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
     VITE_FRONTEND_PORT: config.vitePort.toString(),
@@ -1245,6 +1259,7 @@ export {
   buildAutomationCommand,
   buildConfig,
   buildRouteArgs,
+  buildViteBackendEnv,
   getFrontendBackend,
   getLocalServiceRoutes,
   main,
