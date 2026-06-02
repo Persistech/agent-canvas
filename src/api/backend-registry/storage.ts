@@ -23,7 +23,6 @@ function isValidBackend(value: unknown): value is Backend {
     typeof v.name === "string" &&
     typeof v.host === "string" &&
     typeof v.apiKey === "string" &&
-    v.apiKey.trim().length > 0 &&
     isValidKind(v.kind)
   );
 }

@@ -5,7 +5,6 @@ import {
 } from "../backend-registry/active-store";
 import { NoBackendAvailableError } from "../agent-server-client-options";
 import { buildAuthHeaders } from "../backend-registry/auth";
-import { makeDefaultLocalBackend } from "../backend-registry/default-backend";
 import type { Backend } from "../backend-registry/types";
 
 interface CloudProxyRequest {
@@ -74,7 +73,7 @@ function buildUpstreamAuthHeaders(
 export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
-  const local = getEffectiveLocalBackend() ?? makeDefaultLocalBackend();
+  const local = getEffectiveLocalBackend();
   if (!local) throw new NoBackendAvailableError();
   const localAuthHeaders = buildAuthHeaders(local);
   // Send `X-Org-Id` so the upstream scopes per-request to the org the user

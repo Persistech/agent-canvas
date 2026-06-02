@@ -88,7 +88,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
   const backendForForm = noBackendSelected
     ? {
-        ...backend,
+        id: "onboarding-local-backend-draft",
         name: DEFAULT_LOCAL_BACKEND_NAME,
         host: defaults.baseUrl,
         apiKey: defaults.sessionApiKey,

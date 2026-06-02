@@ -3,6 +3,9 @@ import { cleanup } from "@testing-library/react";
 import { server } from "#/mocks/node";
 import "@testing-library/jest-dom/vitest";
 
+// Some modules read env at import time before Vitest's per-test hooks run.
+// The beforeEach below restores the same default after tests call
+// `vi.unstubAllEnvs()`.
 vi.stubEnv("VITE_SESSION_API_KEY", "test-session-key");
 
 if (typeof HTMLCanvasElement !== "undefined") {

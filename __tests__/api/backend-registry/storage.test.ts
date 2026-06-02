@@ -135,22 +135,21 @@ describe("backend-registry storage", () => {
     ]);
   });
 
-  it("treats stored backends without API keys as invalid", () => {
+  it("preserves stored backends without API keys", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "");
+    const storedBackend: Backend = {
+      id: "default-local",
+      name: "Local",
+      host: window.location.origin,
+      apiKey: "",
+      kind: "local",
+    };
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
-      JSON.stringify([
-        {
-          id: "default-local",
-          name: "Local",
-          host: window.location.origin,
-          apiKey: "",
-          kind: "local",
-        },
-      ]),
+      JSON.stringify([storedBackend]),
     );
 
-    expect(readStoredBackends()).toEqual([]);
+    expect(readStoredBackends()).toEqual([storedBackend]);
   });
 
   it("preserves a non-empty stored API key instead of syncing from env defaults", () => {

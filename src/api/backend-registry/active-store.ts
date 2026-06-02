@@ -16,6 +16,11 @@ interface Snapshot {
 
 export const NO_BACKEND_ID = "no-backend";
 
+/**
+ * Sentinel returned when the registry has no usable backend. It must never be
+ * persisted, and callers must check `isNoBackend()` before interpreting fields
+ * like `kind`, `host`, or `apiKey`.
+ */
 export const NO_BACKEND: Backend = {
   id: NO_BACKEND_ID,
   name: "No Backend Available",

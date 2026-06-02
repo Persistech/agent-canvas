@@ -37,7 +37,10 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  getAgentServerClientOptions,
+  NoBackendAvailableError,
+} from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -385,6 +388,8 @@ class AgentServerConversationService {
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).createConversation<DirectConversationInfo>(payload);
+    const localBackend = getEffectiveLocalBackend();
+    if (!localBackend) throw new NoBackendAvailableError();
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/
@@ -407,7 +412,7 @@ class AgentServerConversationService {
       status: "READY",
       detail: null,
       app_conversation_id: data.id,
-      agent_server_url: getEffectiveLocalBackend()?.host ?? "",
+      agent_server_url: localBackend.host,
       request: {
         initial_message: payload.initial_message as
           | AppConversationStartRequest["initial_message"]
