@@ -94,11 +94,14 @@ in step 4.
 
 ## 3. Run Agent Canvas
 
-Install the prerequisites on the machine. On Ubuntu:
+Install the prerequisites on the machine — **Node.js 22.x** and **uv**.
+See the [main README quickstart](../README.md#quickstart) for install options.
+
+On Ubuntu the shortest path is:
 
 ```bash
-apt-get update
-apt-get install -y curl git
+sudo apt-get update
+sudo apt-get install -y curl
 # Node.js 22.x (use nvm, asdf, or NodeSource — whatever you prefer)
 # uv (for the agent-server uvx runtime):
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -126,6 +129,7 @@ To keep the service running after your SSH session ends, use a process manager.
 **Option A — tmux (quick):**
 
 ```bash
+sudo apt-get install -y tmux   # if not already installed
 export LOCAL_BACKEND_API_KEY=<your-saved-key>
 tmux new-session -d -s canvas 'npx @openhands/agent-canvas --public'
 # Reconnect later with: tmux attach -t canvas
