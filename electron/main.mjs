@@ -33,7 +33,7 @@ import {
   nativeTheme,
   shell,
 } from "electron";
-import { chmodSync, existsSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -94,6 +94,45 @@ function uvxAvailable() {
   const cmd = process.platform === "win32" ? "uvx.exe" : "uvx";
   const r = spawnSync(cmd, ["--version"], { stdio: "pipe" });
   return r.status === 0;
+}
+
+/**
+ * Ensure `node` is available in PATH for spawning backend scripts.
+ *
+ * When the app runs as a packaged .app on macOS, the system PATH is minimal
+ * (/usr/bin:/bin only) — Homebrew, nvm, and other Node installs are absent.
+ * The dev-with-automation.mjs stack spawns `node scripts/ingress.mjs` and
+ * `node scripts/static-server.mjs`; if `node` is not found those processes
+ * fail silently and port 8000 never responds.
+ *
+ * Electron ships its own Node.js runtime. Setting ELECTRON_RUN_AS_NODE=1
+ * makes the Electron binary behave as plain Node. We create a thin wrapper
+ * script in a temp directory and prepend that directory to PATH so that any
+ * subsequent `node` call resolves to Electron's built-in runtime.
+ */
+function ensureNodeWrapper() {
+  // If node is already reachable (dev mode, or system install in PATH) do nothing.
+  const check = spawnSync("node", ["--version"], { stdio: "pipe" });
+  if (check.status === 0) return;
+
+  const wrapperDir = join(app.getPath("temp"), "agent-canvas-node-wrapper");
+  mkdirSync(wrapperDir, { recursive: true });
+
+  if (process.platform === "win32") {
+    const bat = join(wrapperDir, "node.cmd");
+    writeFileSync(bat, `@echo off\nset ELECTRON_RUN_AS_NODE=1\n"${process.execPath}" %*\n`);
+  } else {
+    const sh = join(wrapperDir, "node");
+    writeFileSync(
+      sh,
+      `#!/bin/sh\nexec env ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "$@"\n`
+    );
+    chmodSync(sh, 0o755);
+  }
+
+  const sep = process.platform === "win32" ? ";" : ":";
+  process.env.PATH = `${wrapperDir}${sep}${process.env.PATH ?? ""}`;
+  console.log("[desktop] node wrapper →", wrapperDir);
 }
 
 // ── Readiness polling ─────────────────────────────────────────────────────────
@@ -232,6 +271,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = "dark";
 
   injectBundledUv();
+  ensureNodeWrapper();
 
   if (!uvxAvailable()) {
     dialog.showErrorBox(
