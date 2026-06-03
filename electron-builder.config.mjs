@@ -51,6 +51,11 @@ const config = {
     { from: "../config", to: "config" },
     // Pre-built static frontend (npm run build:app output)
     { from: "../build", to: "build" },
+    // Custom Python tools (canvas_ui_tool.py). dev-safe.mjs sets
+    // OH_EXTRA_PYTHON_PATH to this directory so the agent-server can import
+    // canvas_ui_tool at runtime. The path is computed as ../tools relative to
+    // scripts/dev-safe.mjs, which resolves correctly in both dev and packaged mode.
+    { from: "../tools", to: "tools" },
   ],
 
   // Bundled uv binary — placed in <Resources>/bin/ so Electron can inject
