@@ -1,25 +1,23 @@
 /**
  * electron-builder configuration for the Agent Canvas desktop app.
  *
- * The root package.json has `"main": "./dist/index.cjs"` for npm library
- * consumers. The `afterPack` hook patches it to `"./electron/main.mjs"`
- * inside the packaged app so Electron finds the right entry point without
- * touching the published npm package.
+ * `directories.app: 'electron'` tells electron-builder to use electron/package.json
+ * as the app manifest (with `"main": "main.mjs"`). This sidesteps the root
+ * package.json's `"main": "./dist/index.cjs"` without any afterPack patching,
+ * and — because electron/package.json has no `dependencies` — electron-builder
+ * does NOT auto-bundle node_modules (the backend scripts use only Node built-ins).
  *
- * Packaged app layout (inside Resources/app/):
- *   electron/
- *     main.mjs        ← Electron entry (main field patched to this)
- *     loading.html
- *   scripts/          ← backend scripts (Node.js built-ins only)
- *   config/           ← defaults.json
- *   build/            ← static frontend (npm run build:app output)
+ * Packaged app layout (Resources/app/ = electron/ contents):
+ *   main.mjs        ← Electron entry point
+ *   loading.html    ← loading splash
+ *   package.json    ← {"main":"main.mjs"} (from electron/package.json)
+ *   scripts/        ← backend scripts, Node.js built-ins only
+ *   config/         ← defaults.json
+ *   build/          ← static frontend (npm run build:app output)
  *
- * No node_modules are bundled — all scripts use only Node.js built-ins.
- * The bundled uv binary (resources/bin/) goes to <Resources>/bin/.
+ * The bundled uv binary (resources/bin/) lands in <Resources>/bin/ via
+ * extraResources so Electron can inject it into PATH on startup.
  */
-
-import { join } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
 
 /** @type {import('electron-builder').Configuration} */
 const config = {
@@ -27,7 +25,10 @@ const config = {
   productName: "Agent Canvas",
   copyright: "Copyright © 2025 All Hands AI",
 
+  // Treat electron/ as the app root. electron/package.json provides the
+  // Electron entry point without touching the npm-published root package.json.
   directories: {
+    app: "electron",
     output: "dist-electron",
   },
 
@@ -35,35 +36,26 @@ const config = {
   // dev-with-automation.mjs and must exist as real files on disk.
   asar: false,
 
-  // Files included in the packaged app (paths relative to project root).
-  // node_modules is intentionally omitted — scripts only use Node.js built-ins.
+  // Skip native-module rebuild — the app has no native deps.
+  npmRebuild: false,
+
+  // Files included in the packaged app.
+  // Paths with `from` are relative to directories.app (electron/).
+  // Bare globs are also relative to directories.app.
   files: [
-    "electron/**",
-    "scripts/**/*.{mjs,cjs}",
-    "config/**",
-    "build/**",
-    "package.json",
+    // electron/ base files (main.mjs, loading.html, package.json)
+    "**/*",
+    // Scripts from project root — Node.js built-ins only, no node_modules needed.
+    { from: "../scripts", to: "scripts", filter: ["**/*.mjs", "**/*.cjs"] },
+    // Centralised version / port / path config
+    { from: "../config", to: "config" },
+    // Pre-built static frontend (npm run build:app output)
+    { from: "../build", to: "build" },
   ],
-
-  // Patch the packaged package.json to point Electron at our main process.
-  // The root package.json has main: './dist/index.cjs' for npm consumers;
-  // inside the packaged app we need main: './electron/main.mjs'.
-  afterPack: async ({ appOutDir, electronPlatformName }) => {
-    // On macOS the app bundle has an extra Contents/ layer.
-    const appResourcesDir =
-      electronPlatformName === "darwin"
-        ? join(appOutDir, "Contents", "Resources", "app")
-        : join(appOutDir, "resources", "app");
-
-    const pkgPath = join(appResourcesDir, "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    pkg.main = "./electron/main.mjs";
-    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-    console.log(`[afterPack] Patched package.json main → ${pkg.main}`);
-  },
 
   // Bundled uv binary — placed in <Resources>/bin/ so Electron can inject
   // it into PATH before starting the backend stack.
+  // `from` is relative to the project root (not directories.app).
   // Run `npm run download-uv` (called by build:desktop) to populate this.
   extraResources: [
     { from: "resources/bin/", to: "bin/", filter: ["**/*"] },

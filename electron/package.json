@@ -1,0 +1,6 @@
+{
+  "name": "agent-canvas-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.mjs"
+}

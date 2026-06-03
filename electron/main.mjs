@@ -5,26 +5,25 @@
  * static frontend, ingress proxy), then opens a native BrowserWindow once
  * the ingress is ready. Shows a loading screen while backends start.
  *
- * Path layout (electron-builder uses root package.json + afterPack patch):
+ * Path layout (electron-builder uses directories.app: 'electron'):
  *
  *   Packaged (macOS example):
- *     Contents/Resources/app/
- *       electron/
- *         main.mjs          ← __dirname = .../app/electron/
- *         loading.html
- *       scripts/            ← .../app/scripts/
- *       config/             ← .../app/config/
- *       build/              ← .../app/build/
- *     Contents/Resources/bin/   ← process.resourcesPath/bin
- *       uv  uvx             ← bundled via extraResources
+ *     Contents/Resources/app/     ← __dirname (main.mjs lives here)
+ *       main.mjs
+ *       loading.html
+ *       scripts/                  ← copied from repo scripts/
+ *       config/                   ← copied from repo config/
+ *       build/                    ← static frontend
+ *     Contents/Resources/bin/     ← process.resourcesPath/bin
+ *       uv  uvx                   ← bundled via extraResources
  *
- *   Dev (npm run desktop):
- *     electron/             ← __dirname = <repo>/electron/
- *     scripts/ config/ build/  ← one level up (<repo>/)
+ *   Dev (npm run desktop  →  electron electron/main.mjs):
+ *     electron/main.mjs           ← __dirname = <repo>/electron/
+ *     scripts/ config/ build/     ← one level up: <repo>/
  *     system uvx from PATH
  *
- * In both cases __dirname is inside an 'electron/' folder whose parent
- * IS the project root, so paths are always join(__dirname, '..', ...).
+ * When packaged, scripts/config/build are siblings of main.mjs so
+ * projectRoot === __dirname. In dev they are one level up.
  */
 
 import {
@@ -43,10 +42,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ── Path resolution ───────────────────────────────────────────────────────────
-// __dirname is always inside an 'electron/' folder.
-// One level up is the project root in both dev and packaged mode.
+// Packaged (directories.app: 'electron'): scripts/config/build are SIBLINGS of
+// main.mjs inside Resources/app/, so projectRoot === __dirname.
+// Dev (electron electron/main.mjs): those directories are one level UP in the
+// repo root, so projectRoot === join(__dirname, '..').
 
-const projectRoot = join(__dirname, "..");
+const projectRoot = app.isPackaged ? __dirname : join(__dirname, "..");
 const buildDir = join(projectRoot, "build");
 const scriptsDir = join(projectRoot, "scripts");
 
