@@ -100,6 +100,7 @@
     "build:docker": "node scripts/docker-build.mjs",
     "desktop": "npm run build:app && electron electron/main.mjs",
     "build:desktop": "npm run build:app && node scripts/download-uv.mjs && electron-builder --config electron-builder.config.mjs",
+    "build:desktop:universal": "npm run build:app && node scripts/download-uv.mjs && cross-env ELECTRON_ARCH=universal electron-builder --config electron-builder.config.mjs",
     "download-uv": "node scripts/download-uv.mjs"
   },
   "lint-staged": {

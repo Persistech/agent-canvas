@@ -62,10 +62,23 @@ const config = {
   ],
 
   // ── macOS ──────────────────────────────────────────────────────────────────
+  //
+  // Default to the native CPU arch so day-to-day `npm run build:desktop`
+  // is fast (one Electron binary, one packaging pass).
+  //
+  // For a distributable universal build set ELECTRON_ARCH=universal:
+  //   ELECTRON_ARCH=universal npm run build:desktop
+  //
+  // Or use the dedicated script:
+  //   npm run build:desktop:universal
+  //
   mac: {
     category: "public.app-category.developer-tools",
     target: [
-      { target: "dmg", arch: ["universal"] },
+      {
+        target: "dmg",
+        arch: [process.env.ELECTRON_ARCH ?? (process.arch === "arm64" ? "arm64" : "x64")],
+      },
     ],
     // Add icon: "electron/build-resources/icon.icns" once a 512×512 source
     // image is available. Run: electron-icon-builder --input=icon.png --output=electron/build-resources
