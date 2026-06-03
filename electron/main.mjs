@@ -26,13 +26,7 @@
  * projectRoot === __dirname. In dev they are one level up.
  */
 
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  nativeTheme,
-  shell,
-} from "electron";
+import { app, BrowserWindow, dialog, nativeTheme, shell } from "electron";
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -120,12 +114,15 @@ function ensureNodeWrapper() {
 
   if (process.platform === "win32") {
     const bat = join(wrapperDir, "node.cmd");
-    writeFileSync(bat, `@echo off\nset ELECTRON_RUN_AS_NODE=1\n"${process.execPath}" %*\n`);
+    writeFileSync(
+      bat,
+      `@echo off\nset ELECTRON_RUN_AS_NODE=1\n"${process.execPath}" %*\n`,
+    );
   } else {
     const sh = join(wrapperDir, "node");
     writeFileSync(
       sh,
-      `#!/bin/sh\nexec env ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "$@"\n`
+      `#!/bin/sh\nexec env ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "$@"\n`,
     );
     chmodSync(sh, 0o755);
   }
@@ -137,6 +134,11 @@ function ensureNodeWrapper() {
 
 // ── Readiness polling ─────────────────────────────────────────────────────────
 
+/**
+ * Wait until `url` responds at all (status < 500). Used to confirm the
+ * ingress proxy is bound — not a guarantee that the agent-server behind it
+ * is ready. Use {@link waitForAgentServer} for that.
+ */
 async function waitForUrl(url, timeoutMs = 120_000, intervalMs = 600) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -147,7 +149,43 @@ async function waitForUrl(url, timeoutMs = 120_000, intervalMs = 600) {
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `Timed out waiting for ${url} to become ready (${timeoutMs / 1000}s).`
+    `Timed out waiting for ${url} to become ready (${timeoutMs / 1000}s).`,
+  );
+}
+
+/**
+ * Wait until `url` returns HTTP 200 — meaning the agent-server itself is
+ * serving requests, not just that the ingress proxy is up.
+ *
+ * On first launch, `uvx` has to download a Python toolchain and install
+ * `openhands-agent-server` and its workspace deps from PyPI, which can
+ * easily take a few minutes on a slow network. We poll the route end-to-end
+ * (through ingress on port 8000, so a missing or restarted ingress is also
+ * caught) instead of just probing the static-server fallback that
+ * `waitForUrl` would accept.
+ */
+async function waitForAgentServer(
+  url = "http://localhost:8000/server_info",
+  timeoutMs = 10 * 60_000,
+  intervalMs = 1_000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+      // Only 200 is success here. 502 from ingress means the upstream agent
+      // server isn't bound yet; 401 means auth is required and the bundled
+      // key didn't reach us — we still treat that as "the agent server is
+      // up", because the proxy got a real HTTP response from it.
+      if (res.status === 200 || res.status === 401) return;
+    } catch {
+      // Transient network / DNS / timeout — keep polling until the deadline.
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `Agent server at ${url} never came up (${Math.round(timeoutMs / 1000)}s). ` +
+      "Check the terminal log for errors from uvx / the agent-server process.",
   );
 }
 
@@ -158,8 +196,10 @@ let mainWin = null;
 
 function createLoadingWindow() {
   loadingWin = new BrowserWindow({
-    width: 420,
-    height: 280,
+    width: 460,
+    // Tall enough to fit the streaming status line + the "first launch can
+    // take a few minutes" hint without scrollbars.
+    height: 360,
     resizable: false,
     frame: false,
     center: true,
@@ -247,22 +287,89 @@ function createMainWindow() {
 
 // ── Backend stack ─────────────────────────────────────────────────────────────
 
+/**
+ * Update the status line on the loading window, if it's still alive.
+ *
+ * The loading screen exposes a global `window.__setLoadingStatus(line)`
+ * function (see loading.html) that swaps the status text. We call it via
+ * `executeJavaScript` so no preload script / IPC plumbing is needed.
+ *
+ * Best-effort: any failure (window destroyed, JS not loaded yet, etc.) is
+ * swallowed — this is purely a UX nicety and must never crash the launcher.
+ */
+function setLoadingStatus(line) {
+  if (!loadingWin || loadingWin.isDestroyed()) return;
+  // Limit to a single line, max ~120 chars, to keep the splash readable.
+  const oneLine = String(line ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  if (!oneLine) return;
+  const safe = JSON.stringify(oneLine);
+  loadingWin.webContents
+    .executeJavaScript(
+      `window.__setLoadingStatus && window.__setLoadingStatus(${safe});`,
+      true,
+    )
+    .catch(() => {});
+}
+
+/**
+ * Forward dev-stack service log lines to (a) the loading screen and (b) the
+ * terminal log. The terminal already receives them via `logService`; we add
+ * a tee here so the user can see what's happening on first launch when uvx
+ * is downloading Python + agent-server.
+ */
+function handleServiceLog(name, line, level) {
+  // Skip empty / noisy progress chatter that overwrites itself rapidly.
+  // We're mainly interested in agent-server (= uvx output during install).
+  if (!line) return;
+  if (name === "agent-server" || name === "automation") {
+    setLoadingStatus(`${name}: ${line}`);
+  }
+  // Mirror anything to a `[desktop]` log line in addition to the colored
+  // dev-stack output so the desktop log file is grep-friendly.
+  if (level === "error") {
+    console.error(`[desktop] [${name}] ${line}`);
+  }
+}
+
 async function startStack() {
   const entryUrl = pathToFileURL(
-    join(scriptsDir, "dev-with-automation.mjs")
+    join(scriptsDir, "dev-with-automation.mjs"),
   ).href;
   const { main } = await import(entryUrl);
 
   // main() starts agent-server + automation backend + static server + ingress.
-  // skipNpmCheck: npm is not needed at runtime in static mode.
-  await main({
+  //   skipNpmCheck: npm is not needed at runtime in static mode.
+  //   agentServerReadyTimeoutMs: dev defaults to 60 s (warm uvx cache); a
+  //     packaged binary on a fresh machine can spend several minutes inside
+  //     uvx the first time, downloading Python + installing openhands-
+  //     agent-server from PyPI. 10 minutes is generous but bounded.
+  //   onServiceLog: stream uvx/agent-server output to the loading window so
+  //     the user sees progress instead of an indefinite spinner.
+  const result = await main({
     bannerTitle: "Agent Canvas",
     staticMode: true,
     staticDir: buildDir,
     mode: "agent-canvas",
     isPublic: false,
     skipNpmCheck: true,
+    agentServerReadyTimeoutMs: 10 * 60_000,
+    onServiceLog: handleServiceLog,
   });
+
+  // main() returns { config, agentServerReady } — treat a timeout as a fatal
+  // startup error so the splash shows a clear dialog instead of dropping the
+  // user into a half-booted UI that will only emit "Request timeout" popups.
+  if (result?.agentServerReady === false) {
+    throw new Error(
+      "The agent server did not finish starting in time. " +
+        "On first launch this can take several minutes while uvx downloads " +
+        "Python and the OpenHands agent-server from PyPI. " +
+        "Check your internet connection and try again.",
+    );
+  }
 }
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
@@ -278,7 +385,7 @@ app.whenReady().then(async () => {
       "Missing prerequisite: uv",
       app.isPackaged
         ? "The bundled uv binary could not be found. Please reinstall Agent Canvas."
-        : "uv (uvx) is not installed.\n\nInstall it from https://docs.astral.sh/uv/ then restart."
+        : "uv (uvx) is not installed.\n\nInstall it from https://docs.astral.sh/uv/ then restart.",
     );
     app.quit();
     return;
@@ -287,8 +394,22 @@ app.whenReady().then(async () => {
   createLoadingWindow();
 
   try {
+    setLoadingStatus("Starting backend services…");
     await startStack();
+
+    // Stage 1: ingress proxy is bound (anything < 500 on /).
+    setLoadingStatus("Waiting for proxy…");
     await waitForUrl("http://localhost:8000");
+
+    // Stage 2: the agent-server behind the proxy is actually serving
+    // requests. `startStack()` already waited for this internally, but we
+    // re-probe end-to-end here so that if the user closes the splash race
+    // window between processes binding, we still open the main window with
+    // a live backend. Cheap (a single 200 response) when everything is up.
+    setLoadingStatus("Connecting to agent server…");
+    await waitForAgentServer("http://localhost:8000/server_info", 60_000);
+
+    setLoadingStatus("Ready.");
     createMainWindow();
   } catch (err) {
     const msg =

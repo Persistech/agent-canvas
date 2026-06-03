@@ -387,7 +387,10 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites({ checkFrontendDependencies = true, skipNpmCheck = false } = {}) {
+function checkPrerequisites({
+  checkFrontendDependencies = true,
+  skipNpmCheck = false,
+} = {}) {
   logStep("1/2", "Checking prerequisites...");
 
   if (!commandExists("uvx")) {
@@ -440,6 +443,26 @@ const shutdownHooks = createShutdownHookRegistry((err) => {
   logService("cleanup", `Cleanup hook failed: ${err.message}`, c.yellow);
 });
 
+// Optional external listener for every service log line. Set by `main()` from
+// its `onServiceLog` option so embedded launchers (e.g. the Electron desktop
+// app) can stream uvx download / install progress to their loading window
+// without touching the terminal logging path. Receives `(name, line, level)`
+// where `level` is one of "stdout" | "stderr" | "info" | "warn" | "error".
+let serviceLogListener = null;
+
+export function setServiceLogListener(listener) {
+  serviceLogListener = typeof listener === "function" ? listener : null;
+}
+
+function emitServiceLog(name, line, level) {
+  if (!serviceLogListener) return;
+  try {
+    serviceLogListener(name, line, level);
+  } catch {
+    // Never let a listener bug crash the dev stack.
+  }
+}
+
 function registerShutdownHook(hook) {
   return shutdownHooks.add(hook);
 }
@@ -464,7 +487,9 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), color);
+        const trimmed = line.trim();
+        logService(name, trimmed, color);
+        emitServiceLog(name, trimmed, "stdout");
       });
   });
 
@@ -474,17 +499,21 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), c.yellow);
+        const trimmed = line.trim();
+        logService(name, trimmed, c.yellow);
+        emitServiceLog(name, trimmed, "stderr");
       });
   });
 
   proc.on("error", (error) => {
     logError(`${name} failed to start: ${error.message}`);
+    emitServiceLog(name, `failed to start: ${error.message}`, "error");
   });
 
   proc.on("exit", (code, signal) => {
     if (code !== 0 && code !== null && !shuttingDown) {
       logService(name, `Exited with code ${code}`, c.red);
+      emitServiceLog(name, `exited with code ${code}`, "error");
     }
     processes.delete(name);
   });
@@ -963,7 +992,24 @@ async function main(options = {}) {
     // When true, skip the npm prerequisite check. Used by the Electron desktop
     // launcher where npm is not needed at runtime in static mode.
     skipNpmCheck = false,
+    // How long to wait for the agent-server's `/server_info` to return 200
+    // before continuing. Defaults to 60 s, which is fine for warm-cache dev
+    // workflows. The Electron desktop launcher bumps this to several minutes
+    // because first-launch on a fresh machine runs `uvx` to download Python
+    // and install `openhands-agent-server` from PyPI, which can take much
+    // longer than 60 s on a slow network.
+    agentServerReadyTimeoutMs = 60_000,
+    // Optional `(name, line, level)` callback that receives every service log
+    // line (stdout, stderr, and lifecycle events) emitted by any spawned
+    // backend process. Used by the Electron loading screen to surface uvx
+    // download / install progress to the user. `level` is one of
+    // "stdout" | "stderr" | "info" | "warn" | "error".
+    onServiceLog,
   } = options;
+
+  // Install the listener early so log lines emitted before the first
+  // `spawnService` call (e.g. by future setup steps) are also captured.
+  setServiceLogListener(onServiceLog);
 
   const args = parseArgs();
 
@@ -1047,11 +1093,15 @@ async function main(options = {}) {
   const agentServerStarter = startAgentServerOverride ?? startAgentServer;
   agentServerStarter(config);
 
-  // Wait for agent-server to be ready (60s timeout for slow systems)
+  // Wait for agent-server to be ready. Defaults to 60 s for `npm run dev`
+  // (warm uvx cache). The Electron desktop launcher passes a multi-minute
+  // value because first-launch installs Python + agent-server via uvx, and
+  // dropping the user into a half-booted UI causes axios "Request timeout"
+  // popups when the first SPA fetch hits an unbound port 18000.
   const agentServerReady = await waitForService(
     "agent-server",
     `http://localhost:${config.agentServerPort}/server_info`,
-    60000, // 60 second timeout for initial startup
+    agentServerReadyTimeoutMs,
   );
 
   // 2. Seed automation API key into agent-server secrets
@@ -1087,6 +1137,11 @@ async function main(options = {}) {
   await delay(1000);
 
   printBanner(config);
+
+  // Return the resolved config + readiness signal so embedded launchers can
+  // (a) build URLs from the actual allocated ports and (b) decide whether to
+  // show an error to the user when the agent-server never came up.
+  return { config, agentServerReady };
 }
 
 function startStaticFrontend(config, staticDir) {
