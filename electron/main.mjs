@@ -299,8 +299,43 @@ app.whenReady().then(async () => {
   }
 });
 
-// Quit when all windows are closed; backend child processes are cleaned up
-// by the signal handlers registered inside dev-with-automation.mjs.
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+//
+// dev-with-automation.mjs spawns the backend processes with detached:true so
+// they form their own OS process groups and survive the parent's death by
+// default. We must explicitly kill them when the app quits.
+//
+// createShutdownHookRegistry (dev-process-utils.mjs) already registered a
+// SIGTERM handler that iterates every tracked process, calls signalProcessTree
+// on its group, waits for exit, then calls process.exit(0). We just need to
+// fire that handler before Electron lets the process die.
+//
+// Flow:
+//   user closes window / Cmd+Q
+//     → window-all-closed → app.quit()
+//     → before-quit fires (first time)  → we preventDefault + send SIGTERM
+//     → SIGTERM handler kills all children, calls process.exit(0)
+//     → before-quit fires again (cleanupStarted=true) → we return, Electron exits
+
+let cleanupStarted = false;
+
+app.on("before-quit", (event) => {
+  if (cleanupStarted) return; // SIGTERM cleanup already running — allow exit
+
+  cleanupStarted = true;
+  event.preventDefault();
+
+  console.log("[desktop] Stopping backend services…");
+  process.kill(process.pid, "SIGTERM");
+
+  // Safety net: if the SIGTERM handler doesn't finish within 6 s, force-quit.
+  const t = setTimeout(() => {
+    console.warn("[desktop] Cleanup timed out — forcing exit");
+    app.exit(0);
+  }, 6000);
+  if (t.unref) t.unref();
+});
+
 app.on("window-all-closed", () => {
   app.quit();
 });
