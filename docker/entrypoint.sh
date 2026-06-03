@@ -137,6 +137,7 @@ cleanup() {
     kill "$pid" 2>/dev/null || true
   done
   wait 2>/dev/null || true
+  exit 0
 }
 trap cleanup EXIT SIGINT SIGTERM
 
@@ -243,7 +244,33 @@ node /opt/agent-canvas/static-server.mjs \
   --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
-PIDS+=($!)
+STATIC_PID=$!
+PIDS+=("$STATIC_PID")
+
+# ── 5. (Optional) Public-mode static server ─────────────────────────────────
+# When PUBLIC_MODE_PORT is set, start a second static-server instance that
+# serves the same frontend WITHOUT injecting the session key into the HTML
+# (--auth-required). This is used by auth-mode E2E tests to verify the
+# ApiKeyEntryScreen gate, key rotation recovery, etc.
+if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
+  log "Starting public-mode frontend on port $PUBLIC_MODE_PORT (--auth-required)..."
+  node /opt/agent-canvas/static-server.mjs \
+    --port "$PUBLIC_MODE_PORT" \
+    --host 0.0.0.0 \
+    --dir /opt/agent-canvas/frontend \
+    --auth-required \
+    --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
+    --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/sockets=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/alive=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/health=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/ready=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
+  PIDS+=($!)
+fi
 
 # ── 5. (Optional) Public-mode static server ─────────────────────────────────
 # When PUBLIC_MODE_PORT is set, start a second static-server instance that
@@ -272,8 +299,19 @@ fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
-# Wait for any child to exit. If one dies, the trap will clean up the rest.
-wait -n "${PIDS[@]}" 2>/dev/null
-EXIT_CODE=$?
-log_error "A service exited with code $EXIT_CODE"
-exit "$EXIT_CODE"
+# Keep the container alive while the static-server (ingress) is running.
+# Backend crashes (agent-server, automation) are tolerated — the proxy
+# returns 502 for downed routes, matching the non-Docker path where each
+# service is an independent host process.
+#
+# Pattern: `sleep & wait $!` makes `wait` (a bash builtin) the foreground
+# operation.  Unlike a bare `sleep`, the builtin `wait` is interrupted
+# immediately when a trapped signal (SIGTERM/SIGINT) arrives, so cleanup()
+# fires without delay.  cleanup() calls `exit 0` to terminate after the
+# trap returns.  The loop re-checks the static-server PID every 10 s so the
+# container exits promptly if the ingress process dies on its own.
+while kill -0 "$STATIC_PID" 2>/dev/null; do
+  sleep 10 & wait $!
+done
+log_error "Static server (PID $STATIC_PID) exited"
+exit 1
