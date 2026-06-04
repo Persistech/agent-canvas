@@ -423,6 +423,40 @@ export async function resetMockLLM(request: APIRequestContext) {
 }
 
 /**
+ * Reset the agent-server's LLM settings to a clean state.
+ *
+ * Earlier specs (conversation, automation, etc.) configure the real
+ * agent-server with custom LLM settings (model, base_url, api_key).
+ * That stale state leaks into later specs and can change component
+ * rendering (e.g. a non-default base_url forces the LLM form into
+ * "Advanced" view instead of "Basic"). Calling this before a spec
+ * that needs virgin settings ensures test-order independence.
+ */
+export async function resetAgentServerLLMSettings(
+  request: APIRequestContext,
+) {
+  const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        llm: {
+          model: null,
+          api_key: null,
+          base_url: null,
+        },
+      },
+    },
+  });
+  expect(
+    resp.ok(),
+    `Reset agent-server LLM settings failed: ${resp.status()}`,
+  ).toBe(true);
+}
+
+/**
  * Fetch all chat-completion request bodies captured by the mock LLM server
  * since the last /admin/reset.
  *

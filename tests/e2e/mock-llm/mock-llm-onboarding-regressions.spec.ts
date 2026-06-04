@@ -5,11 +5,23 @@ import {
   showOnboarding,
   waitForOnboardingStep,
 } from "../support/onboarding-helpers";
-import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
+import {
+  resetAgentServerLLMSettings,
+  routeSessionApiKey,
+  SESSION_API_KEY,
+} from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("onboarding recent regressions", () => {
+  // Reset the agent-server's LLM settings before each test so the
+  // onboarding flow sees a genuinely clean state — no stale base_url,
+  // model, or api_key left behind by earlier specs. This makes the
+  // tests order-independent without brittle response patching.
+  test.beforeEach(async ({ request }) => {
+    await resetAgentServerLLMSettings(request);
+  });
+
   // Regression coverage for #1085 / PR #1100: errant outside
   // interactions must not permanently mark onboarding complete.
 
@@ -68,25 +80,7 @@ test.describe("onboarding recent regressions", () => {
   }) => {
     await showOnboarding(page, {
       apiKey: SESSION_API_KEY,
-      beforeGoto: async () => {
-        await routeSessionApiKey(page);
-        // Intercept GET /api/settings so the LLM form sees a clean
-        // base_url, forcing basic view mode regardless of what earlier
-        // specs configured. Registered AFTER routeSessionApiKey so
-        // Playwright's LIFO matching picks this up first for settings.
-        await page.route("**/api/settings", async (route, req) => {
-          if (req.method() !== "GET") {
-            await route.fallback();
-            return;
-          }
-          const response = await route.fetch();
-          const body = await response.json();
-          if (body?.agent_settings?.llm) {
-            body.agent_settings.llm.base_url = null;
-          }
-          await route.fulfill({ response, json: body });
-        });
-      },
+      beforeGoto: () => routeSessionApiKey(page),
     });
     await advanceOnboardingToLlmStep(page);
 
