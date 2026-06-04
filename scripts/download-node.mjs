@@ -39,8 +39,10 @@ import {
   chmodSync,
   createWriteStream,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
+  readlinkSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -196,6 +198,15 @@ function verifyLayout() {
  *   LICENSE                         — required by the BSD-style Node license
  */
 function pruneUnusedFiles() {
+  // IMPORTANT: every entry that points into a directory we delete must also
+  // delete any symlink/shim that targets into it, otherwise electron-builder
+  // hits ENOENT trying to stat() the dangling symlink while copying the
+  // extraResource into the .app bundle.
+  //
+  // Example: Node's POSIX tarball ships `bin/corepack` as a symlink to
+  // `../lib/node_modules/corepack/dist/corepack.js`. If we drop the corepack
+  // module under lib/ but leave the symlink, `electron-builder` fails with
+  //   ENOENT: ... Resources/node/bin/corepack
   const candidates =
     PLATFORM === "win32"
       ? [
@@ -205,6 +216,10 @@ function pruneUnusedFiles() {
           "CHANGELOG.md",
           "README.md",
           "node_modules/corepack",
+          // Windows ships corepack as both a Bash wrapper and a cmd.exe wrapper
+          // at the distribution root; both proxy into node_modules/corepack.
+          "corepack",
+          "corepack.cmd",
         ]
       : [
           // POSIX layout — keep bin/ and lib/node_modules/npm; drop the rest.
@@ -213,13 +228,72 @@ function pruneUnusedFiles() {
           "CHANGELOG.md",
           "README.md",
           "lib/node_modules/corepack",
+          // Symlink in bin/ targets the corepack we just deleted.
+          "bin/corepack",
         ];
   for (const rel of candidates) {
     const p = join(outDir, rel);
-    if (!existsSync(p)) continue;
+    // Use lstat()-style existence: existsSync follows symlinks, so it would
+    // return false for `bin/corepack` after we deleted its target — which is
+    // fine for rmSync (force: true ignores missing entries) but means we
+    // can't use it as a guard. Just always attempt the rm.
     try {
       rmSync(p, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+// ── Dangling-symlink check ───────────────────────────────────────────────────
+
+/**
+ * Walk the pruned tree and refuse to finish if any symlink points at a path
+ * that no longer exists. electron-builder calls `stat()` (which follows
+ * symlinks) on every entry it copies into the .app bundle, so a single
+ * dangling symlink blows up the whole `build:desktop` step with a confusing
+ * ENOENT — fail at download time instead, with a message that says which
+ * pruned directory the symlink was reaching into.
+ */
+function failOnDanglingSymlinks() {
+  const broken = [];
+  const stack = [outDir];
+  while (stack.length) {
+    const next = stack.pop();
+    let entries;
+    try {
+      entries = readdirSync(next, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const p = join(next, entry.name);
+      if (entry.isSymbolicLink()) {
+        try {
+          // statSync follows the link; if the target is gone this throws.
+          statSync(p);
+        } catch {
+          let target = "<unreadable>";
+          try {
+            if (lstatSync(p).isSymbolicLink()) target = readlinkSync(p);
+          } catch {
+            // ignore — best-effort labelling
+          }
+          broken.push(`${p} → ${target}`);
+        }
+      } else if (entry.isDirectory()) {
+        stack.push(p);
+      }
+    }
+  }
+  if (broken.length) {
+    console.error(
+      "[download-node] Dangling symlinks remain after pruning — these would " +
+        "crash electron-builder later with ENOENT. Add the dangling symlink " +
+        "(or its target) to pruneUnusedFiles() in this script:",
+    );
+    for (const entry of broken) console.error("  •", entry);
+    throw new Error(`${broken.length} dangling symlink(s) in resources/node/`);
   }
 }
 
@@ -278,6 +352,7 @@ async function main() {
 
     verifyLayout();
     pruneUnusedFiles();
+    failOnDanglingSymlinks();
 
     const mb = Math.round(dirSizeBytes(outDir) / (1024 * 1024));
     console.log(`[download-node] ✓ Node v${version} ready at ${outDir} (~${mb} MB)`);
