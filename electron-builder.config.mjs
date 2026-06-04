@@ -106,6 +106,10 @@ function getDirSizeBytes(dir) {
     try {
       entries = readdirSync(next, { withFileTypes: true });
     } catch {
+      // Best-effort: skip unreadable dirs (symlink races, permission
+      // errors on platform-specific node_modules subtrees, etc.). The
+      // size number is only used in a build-log line, so under-counting
+      // is preferable to aborting the strip.
       continue;
     }
     for (const entry of entries) {

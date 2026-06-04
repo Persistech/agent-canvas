@@ -77,6 +77,10 @@ function injectBundledUv() {
   const binDir = join(process.resourcesPath, "bin");
   const uvPath = join(binDir, uvName);
 
+  // We only probe for `uv` here — `uv` and `uvx` ship together in the
+  // bundle (`download-uv.mjs` writes both), so if `uv` is present we
+  // assume `uvx` is too. `uvxAvailable()` is called separately by
+  // start-up code to confirm the resolved binary actually runs.
   if (!existsSync(uvPath)) {
     console.warn("[desktop] Bundled uv not found at", uvPath);
     return;

@@ -56,10 +56,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..");
 const outDir = join(projectRoot, "resources", "node");
 
-// Pinned Node version. Electron 42 ships Node 22; we bundle a matching
-// 22.x LTS line for parity. Override at build time with NODE_VERSION=…
-// (e.g. to test against a newer release). Major version >=22 only;
-// engines.node in npm 10.x requires ^18.17.0 || >=20.5.0.
+// Pinned Node version. Electron 42 ships Node 22, so we bundle a 22.x
+// LTS release to match the embedded runtime's ABI/native-module surface.
+// We intentionally use 22.11.0 (the first 22-LTS release line) rather
+// than Electron 42.3.2's exact embedded Node patch level: native modules
+// only need ABI parity (NODE_MODULE_VERSION 127, shared by all 22.x
+// builds), and the LTS line gets the security backports we want.
+// Override at build time with NODE_VERSION=… (e.g. to test against a
+// newer release). Major version >=22 only; engines.node in npm 10.x
+// requires ^18.17.0 || >=20.5.0.
 const NODE_BUNDLE_VERSION = "22.11.0";
 
 // ── Platform detection ───────────────────────────────────────────────────────
