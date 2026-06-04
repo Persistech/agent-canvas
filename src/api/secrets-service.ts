@@ -63,6 +63,36 @@ export class SecretsService {
   }
 
   /**
+   * Fetch the plaintext values of named secrets from the local agent-server
+   * store (GET /api/settings/secrets/{name}). Returns a name -> value map,
+   * silently skipping any that fail (missing / unreadable).
+   *
+   * Local backend only: it reads values back over the same localhost channel
+   * the onboarding form wrote them through. Cloud keeps secrets server-side
+   * and never exposes plaintext, so this returns an empty map there.
+   */
+  static async getSecretValues(
+    names: string[],
+  ): Promise<Record<string, string>> {
+    if (names.length === 0 || getActiveBackend().backend.kind === "cloud") {
+      return {};
+    }
+    const client = new SettingsClient(getAgentServerClientOptions());
+    const entries = await Promise.all(
+      names.map(async (name) => {
+        try {
+          const value = await client.getSecret(name);
+          return [name, typeof value === "string" ? value : ""] as const;
+        } catch (error) {
+          console.error(`Failed to fetch secret value for ${name}:`, error);
+          return [name, ""] as const;
+        }
+      }),
+    );
+    return Object.fromEntries(entries.filter(([, value]) => value !== ""));
+  }
+
+  /**
    * Create or update a custom secret (upsert by name).
    * Uses the agent-server API endpoint: PUT /api/settings/secrets
    *

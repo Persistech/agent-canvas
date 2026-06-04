@@ -696,6 +696,21 @@ interface LookupSecret {
   description?: string;
 }
 
+/**
+ * A secret whose value travels inline in the request. Used for ACP
+ * conversations: the SDK resolves an ACP agent's secrets *eagerly* on its
+ * event loop while spawning the CLI, and a {@link LookupSecret} that points
+ * back at the same single-process agent-server self-deadlocks
+ * (agent-canvas#1072). An inline value needs no fetch, so it can't stall.
+ */
+interface StaticSecret {
+  kind: "StaticSecret";
+  value: string;
+  description?: string;
+}
+
+type ConversationSecret = LookupSecret | StaticSecret;
+
 type StartConversationPayload = Record<string, unknown> & {
   agent_settings: AgentSettingsPayload;
   workspace: LocalWorkspacePayload;
@@ -708,7 +723,7 @@ type StartConversationPayload = Record<string, unknown> & {
   worktree: true;
   secrets_encrypted?: true;
   conversation_id?: string;
-  secrets?: Record<string, LookupSecret>;
+  secrets?: Record<string, ConversationSecret>;
   tags?: Record<string, string>;
   tool_module_qualnames?: Record<string, string>;
 };
@@ -724,6 +739,13 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * Plaintext values for custom secrets, by name. Supplied for ACP
+   * conversations so each secret rides inline as a {@link StaticSecret}
+   * instead of a loopback {@link LookupSecret} that would deadlock the
+   * agent-server's event loop at ACP spawn time (agent-canvas#1072).
+   */
+  acpInlineSecretValues?: Record<string, string>;
 }
 
 export function buildStartConversationRequest(
@@ -771,7 +793,13 @@ export function buildStartConversationRequest(
     payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
   }
 
-  if (options.secretsEncrypted) {
+  // ``secrets_encrypted`` tells the agent-server to ``cipher.decrypt()`` every
+  // secret value in the request. Suppress it for ACP: an ACP agent carries no
+  // encrypted agent secret (no LLM api_key), and its provider credentials ride
+  // inline as plaintext StaticSecrets below — flagging those as encrypted makes
+  // the server decrypt plaintext, which silently drops the value to None.
+  // Non-ACP conversations still need it for their encrypted LLM key.
+  if (options.secretsEncrypted && !acpMode) {
     payload.secrets_encrypted = true;
   }
 
@@ -811,9 +839,24 @@ export function buildStartConversationRequest(
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
     const headers = backend ? buildAuthHeaders(backend) : {};
+    const inlineValues = options.acpInlineSecretValues ?? {};
 
-    const secrets: Record<string, LookupSecret> = {};
+    const secrets: Record<string, ConversationSecret> = {};
     for (const secret of options.customSecrets) {
+      // ACP: send the value inline so the SDK's eager, on-event-loop secret
+      // resolution at CLI spawn never makes a blocking loopback fetch
+      // (agent-canvas#1072). Fall back to a LookupSecret if the value
+      // couldn't be read back. Non-ACP keeps the LookupSecret as-is.
+      const inlineValue = acpMode ? inlineValues[secret.name] : undefined;
+      if (inlineValue) {
+        secrets[secret.name] = {
+          kind: "StaticSecret",
+          value: inlineValue,
+          description: secret.description,
+        };
+        continue;
+      }
+
       const lookupSecret: LookupSecret = {
         kind: "LookupSecret",
         url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
@@ -858,12 +901,24 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
 
+  // For ACP conversations, read back the values of the saved custom secrets so
+  // they travel inline as StaticSecrets. The SDK resolves an ACP agent's
+  // secrets eagerly on its event loop at CLI spawn; a loopback LookupSecret
+  // there self-deadlocks the single-process agent-server (agent-canvas#1072).
+  let acpInlineSecretValues: Record<string, string> | undefined;
+  if (agentSettings.agent_kind === "acp" && customSecrets.length > 0) {
+    acpInlineSecretValues = await SecretsService.getSecretValues(
+      customSecrets.map((secret) => secret.name),
+    );
+  }
+
   return buildStartConversationRequest({
     ...options,
     encryptedAgentSettings: agentSettings,
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
+    acpInlineSecretValues,
   });
 }
 
