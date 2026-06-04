@@ -88,16 +88,16 @@ describe("getAcpProviderSecrets — reserved containerized credentials", () => {
   // StaticSecrets. The set is sourced from the validated container contract
   // (agent-canvas#1013/#1014) — if a refactor drops one, ACP auth in a
   // container silently breaks, so assert each provider's exact field set.
-  it("collects the api key, reserved subscription/Vertex creds, then base URL — in that order — for Codex", () => {
+  it("collects the reserved subscription cred, api key, then base URL — in that order — for Codex", () => {
     const names = getAcpProviderSecrets("codex").map((f) => f.name);
-    expect(names).toEqual(["OPENAI_API_KEY", "CODEX_AUTH_JSON", "OPENAI_BASE_URL"]);
+    expect(names).toEqual(["CODEX_AUTH_JSON", "OPENAI_API_KEY", "OPENAI_BASE_URL"]);
   });
 
   it("collects the OAuth token + api key for Claude Code", () => {
     const names = getAcpProviderSecrets("claude-code").map((f) => f.name);
     expect(names).toEqual([
-      "ANTHROPIC_API_KEY",
       "CLAUDE_CODE_OAUTH_TOKEN",
+      "ANTHROPIC_API_KEY",
       "ANTHROPIC_BASE_URL",
     ]);
   });
@@ -105,11 +105,11 @@ describe("getAcpProviderSecrets — reserved containerized credentials", () => {
   it("collects the Vertex SA JSON + project/location/flag for Gemini CLI", () => {
     const names = getAcpProviderSecrets("gemini-cli").map((f) => f.name);
     expect(names).toEqual([
-      "GEMINI_API_KEY",
       "GOOGLE_APPLICATION_CREDENTIALS_JSON",
       "GOOGLE_CLOUD_PROJECT",
       "GOOGLE_CLOUD_LOCATION",
       "GOOGLE_GENAI_USE_VERTEXAI",
+      "GEMINI_API_KEY",
       "GEMINI_BASE_URL",
     ]);
   });
@@ -148,19 +148,19 @@ describe("getAcpProviderSecrets — reserved containerized credentials", () => {
 describe("getReservedAcpSecretNames", () => {
   it("returns every reserved field name (api key + subscription/Vertex creds, not base URL)", () => {
     expect(getReservedAcpSecretNames("codex")).toEqual([
-      "OPENAI_API_KEY",
       "CODEX_AUTH_JSON",
+      "OPENAI_API_KEY",
     ]);
     expect(getReservedAcpSecretNames("claude-code")).toEqual([
-      "ANTHROPIC_API_KEY",
       "CLAUDE_CODE_OAUTH_TOKEN",
+      "ANTHROPIC_API_KEY",
     ]);
     expect(getReservedAcpSecretNames("gemini-cli")).toEqual([
-      "GEMINI_API_KEY",
       "GOOGLE_APPLICATION_CREDENTIALS_JSON",
       "GOOGLE_CLOUD_PROJECT",
       "GOOGLE_CLOUD_LOCATION",
       "GOOGLE_GENAI_USE_VERTEXAI",
+      "GEMINI_API_KEY",
     ]);
   });
 

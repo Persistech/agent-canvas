@@ -331,7 +331,7 @@ export function getAcpPreferredDefaultModel(
  * name equals the env var the agent-server exports into the provider subprocess
  * (which is what makes a saved secret reach the CLI).
  *
- * Field order is: API key → reserved subscription/Vertex credentials → optional
+ * Field order is: reserved subscription/Vertex credentials → API key → optional
  * base URL. Everything except the base URL is {@link ACPProviderSecretField.reserved}
  * (sent inline as a ``StaticSecret`` for containerized backends).
  *
@@ -356,6 +356,10 @@ export function getAcpProviderSecrets(
   const info = key ? getClientAcpProvider(key) : null;
   if (!info) return [];
   const fields: ACPProviderSecretField[] = [];
+  // Subscription / Vertex credentials first — they're the primary auth path for
+  // ACP providers (Claude Pro/Max OAuth token, Codex ChatGPT auth.json), with
+  // the API key as the fallback below.
+  fields.push(...(key ? (ACP_RESERVED_CREDENTIALS[key] ?? []) : []));
   if (info.api_key_env_var) {
     fields.push({
       name: info.api_key_env_var,
@@ -364,7 +368,6 @@ export function getAcpProviderSecrets(
       hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
     });
   }
-  fields.push(...(key ? (ACP_RESERVED_CREDENTIALS[key] ?? []) : []));
   if (info.base_url_env_var) {
     fields.push({
       name: info.base_url_env_var,
