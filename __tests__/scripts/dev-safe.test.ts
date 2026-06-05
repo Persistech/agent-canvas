@@ -389,16 +389,16 @@ describe("buildAgentServerCommand", () => {
     // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "openhands-agent-server==1.24.0",
+      "openhands-agent-server==1.25.0",
       "--with",
-      "openhands-sdk==1.24.0",
+      "openhands-sdk==1.25.0",
       "--with",
-      "openhands-tools==1.24.0",
+      "openhands-tools==1.25.0",
       "--with",
-      "openhands-workspace==1.24.0",
+      "openhands-workspace==1.25.0",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("PyPI (1.24.0, default)");
+    expect(cmd.source).toBe("PyPI (1.25.0, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -428,8 +428,11 @@ describe("buildAgentServerCommand", () => {
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
+      "--reinstall",
       "--from",
       "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-sdk",
       "--with",
       "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-tools",
       "--with",
@@ -444,8 +447,11 @@ describe("buildAgentServerCommand", () => {
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
+      "--reinstall",
       "--from",
       "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-sdk",
       "--with",
       "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-tools",
       "--with",
@@ -987,12 +993,12 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.automation).toBeUndefined();
   });
 
-  it("throws when agentServerPort is missing", () => {
+  it("throws when neither agentServerPort nor agentServerUrl is given", () => {
     expect(() =>
       buildRuntimeServicesInfo({
         mode: "dev:safe",
       }),
-    ).toThrow(/agentServerPort is required/);
+    ).toThrow(/agentServerPort or agentServerUrl is required/);
   });
 
   it("accepts the legacy vitePort alias for frontendPort", () => {
