@@ -567,13 +567,11 @@ export function ChatInterface() {
                   ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_TITLE)
                   : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE)}
               </p>
-              {isRecycledAcpConversation && activeConversation?.id ? (
+              {isRecycledAcpConversation && activeConversation ? (
                 // ACP conversations resume natively from a recycled sandbox
                 // (#1126): offer to re-provision instead of dead-ending.
                 <div className="mt-2">
-                  <AcpResumeArchivedButton
-                    conversationId={activeConversation.id}
-                  />
+                  <AcpResumeArchivedButton conversation={activeConversation} />
                 </div>
               ) : (
                 <p className="text-xs text-[var(--oh-muted)] mt-0.5">

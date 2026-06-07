@@ -232,13 +232,29 @@ export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
  */
 export async function wakeRecycledCloudConversation(
   conversationId: string,
+  repoSelection?: {
+    selected_repository?: string | null;
+    selected_branch?: string | null;
+    git_provider?: AppConversationStartRequest["git_provider"];
+  },
 ): Promise<AppConversationStartTask> {
   const backend = getActiveCloudBackend();
+  // Carry the repo selection so the rebuilt sandbox's working dir matches the
+  // original conversation's cwd. Native ACP resume guards on cwd equality
+  // (acp_session_cwd == project_dir); a repo-backed conversation whose wake
+  // omitted the repo would resolve a different project dir and silently fall
+  // back to bootstrap-prompt resume instead of session/load (#1126).
+  const body: AppConversationStartRequest = {
+    conversation_id: conversationId,
+    selected_repository: repoSelection?.selected_repository ?? null,
+    selected_branch: repoSelection?.selected_branch ?? null,
+    git_provider: repoSelection?.git_provider ?? null,
+  };
   return callCloudProxy<AppConversationStartTask>({
     backend,
     method: "POST",
     path: "/api/v1/app-conversations",
-    body: { conversation_id: conversationId },
+    body: body as unknown as Record<string, unknown>,
   });
 }
 

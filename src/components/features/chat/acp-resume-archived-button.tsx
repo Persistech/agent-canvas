@@ -3,9 +3,10 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { useWakeConversation } from "#/hooks/mutation/use-wake-conversation";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface AcpResumeArchivedButtonProps {
-  conversationId: string;
+  conversation: AppConversation;
 }
 
 /**
@@ -16,7 +17,7 @@ interface AcpResumeArchivedButtonProps {
  * conversation query then polls the new sandbox to RUNNING and reconnects.
  */
 export function AcpResumeArchivedButton({
-  conversationId,
+  conversation,
 }: AcpResumeArchivedButtonProps) {
   const { t } = useTranslation();
   const { mutate: wake, isPending } = useWakeConversation();
@@ -32,7 +33,7 @@ export function AcpResumeArchivedButton({
         isDisabled={isPending}
         onClick={() =>
           wake(
-            { conversationId },
+            { conversationId: conversation.id, conversation },
             {
               onError: (error) =>
                 displayErrorToast(

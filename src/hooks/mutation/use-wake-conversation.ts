@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { wakeRecycledCloudConversation } from "#/api/cloud/conversation-service.api";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 /**
  * Wake a recycled (STOPPED/MISSING) cloud conversation by re-provisioning its
@@ -14,8 +15,16 @@ export const useWakeConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (variables: { conversationId: string }) =>
-      wakeRecycledCloudConversation(variables.conversationId),
+    mutationFn: (variables: {
+      conversationId: string;
+      conversation?: AppConversation | null;
+    }) =>
+      wakeRecycledCloudConversation(variables.conversationId, {
+        selected_repository:
+          variables.conversation?.selected_repository ?? null,
+        selected_branch: variables.conversation?.selected_branch ?? null,
+        git_provider: variables.conversation?.git_provider ?? null,
+      }),
     onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["user", "conversation", variables.conversationId],

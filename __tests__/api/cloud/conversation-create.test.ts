@@ -135,7 +135,12 @@ describe("AgentServerConversationService cloud branch", () => {
       },
     });
 
-    const result = await wakeRecycledCloudConversation("conv-existing");
+    const result = await wakeRecycledCloudConversation("conv-existing", {
+      selected_repository: "user/repo",
+      selected_branch: "main",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      git_provider: "github" as any,
+    });
 
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(config).toMatchObject({
@@ -146,6 +151,11 @@ describe("AgentServerConversationService cloud branch", () => {
     // The same conversation id is carried so the backend rebuilds (and, for
     // ACP, natively resumes) the existing conversation rather than minting one.
     expect(body.conversation_id).toBe("conv-existing");
+    // The repo selection rides along so the rebuilt working dir matches the
+    // original cwd — otherwise native resume falls back to bootstrap (#1126).
+    expect(body.selected_repository).toBe("user/repo");
+    expect(body.selected_branch).toBe("main");
+    expect(body.git_provider).toBe("github");
     expect(result.id).toBe("task-wake");
     expect(result.status).toBe("WORKING");
   });
