@@ -1,6 +1,7 @@
 import React from "react";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useSaveAcpSecrets } from "#/hooks/use-save-acp-secrets";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   getAcpCredentialConflicts,
   getAcpProviderSecrets,
@@ -19,6 +20,10 @@ export interface AcpCredentialForm {
   hasValueFor: (name: string) => boolean;
   /** ``[credential, conflicting]`` pairs currently both set (typed or saved). */
   conflicts: Array<[string, string]>;
+  /** Whether the active backend can materialise file-content (``multiline``)
+   * credentials to disk. False on cloud (agent-canvas#1016), where such a
+   * credential would be orphaned. */
+  consumesFileCredentials: boolean;
   /** At least one field has a non-blank typed value. */
   isDirty: boolean;
   /** Persist the filled fields; resolves ``true`` when everything saved. */
@@ -38,12 +43,22 @@ export function useAcpCredentialForm(
   providerKey: string | null | undefined,
 ): AcpCredentialForm {
   const { data: existingSecrets } = useSearchSecrets();
+  const activeBackend = useActiveBackend();
   const fields = React.useMemo(
     () => getAcpProviderSecrets(providerKey),
     [providerKey],
   );
   const [values, setValues] = React.useState<Record<string, string>>({});
-  const { saveFilled, isSaving } = useSaveAcpSecrets(fields);
+
+  // Local agent-servers materialise file-content credentials via the SDK's
+  // acp_file_secrets defaults; cloud doesn't yet (agent-canvas#1016).
+  // TODO(#1016): once cloud materialises file secrets, a kind check can't tell
+  // a new cloud from an old one — replace with a capability/version probe.
+  const consumesFileCredentials = activeBackend.backend.kind === "local";
+  const { saveFilled, isSaving } = useSaveAcpSecrets(
+    fields,
+    consumesFileCredentials,
+  );
 
   React.useEffect(() => {
     setValues({});
@@ -75,6 +90,7 @@ export function useAcpCredentialForm(
     secretExists,
     hasValueFor,
     conflicts: getAcpCredentialConflicts(providerKey, hasValueFor),
+    consumesFileCredentials,
     isDirty: fields.some((field) => Boolean(values[field.name]?.trim())),
     save: () => saveFilled(values),
     reset,

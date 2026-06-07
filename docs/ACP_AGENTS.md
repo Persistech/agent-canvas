@@ -182,9 +182,10 @@ needed.
 > [!IMPORTANT]
 > **Do not set `ANTHROPIC_BASE_URL` alongside the Claude OAuth token.** An
 > inherited LiteLLM base URL silently breaks the token's bearer auth (it routes
-> the request away from Anthropic). Canvas never auto-promotes the base URL to a
-> request secret for exactly this reason; only set it deliberately, and not with
-> the OAuth path.
+> the request away from Anthropic). Canvas never derives a base-URL secret from
+> your LLM settings — but a base URL you save yourself rides along on every
+> start request like any other saved secret, which is why the credential forms
+> warn when both are set. Only set it deliberately, and not with the OAuth path.
 
 > [!IMPORTANT]
 > **Gemini Vertex needs a fresh ADC.** Run `gcloud auth application-default login`

@@ -73,6 +73,7 @@ export function SetupAcpSecretsStep({
     secretExists,
     hasValueFor,
     conflicts,
+    consumesFileCredentials,
     save,
     isSaving,
   } = useAcpCredentialForm(providerKey);
@@ -83,7 +84,7 @@ export function SetupAcpSecretsStep({
   // Required when the backend can't fall back to a host login (see component
   // docstring). Cloud never has one; a local backend that probes as logged-out
   // is a fresh container — require credentials there, but stay permissive when
-  // the probe is unknown/in-flight so a native dev is never blocked.
+  // the probe resolves "unknown" so a native dev is never blocked.
   const required = backendRequiresAcpCredentials(
     activeBackend.backend.kind,
     authStatus,
@@ -91,12 +92,23 @@ export function SetupAcpSecretsStep({
   // Satisfied once the user has an actual credential for the provider — a
   // masked ``secret`` field (blob, OAuth token, or API key), typed now or
   // previously saved. A base URL or GCP project/location alone can't
-  // authenticate anything, so it doesn't count. An existing login also
-  // satisfies it.
+  // authenticate anything, so it doesn't count — and neither does a file blob
+  // on a backend that can't materialise it (cloud, agent-canvas#1016): the
+  // save flow warns it's orphaned, so it can't be what satisfies the gate.
+  // An existing login also satisfies it.
   const satisfied =
     isAuthenticated ||
-    fields.some((field) => field.secret && hasValueFor(field.name));
+    fields.some(
+      (field) =>
+        field.secret &&
+        (!field.multiline || consumesFileCredentials) &&
+        hasValueFor(field.name),
+    );
   const blockNext = required && !satisfied;
+  // While the probe is still classifying a local backend, hold Next: the gate
+  // may be about to come up "unauthenticated", and the checking banner is
+  // already showing. A probe that *completes* as "unknown" stays permissive.
+  const nextDisabled = isSaving || blockNext || (isCheckingAuth && !satisfied);
 
   const handleNext = async () => {
     if (await save()) {
@@ -208,7 +220,7 @@ export function SetupAcpSecretsStep({
           testId="onboarding-acp-secrets-next"
           type="button"
           variant="primary"
-          isDisabled={isSaving || blockNext}
+          isDisabled={nextDisabled}
           onClick={handleNext}
         >
           {isSaving ? t(I18nKey.SETTINGS$SAVING) : t(I18nKey.ONBOARDING$NEXT)}

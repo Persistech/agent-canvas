@@ -4,7 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import {
   SetupAcpSecretsStep,
@@ -77,6 +81,10 @@ beforeEach(() => {
   vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
 afterEach(() => {
+  // setRegisteredBackends persists to localStorage, which
+  // __resetActiveStoreForTests re-reads — clear it so a test's backend
+  // registration (e.g. the cloud case) can't leak into the next test.
+  localStorage.clear();
   __resetActiveStoreForTests();
 });
 
@@ -352,6 +360,72 @@ describe("SetupAcpSecretsStep", () => {
     expect(
       screen.queryByTestId("onboarding-acp-secrets-blocked"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not count a file blob toward the gate on a backend that can't materialise it (cloud)", async () => {
+    // Cloud can't materialise file-content credentials yet (agent-canvas#1016)
+    // — the save flow warns the blob is orphaned, so it must not be what
+    // satisfies a required step. An env-var credential (API key) still counts.
+    setRegisteredBackends([
+      {
+        id: "cloud-1",
+        name: "Cloud",
+        host: "https://app.example.dev",
+        apiKey: "key",
+        kind: "cloud",
+      },
+    ]);
+    setActiveSelection({ backendId: "cloud-1", orgId: null });
+    const { user } = renderStep("codex");
+
+    await user.click(
+      screen.getByTestId("onboarding-acp-secret-CODEX_AUTH_JSON"),
+    );
+    await user.paste('{"tokens":{}}');
+
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-blocked"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-OPENAI_API_KEY"),
+      "sk-openai",
+    );
+
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
+  });
+
+  it("holds Next while the login probe is still in flight, without the blocked note", async () => {
+    // A fast click must not slip past a gate the probe is about to raise; the
+    // "checking login status" banner already explains the wait. A credential
+    // typed meanwhile releases the hold.
+    acpAuthStatusMock.mockReturnValue({
+      status: "unknown",
+      isChecking: true,
+      isSupported: true,
+    });
+    const { user } = renderStep("claude-code");
+
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+    // Not "blocked" — just pending classification.
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-CLAUDE_CODE_OAUTH_TOKEN"),
+      "oauth-token",
+    );
+
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
   });
 
   it("warns when the Claude OAuth token and base URL are both set (bearer-auth conflict)", async () => {

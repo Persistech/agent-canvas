@@ -63,7 +63,9 @@ spawn time (off the event loop, per #3510), materialises the `*_JSON` blobs to
 disk, and points the CLI's data-dir env at them automatically.
 
 > ⚠️ **Do not set `ANTHROPIC_BASE_URL` with the Claude OAuth token.** An inherited
-> LiteLLM base URL silently breaks bearer auth. Canvas never auto-sends it.
+> LiteLLM base URL silently breaks bearer auth. Canvas never sets it for you, but
+> a *saved* `ANTHROPIC_BASE_URL` secret rides along on every start request — the
+> credential form warns about the pair.
 
 > ⚠️ **Gemini Vertex ADC must be freshly logged in.** Run
 > `gcloud auth application-default login` — a stale token returns `invalid_rapt`.

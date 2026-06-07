@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import { useCreateSecret } from "#/hooks/mutation/use-create-secret";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { type ACPProviderSecretField } from "#/constants/acp-providers";
 import {
   displayErrorToast,
@@ -25,19 +24,20 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
  * needed saving) and ``false`` on failure, so callers can gate navigation /
  * form resets on it. Empty fields are never written — a blank input is a
  * deliberate skip, not a request to clear an existing secret.
+ *
+ * ``consumesFileCredentials`` — whether the backend materialises ``multiline``
+ * credentials to disk — comes from the caller (``useAcpCredentialForm``
+ * computes it), so the save warning and the form's required-gate can't
+ * disagree on the capability.
  */
-export function useSaveAcpSecrets(fields: ACPProviderSecretField[]) {
+export function useSaveAcpSecrets(
+  fields: ACPProviderSecretField[],
+  consumesFileCredentials: boolean,
+) {
   const { t } = useTranslation("openhands");
   const queryClient = useQueryClient();
   const { mutateAsync: createSecret } = useCreateSecret();
-  const activeBackend = useActiveBackend();
   const [isSaving, setIsSaving] = React.useState(false);
-
-  // Local agent-servers materialise file-content credentials via the SDK's
-  // acp_file_secrets defaults; cloud doesn't yet (agent-canvas#1016).
-  // TODO(#1016): once cloud materialises file secrets, a kind check can't tell
-  // a new cloud from an old one — replace with a capability/version probe.
-  const consumesFileCredentials = activeBackend.backend.kind === "local";
 
   const saveFilled = async (values: Record<string, string>) => {
     const toSave = fields
