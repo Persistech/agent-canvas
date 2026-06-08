@@ -176,6 +176,39 @@ describe("GitControlBar repo button visibility", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the repo button on a local backend when localGitInfo detects a repository", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: "owner/repo",
+        branch: "main",
+        provider: "github",
+        remoteUrl: "https://github.com/owner/repo",
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    expect(screen.getByTestId("git-control-bar-repo-button")).toBeInTheDocument();
+  });
+
+  it("renders the repo button as NOT disabled on local backend when localGitInfo detects repo", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: "owner/repo",
+        branch: "main",
+        provider: "github",
+        remoteUrl: "https://github.com/owner/repo",
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    const button = screen.getByTestId("git-control-bar-repo-button");
+    expect(button).toHaveAttribute("data-disabled", "false");
+  });
+
   it("shows the repo button on a cloud backend with no repository connected", () => {
     vi.mocked(useActiveBackend).mockReturnValue(makeBackend("cloud"));
 
