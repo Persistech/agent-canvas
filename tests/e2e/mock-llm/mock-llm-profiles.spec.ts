@@ -1,15 +1,19 @@
 /**
  * Mock-LLM E2E test: LLM profile lifecycle management.
  *
- * Exercises profile CRUD, activation, rename, and delete behaviors against
- * the real agent-server. No LLM responses are needed — profiles are a
- * settings-layer feature managed entirely by the agent-server API.
+ * Exercises profile CRUD, activation, and rename behaviors against the real
+ * agent-server. No LLM responses are needed — profiles are a settings-layer
+ * feature managed entirely by the agent-server API.
+ *
+ * Active-profile deletion + reconciliation is covered separately by
+ * `mock-llm-profile-management.spec.ts` ("active profile deletion +
+ * reconciliation"), which verifies that `useEnsureActiveProfile` promotes
+ * a remaining profile to active when the active one is removed.
  *
  * Flow (serial):
  *   1. Navigate to /settings/llm, verify empty state, create two profiles
  *   2. Activate the second profile, verify badge moves
  *   3. Rename the active profile, verify badge follows the new name
- *   4. Delete the active profile, verify no badge remains
  */
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
@@ -344,61 +348,8 @@ test.describe("mock-LLM profile lifecycle", () => {
     });
   });
 
-  // ── Step 4: Delete the active profile, verify no badge remains ──────
-
-  test("step 4: delete the active profile and verify no active badge remains", async ({
-    page,
-  }) => {
-    await routeSessionApiKey(page);
-    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "add-llm-profile");
-
-    const profileRows = page.getByTestId("profile-row");
-    await expect(profileRows).toHaveCount(2, { timeout: 10_000 });
-
-    // profile-beta-renamed should be active from step 3
-    const activeRow = profileRows.filter({ hasText: PROFILE_B_RENAMED });
-    await expect(
-      activeRow.getByTestId("profile-active-badge"),
-    ).toBeVisible({ timeout: 5_000 });
-
-    // Open actions menu and click Delete
-    await activeRow.getByTestId("profile-menu-trigger").click();
-    await expect(page.getByTestId("profile-actions-menu")).toBeVisible({
-      timeout: 5_000,
-    });
-    await page.getByTestId("profile-delete").click();
-
-    // Confirm deletion
-    await expect(page.getByTestId("delete-profile-confirm")).toBeVisible({
-      timeout: 5_000,
-    });
-    await page.getByTestId("delete-profile-confirm").click();
-
-    // Wait for the modal to close and list to update
-    await expect(page.getByTestId("delete-profile-confirm")).toBeHidden({
-      timeout: 10_000,
-    });
-
-    await test.step("verify only profile-alpha remains", async () => {
-      const remainingRows = page.getByTestId("profile-row");
-      await expect(remainingRows).toHaveCount(1, { timeout: 10_000 });
-      await expect(
-        remainingRows.filter({ hasText: PROFILE_A }),
-      ).toBeVisible();
-    });
-
-    await test.step("verify no active badge is visible", async () => {
-      await expect(page.getByTestId("profile-active-badge")).toBeHidden();
-    });
-
-    await test.step("verify active_profile is null via API", async () => {
-      const apiResult = await page.evaluate(async () => {
-        const resp = await fetch("/api/profiles");
-        return resp.json();
-      });
-      expect(apiResult.active_profile).toBeNull();
-    });
-  });
+  // NOTE: Active-profile deletion + reconciliation is covered by
+  // mock-llm-profile-management.spec.ts ("active profile deletion +
+  // reconciliation"), which verifies that useEnsureActiveProfile promotes
+  // a remaining profile to active when the active one is removed.
 });

@@ -322,7 +322,7 @@ export async function deleteConversation(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// LLM profile setup via API (for tests that can't depend on UI setup)
+// LLM profile setup via the Settings UI
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
@@ -330,8 +330,7 @@ export async function deleteConversation(
  * UI — the same flow a real user follows.
  *
  * Exercises the full frontend save path (including `include_secrets`) so the
- * api_key is persisted correctly. Callers that previously used the API-only
- * `ensureMockLLMProfile(request)` should switch to this.
+ * api_key is persisted correctly.
  */
 export async function ensureMockLLMProfile(
   page: Page,

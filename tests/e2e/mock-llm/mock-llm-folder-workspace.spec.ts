@@ -41,12 +41,19 @@ test.describe.configure({ mode: "serial" });
 test.describe("mock-LLM folder browser → workspace → conversation", () => {
   const conversationIds = new Set<string>();
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ browser }) => {
     // Create the test directory hierarchy
     fs.mkdirSync(TEST_DIR, { recursive: true });
 
-    // Ensure the mock LLM profile is configured so conversations can start
-    await ensureMockLLMProfile(request);
+    // Ensure the mock LLM profile is configured so conversations can start.
+    // beforeAll only has worker-scoped fixtures, so create a temporary page.
+    const page = await browser.newPage();
+    try {
+      await seedLocalStorage(page);
+      await ensureMockLLMProfile(page);
+    } finally {
+      await page.close();
+    }
   });
 
   test.beforeEach(async ({ page }) => {
