@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """Select which mock-LLM E2E test specs to run based on changed files.
 
-Uses an OpenHands SDK Agent + Conversation to reason about which E2E
-test specs are relevant to a set of changed files.  The agent's
-thinking is streamed to stderr so CI logs show the full reasoning;
-the final JSON result is written to stdout.
+Spins up an OpenHands SDK Agent with terminal + file_editor tools,
+pointed at the checked-out repository, so it can read source files
+and test specs to make an informed decision.  The agent's events are
+streamed to stderr for CI visibility; the final JSON result goes to
+stdout.
 
 Usage:
-    # Pipe changed files (one per line):
+    # From the repo root, pipe changed file paths:
     git diff --name-only origin/main | python scripts/select-e2e-tests.py
 
     # Or pass as arguments:
     python scripts/select-e2e-tests.py src/routes/automations.tsx ...
 
+    # Specify a workspace (defaults to cwd):
+    WORKSPACE=/path/to/repo python scripts/select-e2e-tests.py < files.txt
+
 Environment variables:
     LLM_API_KEY   – required
     LLM_BASE_URL  – optional, defaults to https://llm-proxy.app.all-hands.dev
     LLM_MODEL     – optional, defaults to openhands/gpt-5.1
+    WORKSPACE     – optional, repo root (defaults to cwd)
 
 Output (stdout): JSON object with keys:
     specs   – list of spec filenames to run (empty ⇒ no E2E needed)
@@ -31,12 +36,13 @@ import logging
 import os
 import re
 import sys
-import tempfile
 
 from pydantic import SecretStr
 
-from openhands.sdk import LLM, Agent, Conversation, Event
+from openhands.sdk import LLM, Agent, Conversation, Event, Tool
 from openhands.sdk.conversation.visualizer import ConversationVisualizerBase
+from openhands.tools.file_editor import FileEditorTool
+from openhands.tools.terminal import TerminalTool
 
 # Suppress noisy SDK / litellm logs — our visualizer handles output.
 logging.getLogger().setLevel(logging.WARNING)
@@ -116,19 +122,21 @@ class CIVisualizer(ConversationVisualizerBase):
 
     def on_event(self, event: Event) -> None:
         name = type(event).__name__
-        dump = event.model_dump_json()[:500]
-        print(f"[agent] {name}: {dump}", file=sys.stderr)
+        dump = event.model_dump_json()[:800]
+        print(f"[agent] {name}: {dump}", file=sys.stderr, flush=True)
 
 
 # ---------------------------------------------------------------------------
-# Conversation callback — collects the raw content for parsing
+# Conversation callback — collects agent-source event dumps for parsing
 # ---------------------------------------------------------------------------
-collected_dumps: list[str] = []
+collected_agent_dumps: list[str] = []
 
 
 def capture_event(event: Event) -> None:
-    """Callback passed to Conversation to capture every event's JSON."""
-    collected_dumps.append(event.model_dump_json())
+    """Capture only agent-originated events for post-run parsing."""
+    source = getattr(event, "source", None)
+    if source == "agent":
+        collected_agent_dumps.append(event.model_dump_json())
 
 
 # ---------------------------------------------------------------------------
@@ -141,35 +149,41 @@ def build_prompt(changed_files: list[str]) -> str:
     files_text = "\n".join(f"  - {f}" for f in changed_files[:200])
 
     return f"""\
-Analyze the following list of files modified in a pull request and decide
-which E2E test specs should be run.
+You have access to the full repository checkout in your working directory.
+Your task: decide which E2E test specs should be run for this pull request.
 
-Available test specs and what they cover:
+You can use the terminal and file_editor tools to read any source files or
+test specs if you need to understand what the changed code does.  Do NOT
+modify any files.
+
+Available test specs (in tests/e2e/mock-llm/) and what they cover:
 {catalog_text}
 
-Changed files in this PR:
+Files modified in this PR:
 {files_text}
 
 Rules:
 - Pick ONLY the specs whose covered areas are affected by the changed files.
+  If you are unsure whether a file is relevant, read it first.
 - If no spec is relevant (e.g. only docs, CI configs, or unit tests changed),
   return an empty "specs" list — we will skip E2E entirely.
 - If the changes are very broad (package.json, vite.config.ts, tsconfig,
   root layout, core shared utilities) and could affect anything, return
   ALL spec filenames.
 
-You MUST end your response with exactly this block (no markdown fences):
+When you are done, call the `finish` tool with a message that contains
+exactly this block:
 
 <{OUTPUT_TAG}>
-{{"specs": ["spec1.spec.ts", ...], "reason": "one sentence explanation"}}
+{{"specs": ["spec-filename.spec.ts"], "reason": "one sentence explanation"}}
 </{OUTPUT_TAG}>"""
 
 
 # ---------------------------------------------------------------------------
-# Extract text content from collected event dumps
+# Extract text from agent-source event dumps
 # ---------------------------------------------------------------------------
-def extract_text_from_dumps(dumps: list[str]) -> str:
-    """Walk every collected event JSON and pull out all text content."""
+def extract_agent_text(dumps: list[str]) -> str:
+    """Pull text content from agent-originated event JSON dumps."""
     fragments: list[str] = []
     for raw in dumps:
         try:
@@ -177,11 +191,10 @@ def extract_text_from_dumps(dumps: list[str]) -> str:
         except json.JSONDecodeError:
             continue
         # MessageEvent → llm_message.content[].text
-        llm_msg = obj.get("llm_message") or {}
-        for block in llm_msg.get("content") or []:
+        for block in (obj.get("llm_message") or {}).get("content") or []:
             if isinstance(block, dict) and block.get("text"):
                 fragments.append(block["text"])
-        # FinishAction or plain message fields
+        # FinishAction, MessageAction, or other events with direct fields
         for key in ("message", "text", "thought"):
             val = obj.get(key)
             if val and isinstance(val, str):
@@ -194,13 +207,14 @@ def extract_text_from_dumps(dumps: list[str]) -> str:
 # ---------------------------------------------------------------------------
 def parse_selection(text: str) -> dict:
     pattern = rf"<{OUTPUT_TAG}>\s*(.*?)\s*</{OUTPUT_TAG}>"
-    match = re.search(pattern, text, re.DOTALL)
-    if not match:
+    matches = re.findall(pattern, text, re.DOTALL)
+    if not matches:
         raise ValueError(
             f"Agent response missing <{OUTPUT_TAG}> block.\n"
-            f"Full extracted text ({len(text)} chars):\n{text[:1000]}"
+            f"Full extracted text ({len(text)} chars):\n{text[:2000]}"
         )
-    raw = match.group(1).strip()
+    # Take the LAST match — earlier ones may be the prompt template.
+    raw = matches[-1].strip()
     result = json.loads(raw)
     specs = [s for s in result.get("specs", []) if s in SPEC_CATALOG]
     reason = result.get("reason", "LLM selection")
@@ -226,6 +240,7 @@ def main() -> None:
 
     base_url = os.environ.get("LLM_BASE_URL", "https://llm-proxy.app.all-hands.dev")
     model = os.environ.get("LLM_MODEL", "openhands/gpt-5.1")
+    workspace = os.environ.get("WORKSPACE", os.getcwd())
 
     llm = LLM(
         model=model,
@@ -233,23 +248,29 @@ def main() -> None:
         base_url=base_url,
         usage_id="e2e-selector",
     )
-    agent = Agent(llm=llm, tools=[])
+    agent = Agent(
+        llm=llm,
+        tools=[
+            Tool(name=TerminalTool.name),
+            Tool(name=FileEditorTool.name),
+        ],
+    )
 
-    with tempfile.TemporaryDirectory() as workspace:
-        conversation = Conversation(
-            agent=agent,
-            workspace=workspace,
-            visualizer=CIVisualizer(),
-            callbacks=[capture_event],
-        )
+    conversation = Conversation(
+        agent=agent,
+        workspace=workspace,
+        visualizer=CIVisualizer(),
+        callbacks=[capture_event],
+        max_iterations=30,
+    )
 
-        prompt = build_prompt(changed_files)
-        conversation.send_message(prompt)
-        conversation.run()
+    prompt = build_prompt(changed_files)
+    conversation.send_message(prompt)
+    conversation.run()
 
-    # Extract text from all captured events and find the structured output.
-    full_text = extract_text_from_dumps(collected_dumps)
-    result = parse_selection(full_text)
+    # Extract text from agent-only events and parse the structured output.
+    agent_text = extract_agent_text(collected_agent_dumps)
+    result = parse_selection(agent_text)
     result["mode"] = "llm"
 
     print(json.dumps(result, indent=2))

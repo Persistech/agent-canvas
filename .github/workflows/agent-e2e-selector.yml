@@ -38,7 +38,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     outputs:
       specs: ${{ steps.selector.outputs.specs }}
@@ -63,12 +63,14 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install openhands-sdk
+      - name: Install openhands-sdk + tools
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
         run: |
           uv venv .selector-venv
-          uv pip install -p .selector-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          uv pip install -p .selector-venv \
+            "openhands-sdk==$AGENT_SERVER_VERSION" \
+            "openhands-tools==$AGENT_SERVER_VERSION"
 
       - name: Get changed files from PR
         id: changed_files
@@ -90,6 +92,7 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
           LLM_MODEL: "openhands/gpt-5.1"
+          OPENHANDS_SUPPRESS_BANNER: "1"
         run: |
           RESULT=$(.selector-venv/bin/python3 scripts/select-e2e-tests.py < changed_files.txt)
           echo "$RESULT" | python3 -m json.tool
