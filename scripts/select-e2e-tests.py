@@ -123,15 +123,12 @@ class CIVisualizer(ConversationVisualizerBase):
 # ---------------------------------------------------------------------------
 # Conversation callback — collects the raw content for parsing
 # ---------------------------------------------------------------------------
-collected_messages: list[str] = []
+collected_dumps: list[str] = []
 
 
 def capture_event(event: Event) -> None:
-    """Callback passed to Conversation to capture agent messages."""
-    # MessageAction events have a 'message' field with the agent's text.
-    msg = getattr(event, "message", None) or getattr(event, "text", None)
-    if msg and isinstance(msg, str):
-        collected_messages.append(msg)
+    """Callback passed to Conversation to capture every event's JSON."""
+    collected_dumps.append(event.model_dump_json())
 
 
 # ---------------------------------------------------------------------------
@@ -169,13 +166,40 @@ You MUST end your response with exactly this block (no markdown fences):
 
 
 # ---------------------------------------------------------------------------
+# Extract text content from collected event dumps
+# ---------------------------------------------------------------------------
+def extract_text_from_dumps(dumps: list[str]) -> str:
+    """Walk every collected event JSON and pull out all text content."""
+    fragments: list[str] = []
+    for raw in dumps:
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        # MessageEvent → llm_message.content[].text
+        llm_msg = obj.get("llm_message") or {}
+        for block in llm_msg.get("content") or []:
+            if isinstance(block, dict) and block.get("text"):
+                fragments.append(block["text"])
+        # FinishAction or plain message fields
+        for key in ("message", "text", "thought"):
+            val = obj.get(key)
+            if val and isinstance(val, str):
+                fragments.append(val)
+    return "\n".join(fragments)
+
+
+# ---------------------------------------------------------------------------
 # Parse the structured output from the agent's response
 # ---------------------------------------------------------------------------
 def parse_selection(text: str) -> dict:
     pattern = rf"<{OUTPUT_TAG}>\s*(.*?)\s*</{OUTPUT_TAG}>"
     match = re.search(pattern, text, re.DOTALL)
     if not match:
-        raise ValueError(f"Agent response missing <{OUTPUT_TAG}> block")
+        raise ValueError(
+            f"Agent response missing <{OUTPUT_TAG}> block.\n"
+            f"Full extracted text ({len(text)} chars):\n{text[:1000]}"
+        )
     raw = match.group(1).strip()
     result = json.loads(raw)
     specs = [s for s in result.get("specs", []) if s in SPEC_CATALOG]
@@ -223,8 +247,8 @@ def main() -> None:
         conversation.send_message(prompt)
         conversation.run()
 
-    # Find the structured output in any captured message.
-    full_text = "\n".join(collected_messages)
+    # Extract text from all captured events and find the structured output.
+    full_text = extract_text_from_dumps(collected_dumps)
     result = parse_selection(full_text)
     result["mode"] = "llm"
 
