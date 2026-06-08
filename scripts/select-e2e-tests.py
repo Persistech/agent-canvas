@@ -261,7 +261,7 @@ def main() -> None:
         workspace=workspace,
         visualizer=CIVisualizer(),
         callbacks=[capture_event],
-        max_iterations=30,
+        max_iteration_per_run=30,
     )
 
     prompt = build_prompt(changed_files)
