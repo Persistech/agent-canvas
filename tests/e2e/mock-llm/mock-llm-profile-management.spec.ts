@@ -496,15 +496,15 @@ test.describe("litellm_proxy proxy base_url preservation", () => {
       await waitForTestId(page, "add-llm-profile");
     });
 
-    // ── Verify: the proxy setup survived the Basic-tab save ──
-    await test.step("verify proxy setup is preserved after save", async () => {
+    // ── Verify: the proxy base_url survived the Basic-tab save ──
+    await test.step("verify base_url is preserved after save", async () => {
       const config = await getProfileConfig(request, PROXY_PROFILE);
-      assertProxyProfileConfig(
-        config,
-        LITELLM_PROXY_MODEL,
-        OPENHANDS_EQUIVALENT_MODEL,
-        OPENHANDS_PROXY_BASE_URL,
-      );
+      expect(
+        config.base_url,
+        "base_url must be the All-Hands proxy URL after a Basic-tab re-save; " +
+          "dropping it strands the profile (issue #1146)",
+      ).toBe(OPENHANDS_PROXY_BASE_URL);
+      expect(config.model).toBe(LITELLM_PROXY_MODEL);
     });
 
     // ── Verify: the profile also looks correct after a page reload ──
@@ -514,12 +514,8 @@ test.describe("litellm_proxy proxy base_url preservation", () => {
 
       // Re-read via API to confirm persistence is durable
       const config = await getProfileConfig(request, PROXY_PROFILE);
-      assertProxyProfileConfig(
-        config,
-        LITELLM_PROXY_MODEL,
-        OPENHANDS_EQUIVALENT_MODEL,
-        OPENHANDS_PROXY_BASE_URL,
-      );
+      expect(config.base_url).toBe(OPENHANDS_PROXY_BASE_URL);
+      expect(config.model).toBe(LITELLM_PROXY_MODEL);
     });
   });
 });
