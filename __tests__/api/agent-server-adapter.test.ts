@@ -4,7 +4,9 @@ import {
   ACP_SERVER_TAG_KEY,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
+  buildStartConversationRequestWithEncryptedSettings,
   getDefaultConversationTitle,
+  SUBSCRIPTION_LOGIN_REQUIRED_ERROR,
   toAppConversation,
   type DirectConversationInfo,
 } from "#/api/agent-server-adapter";
@@ -23,6 +25,9 @@ const {
   mockGetAgentServerWorkingDir,
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
+  mockGetSettingsForConversation,
+  mockGetSecrets,
+  mockGetOpenAIStatus,
 } = vi.hoisted(() => ({
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
   mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
@@ -33,6 +38,9 @@ const {
     apiKey: "session-key",
     kind: "local" as const,
   })),
+  mockGetSettingsForConversation: vi.fn(),
+  mockGetSecrets: vi.fn(),
+  mockGetOpenAIStatus: vi.fn(),
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -51,6 +59,24 @@ vi.mock("#/api/backend-registry/active-store", () => ({
   getEffectiveLocalBackend: mockGetEffectiveLocalBackend,
 }));
 
+vi.mock("#/api/settings-service/settings-service.api", () => ({
+  default: {
+    getSettingsForConversation: mockGetSettingsForConversation,
+  },
+}));
+
+vi.mock("#/api/secrets-service", () => ({
+  SecretsService: {
+    getSecrets: mockGetSecrets,
+  },
+}));
+
+vi.mock("#/api/llm-subscription-service", () => ({
+  default: {
+    getOpenAIStatus: mockGetOpenAIStatus,
+  },
+}));
+
 beforeEach(() => {
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
@@ -59,6 +85,18 @@ beforeEach(() => {
     host: "http://127.0.0.1:8000",
     apiKey: "session-key",
     kind: "local",
+  });
+  mockGetSettingsForConversation.mockResolvedValue({
+    agentSettings: DEFAULT_SETTINGS.agent_settings,
+    conversationSettings: DEFAULT_SETTINGS.conversation_settings,
+    secretsEncrypted: true,
+  });
+  mockGetSecrets.mockResolvedValue([]);
+  mockGetOpenAIStatus.mockResolvedValue({
+    vendor: OPENAI_SUBSCRIPTION_VENDOR,
+    connected: true,
+    accountEmail: null,
+    expiresAt: null,
   });
 });
 
@@ -204,6 +242,39 @@ describe("buildStartConversationRequest", () => {
     }) as { agent_settings: { llm: Record<string, unknown> } };
 
     expect(payload.agent_settings.llm.model).toBe("openai/gpt-4o");
+  });
+
+  it("validates subscription auth after resolving inherited agent settings", async () => {
+    mockGetSettingsForConversation.mockResolvedValue({
+      agentSettings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        llm: { model: "api-key-model", api_key: "encrypted-key" },
+      },
+      conversationSettings: DEFAULT_SETTINGS.conversation_settings,
+      secretsEncrypted: true,
+    });
+    mockGetOpenAIStatus.mockResolvedValue({
+      vendor: OPENAI_SUBSCRIPTION_VENDOR,
+      connected: false,
+      accountEmail: null,
+      expiresAt: null,
+    });
+
+    await expect(
+      buildStartConversationRequestWithEncryptedSettings({
+        settings: DEFAULT_SETTINGS,
+        resolveAgentSettings: async (agentSettings) => ({
+          ...agentSettings,
+          llm: {
+            model: "gpt-5.2-codex",
+            auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+            subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          },
+        }),
+      }),
+    ).rejects.toThrow(SUBSCRIPTION_LOGIN_REQUIRED_ERROR);
+
+    expect(mockGetOpenAIStatus).toHaveBeenCalledOnce();
   });
 
   it("forwards the switch-LLM setting to SDK agent settings", () => {

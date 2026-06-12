@@ -1039,7 +1039,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   const resolvedAgentSettings =
     (await options.resolveAgentSettings?.(agentSettings)) ?? agentSettings;
 
-  await assertSubscriptionAuthReady(agentSettings);
+  await assertSubscriptionAuthReady(resolvedAgentSettings);
 
   return buildStartConversationRequest({
     ...options,
