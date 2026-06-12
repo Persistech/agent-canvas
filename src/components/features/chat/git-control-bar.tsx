@@ -230,13 +230,14 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-row gap-2.5 items-center overflow-x-auto flex-nowrap relative scrollbar-hide">
-        {showRepoButton ? (
+        {showRepoButton || hasRepository ? (
           <GitControlBarRepoButton
             selectedRepository={selectedRepository}
             gitProvider={gitProvider}
             workspaceName={workspaceName}
             onClick={() => setIsOpenRepoModalOpen(true)}
             disabled={!isConversationReady || isRepoButtonInert}
+            data-testid="git-control-bar-repo-button"
           />
         ) : null}
 
