@@ -376,10 +376,11 @@ async function resolveParentOpenHandsAgentSettings(
         model,
       },
     };
-  } catch {
+  } catch (error) {
     // Parent profile lookup is best-effort. Conversation creation should fall
     // back to the caller's settings instead of failing because inheritance
     // metadata is stale or inaccessible.
+    console.warn("Failed to resolve parent profile settings:", error);
     return undefined;
   }
 }
