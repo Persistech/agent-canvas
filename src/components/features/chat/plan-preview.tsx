@@ -132,12 +132,9 @@ export function PlanPreview({
         >
           <Typography.Text className="font-normal text-[14px] text-black leading-5">
             {t(I18nKey.COMMON$BUILD)}{" "}
-            <Typography.Text
-              className="font-normal text-black"
-              aria-hidden="true"
-            >
+            <span className="font-normal text-black" aria-hidden="true">
               {BUILD_SHORTCUT_LABEL}
-            </Typography.Text>
+            </span>
           </Typography.Text>
         </button>
       </div>
