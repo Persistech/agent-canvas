@@ -11,7 +11,7 @@
  *   - Files tab defaults to file-tree view when NO workspace is attached
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   REPLY_TOKEN,
   seedLocalStorage,

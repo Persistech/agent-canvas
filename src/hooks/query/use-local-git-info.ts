@@ -7,6 +7,7 @@ import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
 import { Provider } from "#/types/settings";
 import { parseGitRemoteUrl } from "#/utils/parse-git-remote-url";
+import { getGitPath } from "#/utils/get-git-path";
 
 export interface LocalGitInfo {
   repository: string | null;
@@ -125,23 +126,26 @@ export const useLocalGitInfo = () => {
   const runCommandRef = useRef(runCommand);
   runCommandRef.current = runCommand;
 
+  const gitPath = getGitPath(conversation?.selected_repository, workingDir);
   // runCommandRef is a ref (always stable); the linter cannot infer this so
   // we disable the exhaustive-deps check here.
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return useQuery<LocalGitInfo>({
+    // queryKey — swap workingDir for gitPath so cache busts on path change
     queryKey: [
       "local-git-info",
       conversationId,
       conversationUrl,
       sessionApiKey,
-      workingDir,
+      gitPath, // <— was workingDir
     ],
+
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
         runCommandRef.current(command, cwd, timeout);
-      // workingDir is guaranteed non-empty by the queryEnabled guard above.
-      return probeGitInfo(run, workingDir!);
+      return probeGitInfo(run, gitPath); // <— was workingDir!
     },
+
     enabled: queryEnabled,
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
