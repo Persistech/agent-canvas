@@ -35,7 +35,6 @@ import {
 } from "#/constants/llm-subscription";
 import { LLM_SETTINGS_EDIT_PROFILE_QUERY_PARAM } from "#/constants/llm-settings";
 import { useOpenAISubscriptionModels } from "#/hooks/query/use-llm-subscription-models";
-import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set([
   "llm.model",
@@ -60,14 +59,6 @@ const getSchemaFieldDefaultValue = (
 
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
-  openhands: new Set([
-    OPENHANDS_LLM_PROXY_BASE_URL,
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
-  litellm_proxy: new Set([
-    OPENHANDS_LLM_PROXY_BASE_URL,
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
 };
 
 const normalizeBaseUrl = (baseUrl: string) => {
@@ -352,7 +343,6 @@ export function LlmSettingsScreen({
                 <>
                   <ModelSelector
                     currentModel={modelValue || undefined}
-                    currentBaseUrl={baseUrlValue || undefined}
                     onChange={(provider, model) => {
                       const nextModel = buildModelId(provider, model);
                       if (nextModel) {
