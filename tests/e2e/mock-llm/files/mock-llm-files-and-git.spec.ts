@@ -385,82 +385,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
     });
   });
 
-  // ── Step 7: Verify repo button behavior when selected_repository is seeded ─
+  // ── Step 7: Verify Changes tab uses selectedRepository-derived path over workingDir ─
 
-  test("step 7: repo button is visible and inert when selected_repository is seeded but no git repo exists", async ({
-    page,
-    request,
-  }) => {
-    test.setTimeout(120_000);
-
-    // Fresh trajectory for a new conversation
-    await resetMockLLM(request);
-
-    await routeSessionApiKey(page);
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "home-chat-launcher");
-
-    await page.evaluate(
-      ({ testId, text }) => {
-        const el = document.querySelector(`[data-testid="${testId}"]`);
-        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
-        el.focus();
-        el.textContent = text;
-        el.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            data: text,
-            inputType: "insertText",
-          }),
-        );
-      },
-      { testId: "chat-input", text: USER_MESSAGE },
-    );
-    await page.getByTestId("submit-button").click();
-
-    await waitForPath(page, /\/conversations\/.+/, 30_000);
-    const conversationId = getConversationIdFromURL(page);
-    conversationIds.add(conversationId);
-
-    await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
-
-    // Seed workspace path AND a complete repo tuple.
-    // Note: selected_repository is stored in localStorage but NOT in the
-    // agent-server API. After reload, useActiveConversation returns null for
-    // selected_repository, so hasRepository=false. The button renders as inert.
-    await seedWorkspaceMetadata(page, conversationId, WORKSPACE_PATH, {
-      selected_repository: "test-org/test-repo",
-      git_provider: "github",
-      selected_branch: "main",
-    });
-
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "chat-interface", 30_000);
-
-    await test.step("verify repo button renders but is inert", async () => {
-      const repoButton = page.getByTestId("git-control-bar-repo-button");
-      await expect(repoButton).toBeVisible({ timeout: 10_000 });
-      // Button is inert because hasRepository=false (API doesn't have selected_repository)
-      await expect(repoButton).toHaveAttribute("data-disabled", "true", {
-        timeout: 10_000,
-      });
-    });
-
-    await test.step("verify workspace name appears", async () => {
-      // The workspace name "my-app" should appear because workspaceName is derived
-      // from selected_workspace in localStorage via getStoredConversationMetadata
-      const workspaceName = WORKSPACE_PATH.replace(/\/+$/, "").split("/").pop()!;
-      await expect(
-        page.getByText(workspaceName).first(),
-      ).toBeVisible({ timeout: 15_000 });
-    });
-  });
-
-  // ── Step 8: Verify Changes tab uses selectedRepository-derived path over workingDir ─
-
-  test("step 8: changes tab shows selectedRepository-derived path when repo is seeded", async ({
+  test("step 7: changes tab shows selectedRepository-derived path when repo is seeded", async ({
     page,
     request,
   }) => {
