@@ -134,19 +134,20 @@ describe("MetaLlmSettingsView", () => {
     expect(screen.getByTestId("meta-profile-name-input")).toBeInTheDocument();
   });
 
-  it("activates a meta-profile when clicking Set active", async () => {
+  it("activates a meta-profile via the actions menu", async () => {
     const user = userEvent.setup();
     activateMutateAsync.mockResolvedValue({ name: "cheap" });
     renderWithProviders(<MetaLlmSettingsView />);
 
-    await user.click(screen.getByTestId("activate-meta-profile-cheap"));
+    await user.click(screen.getByTestId("meta-profile-menu-trigger-cheap"));
+    await user.click(screen.getByTestId("meta-profile-set-active"));
 
     await waitFor(() =>
       expect(activateMutateAsync).toHaveBeenCalledWith("cheap"),
     );
   });
 
-  it("loads the config and opens the editor when clicking Edit", async () => {
+  it("loads the config and opens the editor via the actions menu", async () => {
     const user = userEvent.setup();
     vi.mocked(MetaProfilesService.getMetaProfile).mockResolvedValue({
       name: "balanced",
@@ -158,11 +159,21 @@ describe("MetaLlmSettingsView", () => {
     });
     renderWithProviders(<MetaLlmSettingsView />);
 
-    await user.click(screen.getByTestId("edit-meta-profile-balanced"));
+    await user.click(screen.getByTestId("meta-profile-menu-trigger-balanced"));
+    await user.click(screen.getByTestId("meta-profile-edit"));
 
     await waitFor(() =>
       expect(screen.getByTestId("meta-profile-editor")).toBeInTheDocument(),
     );
     expect(MetaProfilesService.getMetaProfile).toHaveBeenCalledWith("balanced");
+  });
+
+  it("disables Set active in the menu for the already-active profile", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MetaLlmSettingsView />);
+
+    await user.click(screen.getByTestId("meta-profile-menu-trigger-balanced"));
+
+    expect(screen.getByTestId("meta-profile-set-active")).toBeDisabled();
   });
 });

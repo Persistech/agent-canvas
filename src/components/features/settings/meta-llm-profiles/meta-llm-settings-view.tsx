@@ -8,15 +8,14 @@ import { useSaveMetaProfile } from "#/hooks/mutation/use-save-meta-profile";
 import { useActivateMetaProfile } from "#/hooks/mutation/use-activate-meta-profile";
 import MetaProfilesService, {
   type MetaProfile,
-  type MetaProfileInfo,
 } from "#/api/meta-profiles-service/meta-profiles-service.api";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
-import { cn } from "#/utils/utils";
 import { MetaProfileEditor } from "./meta-profile-editor";
+import { MetaProfileRow } from "./meta-profile-row";
 import { DeleteMetaProfileModal } from "./delete-meta-profile-modal";
 
 type ViewMode = "list" | "create" | "edit";
@@ -24,20 +23,6 @@ type ViewMode = "list" | "create" | "edit";
 interface EditingMetaProfile {
   name: string;
   config: MetaProfile;
-}
-
-function MetaProfileSummary({ info }: { info: MetaProfileInfo }) {
-  const { t } = useTranslation("openhands");
-  const route = [info.classifier_model, info.default_model]
-    .filter(Boolean)
-    .join(" → ");
-  return (
-    <span className="text-xs text-[var(--oh-muted)]">
-      {route}
-      {route ? " · " : ""}
-      {`${info.num_classes} ${t(I18nKey.SETTINGS$META_PROFILE_CLASSES)}`}
-    </span>
-  );
 }
 
 export function MetaLlmSettingsView() {
@@ -168,66 +153,19 @@ export function MetaLlmSettingsView() {
         ) : null}
 
         {metaProfiles.length > 0 ? (
-          <ul className="flex flex-col gap-2" data-testid="meta-profile-list">
-            {metaProfiles.map((info) => {
-              const isActive = info.name === active;
-              return (
-                <li
-                  key={info.name}
-                  data-testid={`meta-profile-row-${info.name}`}
-                  className={cn(
-                    "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
-                    isActive ? "border-primary" : "border-[var(--oh-border)]",
-                  )}
-                >
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">
-                        {info.name}
-                      </span>
-                      {isActive ? (
-                        <span
-                          data-testid="meta-profile-active-badge"
-                          className="rounded-full bg-primary px-2 py-0.5 text-xs text-[var(--oh-color-base)]"
-                        >
-                          {t(I18nKey.SETTINGS$META_PROFILE_ACTIVE)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <MetaProfileSummary info={info} />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <BrandButton
-                      testId={`activate-meta-profile-${info.name}`}
-                      type="button"
-                      variant="secondary"
-                      onClick={() => handleActivate(info.name)}
-                      isDisabled={isActive || activateMetaProfile.isPending}
-                    >
-                      {t(I18nKey.SETTINGS$META_PROFILE_ACTIVATE)}
-                    </BrandButton>
-                    <BrandButton
-                      testId={`edit-meta-profile-${info.name}`}
-                      type="button"
-                      variant="secondary"
-                      onClick={() => handleEdit(info.name)}
-                    >
-                      {t(I18nKey.BUTTON$EDIT)}
-                    </BrandButton>
-                    <BrandButton
-                      testId={`delete-meta-profile-${info.name}`}
-                      type="button"
-                      variant="danger"
-                      onClick={() => setNameToDelete(info.name)}
-                    >
-                      {t(I18nKey.BUTTON$DELETE)}
-                    </BrandButton>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="flex flex-col gap-2" data-testid="meta-profile-list">
+            {metaProfiles.map((info) => (
+              <MetaProfileRow
+                key={info.name}
+                info={info}
+                isActive={info.name === active}
+                onActivate={handleActivate}
+                onEdit={handleEdit}
+                onDelete={setNameToDelete}
+                isActivating={activateMetaProfile.isPending}
+              />
+            ))}
+          </div>
         ) : null}
       </div>
 
