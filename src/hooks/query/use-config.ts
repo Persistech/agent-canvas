@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   isAgentServerUnavailableError,
   isAgentServerAuthError,
+  isAgentServerUnknownVersionError,
+  isAgentServerUnsupportedVersionError,
 } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "./query-keys";
@@ -18,7 +20,11 @@ export function shouldRetryConfigQuery(
   failureCount: number,
   error: unknown,
 ): boolean {
-  if (isAgentServerAuthError(error)) {
+  if (
+    isAgentServerAuthError(error) ||
+    isAgentServerUnsupportedVersionError(error) ||
+    isAgentServerUnknownVersionError(error)
+  ) {
     return false;
   }
 

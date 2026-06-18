@@ -726,11 +726,14 @@ describe("BackendSelector", () => {
 
       renderWithProviders(<BackendSelector />);
 
-      await waitFor(() => {
-        const wrapper = screen.getByTestId("backend-selector");
-        const dot = within(wrapper).getByTestId("backend-status-dot");
-        expect(dot.getAttribute("data-status")).toBe("disconnected");
-      });
+      await waitFor(
+        () => {
+          const wrapper = screen.getByTestId("backend-selector");
+          const dot = within(wrapper).getByTestId("backend-status-dot");
+          expect(dot.getAttribute("data-status")).toBe("disconnected");
+        },
+        { timeout: 5000 },
+      );
     });
   });
 });

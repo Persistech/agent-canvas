@@ -19,6 +19,9 @@ const TRANSLATIONS: Record<string, string> = {
   BACKEND$EDIT: "Edit",
   BACKEND$REMOVE: "Remove",
   HOME$DONE: "Done",
+  SETTINGS$AGENT_SERVER_RECONNECTING_TITLE: "Reconnecting to backend...",
+  SETTINGS$AGENT_SERVER_RECONNECTING_MESSAGE:
+    "Keeping this session open while the agent server recovers.",
 };
 
 vi.mock("react-i18next", () => ({
@@ -105,7 +108,7 @@ describe("App root agent-server availability guard", () => {
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
-  it("shows the manage-backends modal when the backend is unreachable", async () => {
+  it("shows a reconnecting state when the configured backend is transiently unreachable", async () => {
     let serverInfoRequests = 0;
 
     // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
@@ -121,19 +124,14 @@ describe("App root agent-server availability guard", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("agent-server-onboarding-screen"),
+        screen.getByText("Reconnecting to backend..."),
       ).toBeInTheDocument();
     });
 
-    // The onboarding placeholder now hosts the Manage Backends modal
-    // directly so the user can edit/add a backend immediately. The
-    // modal additionally probes /server_info per registered backend
-    // for its status dot + version label, so the request count is
-    // bounded but greater than the single config probe.
-    await waitFor(() => {
-      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
-    });
     expect(serverInfoRequests).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
@@ -171,7 +169,9 @@ describe("App root agent-server availability guard", () => {
         screen.getByTestId("agent-server-onboarding-screen"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    });
     expect(screen.getByText("Logged out")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Log back in" }),

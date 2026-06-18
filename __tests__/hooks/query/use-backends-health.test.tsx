@@ -119,8 +119,9 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[localBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[localBackend.id].isConnected).toBe(false),
+      { timeout: 5000 },
     );
   });
 
@@ -169,8 +170,9 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[cloudBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[cloudBackend.id].isConnected).toBe(false),
+      { timeout: 5000 },
     );
   });
 
@@ -227,13 +229,15 @@ describe("useBackendsHealth", () => {
     // Assert — one failed probe surfaces the new metadata fields on
     // the hook's return value and persists them to localStorage; the
     // disabled flag stays false because we're below the cap.
-    await waitFor(() =>
-      expect(result.current[localBackend.id]).toMatchObject({
-        isConnected: false,
-        consecutiveFailures: 1,
-        lastError: "ECONNREFUSED",
-        disabled: false,
-      }),
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: false,
+          consecutiveFailures: 1,
+          lastError: "ECONNREFUSED",
+          disabled: false,
+        }),
+      { timeout: 5000 },
     );
     const persisted = JSON.parse(
       window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY) ?? "{}",

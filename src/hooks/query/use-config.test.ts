@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import {
+  AgentServerUnknownVersionError,
+  AgentServerUnavailableError,
+  AgentServerUnsupportedVersionError,
+} from "#/api/agent-server-compatibility";
 import {
   AGENT_SERVER_BOOTSTRAP_RETRY_COUNT,
   getConfigRetryDelay,
@@ -22,6 +26,18 @@ describe("shouldRetryConfigQuery", () => {
     });
 
     expect(shouldRetryConfigQuery(0, error)).toBe(false);
+  });
+
+  it("does not retry compatibility failures", () => {
+    expect(
+      shouldRetryConfigQuery(
+        0,
+        new AgentServerUnsupportedVersionError("1.0.0"),
+      ),
+    ).toBe(false);
+    expect(
+      shouldRetryConfigQuery(0, new AgentServerUnknownVersionError(null)),
+    ).toBe(false);
   });
 
   it("keeps the existing retry cap for non-bootstrap errors", () => {
