@@ -8,6 +8,8 @@ import {
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
 import {
   assertAgentServerVersionIsSupported,
+  isAgentServerUnknownVersionError,
+  isAgentServerUnsupportedVersionError,
   isSdkHttpStatusError,
 } from "#/api/agent-server-compatibility";
 import type { Backend } from "#/api/backend-registry/types";
@@ -26,6 +28,8 @@ import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage"
 
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
+export const BACKEND_HEALTH_PROBE_MAX_ATTEMPTS = 3;
+export const BACKEND_HEALTH_PROBE_RETRY_DELAY_MS = 750;
 export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
 export const MISSING_BACKEND_API_KEY_ERROR = "API key required";
 export const CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR =
@@ -58,6 +62,47 @@ export function isCloudBackendLoggedOutHealthError(
   error: string | null | undefined,
 ): boolean {
   return error === CLOUD_BACKEND_LOGGED_OUT_ERROR;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+export function isRetryableBackendHealthError(
+  backend: Backend,
+  error: unknown,
+): boolean {
+  if (isSdkHttpStatusError(error, 401)) {
+    return false;
+  }
+
+  if (
+    isAgentServerUnsupportedVersionError(error) ||
+    isAgentServerUnknownVersionError(error)
+  ) {
+    return false;
+  }
+
+  if (error instanceof Error) {
+    if (
+      error.message === INVALID_BACKEND_API_KEY_ERROR ||
+      error.message === MISSING_BACKEND_API_KEY_ERROR ||
+      error.message === CLOUD_BACKEND_LOGGED_OUT_ERROR
+    ) {
+      return false;
+    }
+
+    if (
+      backend.kind === "cloud" &&
+      error.message === CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR
+    ) {
+      return true;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -139,6 +184,39 @@ export interface UseBackendsHealthOptions {
   probeDisabledOnce?: boolean;
 }
 
+type ProbeBackendFn = (backend: Backend) => Promise<true>;
+type SleepFn = (ms: number) => Promise<void>;
+
+export async function probeBackendWithRetries(
+  backend: Backend,
+  probe: ProbeBackendFn = probeBackend,
+  sleepFn: SleepFn = sleep,
+): Promise<true> {
+  let lastError: unknown;
+
+  for (
+    let attempt = 1;
+    attempt <= BACKEND_HEALTH_PROBE_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await probe(backend);
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt >= BACKEND_HEALTH_PROBE_MAX_ATTEMPTS ||
+        !isRetryableBackendHealthError(backend, error)
+      ) {
+        throw error;
+      }
+
+      await sleepFn(BACKEND_HEALTH_PROBE_RETRY_DELAY_MS * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
 /**
  * Poll every backend in `backends` once every 10s and report a simple
  * connected / disconnected verdict per backend id.
@@ -190,7 +268,7 @@ export function useBackendsHealth(
         ] as const,
         queryFn: async () => {
           try {
-            const result = await probeBackend(b);
+            const result = await probeBackendWithRetries(b);
             recordBackendSuccess(b.id);
             return result;
           } catch (err) {

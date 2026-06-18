@@ -12,11 +12,13 @@ import "./index.css";
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import {
   clearCachedAgentServerInfo,
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
+import { I18nKey } from "#/i18n/declaration";
 import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -80,12 +82,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AgentServerBootstrapLoading() {
+function AgentServerBootstrapLoading({
+  reconnecting = false,
+}: {
+  reconnecting?: boolean;
+}) {
+  const { t } = useTranslation();
+
   return (
     <main className="min-h-screen bg-base px-6 py-10 text-white">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center">
-        <div className="rounded-3xl border border-white/10 bg-base/80 px-8 py-10 shadow-2xl">
+        <div className="flex flex-col items-center rounded-3xl border border-white/10 bg-base/80 px-8 py-10 text-center shadow-2xl">
           <LoadingSpinner size="large" />
+          {reconnecting ? (
+            <div className="mt-5 max-w-sm space-y-2">
+              <p className="text-base font-medium text-white">
+                {t(I18nKey.SETTINGS$AGENT_SERVER_RECONNECTING_TITLE)}
+              </p>
+              <p className="text-sm text-[var(--oh-text-secondary)]">
+                {t(I18nKey.SETTINGS$AGENT_SERVER_RECONNECTING_MESSAGE)}
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
     </main>
@@ -174,7 +192,10 @@ export default function App() {
   }
 
   if (config.isPending || config.isLoading) {
-    return <AgentServerBootstrapLoading />;
+    const reconnecting =
+      config.failureCount > 0 &&
+      isAgentServerUnavailableError(config.failureReason);
+    return <AgentServerBootstrapLoading reconnecting={reconnecting} />;
   }
 
   if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {
