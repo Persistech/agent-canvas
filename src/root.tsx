@@ -83,9 +83,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 function AgentServerBootstrapLoading({
-  reconnecting = false,
+  retrying = false,
 }: {
-  reconnecting?: boolean;
+  retrying?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -94,13 +94,13 @@ function AgentServerBootstrapLoading({
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center">
         <div className="flex flex-col items-center rounded-3xl border border-white/10 bg-base/80 px-8 py-10 text-center shadow-2xl">
           <LoadingSpinner size="large" />
-          {reconnecting ? (
+          {retrying ? (
             <div className="mt-5 max-w-sm space-y-2">
               <p className="text-base font-medium text-white">
-                {t(I18nKey.SETTINGS$AGENT_SERVER_RECONNECTING_TITLE)}
+                {t(I18nKey.SETTINGS$AGENT_SERVER_CONNECTING_TITLE)}
               </p>
               <p className="text-sm text-[var(--oh-text-secondary)]">
-                {t(I18nKey.SETTINGS$AGENT_SERVER_RECONNECTING_MESSAGE)}
+                {t(I18nKey.SETTINGS$AGENT_SERVER_CONNECTING_MESSAGE)}
               </p>
             </div>
           ) : null}
@@ -192,10 +192,10 @@ export default function App() {
   }
 
   if (config.isPending || config.isLoading) {
-    const reconnecting =
+    const retrying =
       config.failureCount > 0 &&
       isAgentServerUnavailableError(config.failureReason);
-    return <AgentServerBootstrapLoading reconnecting={reconnecting} />;
+    return <AgentServerBootstrapLoading retrying={retrying} />;
   }
 
   if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {

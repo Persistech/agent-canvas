@@ -19,9 +19,9 @@ const TRANSLATIONS: Record<string, string> = {
   BACKEND$EDIT: "Edit",
   BACKEND$REMOVE: "Remove",
   HOME$DONE: "Done",
-  SETTINGS$AGENT_SERVER_RECONNECTING_TITLE: "Reconnecting to backend...",
-  SETTINGS$AGENT_SERVER_RECONNECTING_MESSAGE:
-    "Keeping this session open while the agent server recovers.",
+  SETTINGS$AGENT_SERVER_CONNECTING_TITLE: "Connecting to backend...",
+  SETTINGS$AGENT_SERVER_CONNECTING_MESSAGE:
+    "Waiting for the agent server to become available.",
 };
 
 vi.mock("react-i18next", () => ({
@@ -108,7 +108,7 @@ describe("App root agent-server availability guard", () => {
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
-  it("shows a reconnecting state when the configured backend is transiently unreachable", async () => {
+  it("shows a connecting state when the configured backend is transiently unreachable", async () => {
     let serverInfoRequests = 0;
 
     // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
@@ -124,7 +124,7 @@ describe("App root agent-server availability guard", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Reconnecting to backend..."),
+        screen.getByText("Connecting to backend..."),
       ).toBeInTheDocument();
     });
 
