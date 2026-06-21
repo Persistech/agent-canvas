@@ -11,7 +11,10 @@ import {
   INTEGRATION_CATALOG as MCP_MARKETPLACE,
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
-import { getMcpMarketplaceCatalog } from "#/utils/mcp-marketplace-utils";
+import {
+  getInstallableMcpConnectionOption,
+  getMcpMarketplaceCatalog,
+} from "#/utils/mcp-marketplace-utils";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -212,38 +215,60 @@ describe("InstallServerModal", () => {
     const linear = getMcpMarketplaceCatalog(MCP_MARKETPLACE).find(
       (e) => e.id === "linear",
     )!;
+    const option = getInstallableMcpConnectionOption(linear)!;
+    const transport = option.transport;
+    if (transport.kind !== "shttp" && transport.kind !== "sse") {
+      throw new Error("Linear should install as a remote MCP server");
+    }
     const testSpy = vi
       .spyOn(McpService, "testServer")
       .mockResolvedValue({ ok: true, tools: [] });
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      MOCK_DEFAULT_USER_SETTINGS,
-    );
-    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+    const getSpy = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue(MOCK_DEFAULT_USER_SETTINGS);
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
 
     renderWith(<InstallServerModal entry={linear} onClose={vi.fn()} />);
     await screen.findByTestId("mcp-install-modal");
-    // Wait for useSettings() so the add-mcp-server mutation doesn't bail.
-    await waitFor(() =>
-      expect(SettingsService.getSettings).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(getSpy).toHaveBeenCalled());
 
-    // No api_key field renders for SSE transport.
-    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
-
-    // Verify the URL field shows the catalog's sse endpoint.
     const urlInput = screen.getByTestId("mcp-install-field-url");
-    expect(urlInput.getAttribute("value") ?? urlInput.textContent).toContain(
-      "mcp.linear.app",
+    expect(urlInput.getAttribute("value") ?? urlInput.textContent).toBe(
+      transport.url,
     );
 
+    const credentialInput = screen.queryByTestId("mcp-install-field-api_key");
+    if (credentialInput) {
+      fireEvent.change(credentialInput, {
+        target: { value: "lin_api_secret" },
+      });
+    }
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
-    // In tests i18n keys are returned as-is, so the button shows the key name.
-    await waitFor(() =>
-      expect(screen.getByTestId("mcp-install-submit")).toHaveTextContent(
-        "MCP$VERIFYING",
-      ),
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(testSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: transport.kind,
+        url: transport.url,
+        ...(credentialInput ? { api_key: "lin_api_secret" } : {}),
+      }),
     );
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, Record<string, unknown>> };
+    };
+    const expectedServer: Record<string, unknown> = {
+      url: transport.url,
+      transport: transport.kind,
+    };
+    if (credentialInput) {
+      expectedServer.headers = { Authorization: "Bearer lin_api_secret" };
+    }
+    expect(sent.mcp_config.mcpServers).toMatchObject({
+      linear: expectedServer,
+    });
   });
 
   it("closes from the top-right close button", async () => {
