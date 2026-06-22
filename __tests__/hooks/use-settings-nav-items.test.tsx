@@ -191,4 +191,30 @@ describe("useSettingsNavItems", () => {
     expect(paths).toContain("/settings/agent");
     expect(paths).not.toContain("/settings/agents");
   });
+
+  it("drops the standalone Condenser page on local (configured per-profile)", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((i) => i.type === "item")
+      .map((i) => (i.type === "item" ? i.item.to : null));
+
+    expect(paths).not.toContain("/settings/condenser");
+  });
+
+  it("keeps the Condenser page on cloud backends", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "cloud" },
+      orgId: "org-123",
+    });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((i) => i.type === "item")
+      .map((i) => (i.type === "item" ? i.item.to : null));
+
+    expect(paths).toContain("/settings/condenser");
+  });
 });

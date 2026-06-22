@@ -25,7 +25,12 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const isLocal = backend.kind === "local";
 
   return OSS_NAV_ITEMS.filter(
-    (item) => !isSettingsPageHidden(item.to, featureFlags),
+    (item) =>
+      !isSettingsPageHidden(item.to, featureFlags) &&
+      // Condenser is an OpenHands-only agent setting, now configured per-profile
+      // in the Agent Profiles editor — so drop the standalone page on local.
+      // Cloud has no AgentProfile surface yet (#3730), so it keeps the page.
+      !(isLocal && item.to === "/settings/condenser"),
   ).map((item) => {
     // Local backends present "LLM Profiles" as the section name + subtitle for
     // the LLM entry; cloud backends keep the canonical "LLM".

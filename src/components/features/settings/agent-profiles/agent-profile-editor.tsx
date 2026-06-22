@@ -16,6 +16,13 @@ import { ProfileNameInput } from "#/components/features/settings/llm-profiles/pr
 import { Typography } from "#/ui/typography";
 import { McpServerRefsSelect } from "./mcp-server-refs-select";
 import { AgentProfileVerificationFields } from "./agent-profile-verification-fields";
+import {
+  AgentProfileCondenserFields,
+  DEFAULT_PROFILE_CONDENSER,
+  CONDENSER_MIN_MAX_SIZE,
+  CONDENSER_DEFAULT_MAX_SIZE,
+  type ProfileCondenser,
+} from "./agent-profile-condenser-fields";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useSaveAgentProfile } from "#/hooks/mutation/use-save-agent-profile";
@@ -69,12 +76,11 @@ function isKnownAcpModel(
 }
 
 /** Round-tripped OpenHands fields the editor preserves but does not surface as
- * first-class controls (`agent`/`skills`/`condenser`). Kept verbatim so an edit
- * never resets them; omitted on create so the server seeds its defaults. */
+ * first-class controls (`agent`/`skills`). Kept verbatim so an edit never resets
+ * them; omitted on create so the server seeds its defaults. */
 interface OpenHandsExtras {
   agent?: string;
   skills?: unknown[];
-  condenser?: unknown;
 }
 
 interface AgentProfileEditorProps {
@@ -134,12 +140,15 @@ export function AgentProfileEditor({
   const [verification, setVerification] = useState<ProfileVerificationSettings>(
     openhands?.verification ?? DEFAULT_VERIFICATION,
   );
+  const [condenser, setCondenser] = useState<ProfileCondenser>(
+    (openhands?.condenser as ProfileCondenser | undefined) ??
+      DEFAULT_PROFILE_CONDENSER,
+  );
   const openHandsExtrasRef = useRef<OpenHandsExtras>(
     openhands
       ? {
           agent: openhands.agent,
           skills: openhands.skills,
-          condenser: openhands.condenser,
         }
       : {},
   );
@@ -273,6 +282,15 @@ export function AgentProfileEditor({
         Number.isFinite(concurrency) && concurrency >= 1
           ? Math.floor(concurrency)
           : 1,
+      // Always sent (the editor surfaces it); other condenser fields round-trip
+      // via spread, and max_size is clamped to the server's >= 20 minimum.
+      condenser: {
+        ...condenser,
+        max_size: Math.max(
+          CONDENSER_MIN_MAX_SIZE,
+          Math.floor(Number(condenser.max_size) || CONDENSER_DEFAULT_MAX_SIZE),
+        ),
+      },
       // On edit, round-trip the loaded verification block; on create only send
       // it once the user enables the critic, otherwise let the server seed its
       // own default (avoids pinning a possibly-stale default critic_mode).
@@ -283,7 +301,6 @@ export function AgentProfileEditor({
         ? {
             agent: extras.agent,
             skills: extras.skills ?? [],
-            condenser: extras.condenser,
           }
         : {}),
     };
@@ -442,6 +459,12 @@ export function AgentProfileEditor({
             className="w-full"
             value={toolConcurrency}
             onChange={setToolConcurrency}
+          />
+
+          <hr className="border-[#3D4046]" />
+          <AgentProfileCondenserFields
+            value={condenser}
+            onChange={setCondenser}
           />
 
           <hr className="border-[#3D4046]" />
