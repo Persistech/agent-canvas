@@ -80,6 +80,17 @@ export function McpServerRefsSelect({
             ))}
           </CheckboxGroup>
         ))}
+
+      {danglingRefs.length > 0 && (
+        <Typography.Text
+          className="text-xs text-yellow-500"
+          data-testid="mcp-server-refs-dangling"
+        >
+          {t(I18nKey.SETTINGS$AGENT_PROFILE_DANGLING_MCP, {
+            names: danglingRefs.join(", "),
+          })}
+        </Typography.Text>
+      )}
     </div>
   );
 }

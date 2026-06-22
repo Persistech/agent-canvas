@@ -41,11 +41,13 @@ type AgentKind = "openhands" | "acp";
 
 const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
+// Mirrors the SDK ProfileVerificationSettings defaults so an unchanged create
+// matches what the server would seed.
 const DEFAULT_VERIFICATION: ProfileVerificationSettings = {
   critic_enabled: false,
-  critic_mode: "all_actions",
+  critic_mode: "finish_and_message",
   enable_iterative_refinement: false,
-  critic_threshold: 0.5,
+  critic_threshold: 0.6,
   max_refinement_iterations: 3,
   critic_server_url: null,
   critic_model_name: null,
@@ -55,17 +57,6 @@ function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((v): v is string => typeof v === "string")
     : [];
-}
-
-function detectPreset(
-  commandText: string,
-  providers: ACPProviderConfig[],
-): string {
-  const normalized = parseCommand(commandText).join(" ");
-  for (const provider of providers) {
-    if (normalized === provider.default_command.join(" ")) return provider.key;
-  }
-  return ACP_CUSTOM_PRESET_KEY;
 }
 
 function isKnownAcpModel(
@@ -132,7 +123,7 @@ export function AgentProfileEditor({
     openhands?.llm_profile_ref ?? llmProfilesData?.active_profile ?? "",
   );
   const [enableSubAgents, setEnableSubAgents] = useState(
-    openhands?.enable_sub_agents ?? true,
+    openhands?.enable_sub_agents ?? false,
   );
   const [systemSuffix, setSystemSuffix] = useState(
     openhands?.system_message_suffix ?? "",
@@ -178,13 +169,16 @@ export function AgentProfileEditor({
   );
   const [sessionMode, setSessionMode] = useState(acp?.acp_session_mode ?? "");
   const [promptTimeout, setPromptTimeout] = useState(
-    String(acp?.acp_prompt_timeout ?? 300),
+    String(acp?.acp_prompt_timeout ?? 1800),
   );
+  // The selected ACP provider preset (a registry key or the "custom" sentinel).
+  // Explicit state, NOT derived from the command text, so editing the command
+  // (e.g. adding a flag) can't silently flip the preset to "custom" and drop
+  // the provider's credentials / model list.
+  const [acpServerSel, setAcpServerSel] = useState<string>(initialAcpServer);
 
   const isAcp = agentKind === "acp";
-  const selectedPreset = isAcp
-    ? detectPreset(commandText, ACP_PROVIDERS)
-    : ACP_CUSTOM_PRESET_KEY;
+  const selectedPreset = isAcp ? acpServerSel : ACP_CUSTOM_PRESET_KEY;
   const selectedProvider = getAcpProvider(selectedPreset);
   const modelSuggestions = selectedProvider?.available_models ?? [];
   const hasModelSuggestions = modelSuggestions.length > 0;
@@ -216,6 +210,7 @@ export function AgentProfileEditor({
     if (kind === "acp" && !commandText) {
       const preferred = ACP_PROVIDERS[0];
       if (preferred) {
+        setAcpServerSel(preferred.key);
         setCommandText(formatCommand(preferred.default_command));
         setAcpModel(getAcpPreferredDefaultModel(preferred.key) ?? "");
         setIsCustomAcpModel(false);
@@ -227,6 +222,7 @@ export function AgentProfileEditor({
   };
 
   const handlePresetChange = (preset: string) => {
+    setAcpServerSel(preset);
     const provider = getAcpProvider(preset);
     if (provider) {
       setCommandText(formatCommand(provider.default_command));
@@ -257,7 +253,7 @@ export function AgentProfileEditor({
         acp_model: acpModel.trim() || null,
         acp_session_mode: sessionMode.trim() ? sessionMode.trim() : null,
         acp_prompt_timeout:
-          Number.isFinite(timeout) && timeout > 0 ? timeout : 300,
+          Number.isFinite(timeout) && timeout > 0 ? timeout : 1800,
         acp_command: explicit ? (commandTokens[0] ?? null) : null,
         acp_args: explicit ? commandTokens.slice(1) : null,
         mcp_server_refs: mcpServerRefs,
