@@ -348,7 +348,7 @@ export function ChatInputActions({
           >
             <ToolsContextMenuIconText
               icon={<Cpu width={16} height={16} strokeWidth={2} aria-hidden />}
-              text="Model"
+              text={t(I18nKey.SETTINGS$AGENT_MODEL)}
               rightIcon={<CarretRightFillIcon width={10} height={10} />}
             />
           </ContextMenuListItem>
@@ -436,7 +436,7 @@ export function ChatInputActions({
                 ref={overflowTriggerRef}
                 type="button"
                 className={cn(chatInputIconButtonClassName, "size-6")}
-                aria-label="More input actions"
+                aria-label={t(I18nKey.CHAT_INTERFACE$MORE_INPUT_ACTIONS)}
                 aria-expanded={isOverflowOpen}
                 aria-haspopup="menu"
                 onClick={(event) => {
