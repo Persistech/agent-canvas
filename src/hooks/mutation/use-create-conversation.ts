@@ -77,6 +77,13 @@ export const useCreateConversation = () => {
       const effectiveAgentProfileId =
         agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
 
+      // Only extend the call with the [sandboxId, agentProfileId] tail when
+      // launching from a profile, so a plain create stays byte-identical to
+      // the legacy agent_settings path (#3727). sandboxId is unused here.
+      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
+        ? [undefined, effectiveAgentProfileId]
+        : [];
+
       const conversation =
         await AgentServerConversationService.createConversation(
           query,
@@ -93,8 +100,7 @@ export const useCreateConversation = () => {
           workspaceMode,
           parentConversationId,
           agentType,
-          undefined, // sandboxId — not used on the home/create path
-          effectiveAgentProfileId,
+          ...profileArgs,
         );
 
       // Stamp the active LLM profile onto the (local) conversation so the
