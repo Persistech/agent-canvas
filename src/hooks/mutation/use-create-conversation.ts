@@ -5,6 +5,8 @@ import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
@@ -25,6 +27,10 @@ interface CreateConversationVariables {
   plugins?: PluginSpec[];
   workingDir?: string;
   workspaceMode?: WorkspaceMode;
+  // Launch from a specific AgentProfile (local backend). When omitted, the
+  // active AgentProfile (if any) is used so home-composed conversations
+  // launch from the user's selected profile (#3727).
+  agentProfileId?: string;
 }
 
 interface CreateConversationResponse {
@@ -41,6 +47,15 @@ export const useCreateConversation = () => {
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
   const { data: llmProfiles } = useLlmProfiles();
+  // The active AgentProfile is the default launch profile for new local
+  // conversations (#3727). Gated to local backends — the cloud app-server has
+  // no /api/agent-profiles surface yet (#3730). Degrades safely: if the query
+  // is disabled or errors, this stays undefined and creation falls back to the
+  // encrypted agent_settings launch path.
+  const { backend } = useActiveBackend();
+  const { data: agentProfiles } = useAgentProfiles({
+    enabled: backend.kind !== "cloud",
+  });
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -56,7 +71,11 @@ export const useCreateConversation = () => {
         workspaceMode,
         parentConversationId,
         agentType,
+        agentProfileId,
       } = variables;
+
+      const effectiveAgentProfileId =
+        agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
 
       const conversation =
         await AgentServerConversationService.createConversation(
@@ -74,6 +93,8 @@ export const useCreateConversation = () => {
           workspaceMode,
           parentConversationId,
           agentType,
+          undefined, // sandboxId — not used on the home/create path
+          effectiveAgentProfileId,
         );
 
       // Stamp the active LLM profile onto the (local) conversation so the

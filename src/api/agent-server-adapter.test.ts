@@ -46,8 +46,10 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("openhands");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings!.agent_kind).toBe("openhands");
+    expect(payload.agent_settings!.mcp_config).toEqual(
+      agentSettings.mcp_config,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -78,8 +80,10 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("acp");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings!.agent_kind).toBe("acp");
+    expect(payload.agent_settings!.mcp_config).toEqual(
+      agentSettings.mcp_config,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -107,7 +111,7 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("acp");
+    expect(payload.agent_settings!.agent_kind).toBe("acp");
     expect(payload.secrets_encrypted).toBeUndefined();
   });
 });
