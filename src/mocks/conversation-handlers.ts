@@ -6,9 +6,15 @@ import {
   type OpenHandsEvent,
 } from "#/types/agent-server/core";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
+import {
+  TABLE_DEMO_CONVERSATION_ID,
+  TABLE_DEMO_EVENTS,
+} from "#/fixtures/table-demo-conversation";
 
 /** Map from conversation id → events returned by GET /events/search */
-const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
+const CONVERSATION_EVENTS: Record<string, unknown[]> = {
+  [TABLE_DEMO_CONVERSATION_ID]: TABLE_DEMO_EVENTS,
+};
 
 const now = Date.now();
 const PAGINATION_LOCAL_CONVERSATION_ID = "pagination-local";
@@ -80,6 +86,14 @@ const conversations: MockConversation[] = [
     title: "Local pagination fixture",
     created_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    workspace: { working_dir: "/workspace/project" },
+  },
+  {
+    id: TABLE_DEMO_CONVERSATION_ID,
+    title: "Wide table demo",
+    created_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
     execution_status: "idle",
     workspace: { working_dir: "/workspace/project" },
   },

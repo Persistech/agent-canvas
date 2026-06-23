@@ -5,6 +5,10 @@ import { AxiosError } from "axios";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import {
+  getTableDemoAppConversation,
+  isTableDemoConversationId,
+} from "#/fixtures/table-demo-conversation";
 
 const FIVE_MINUTES = 1000 * 60 * 5;
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
@@ -51,6 +55,10 @@ export const useUserConversation = (
     queryKey: ["user", "conversation", cid, active.backend.id, active.orgId],
     queryFn: async () => {
       if (!cid) return null;
+
+      if (import.meta.env.DEV && isTableDemoConversationId(cid)) {
+        return getTableDemoAppConversation();
+      }
 
       // Use the V1 batch API endpoint to get a single conversation
       const results =

@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import EventService from "#/api/event-service/event-service.api";
+import {
+  getTableDemoHistoryPage,
+  isTableDemoConversationId,
+} from "#/fixtures/table-demo-conversation";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 
@@ -43,6 +47,10 @@ export const useConversationHistory = (conversationId?: string) => {
     queryFn: async () => {
       if (!conversationId) {
         return { events: [], hasMore: false, nextPageId: null };
+      }
+
+      if (import.meta.env.DEV && isTableDemoConversationId(conversationId)) {
+        return getTableDemoHistoryPage();
       }
 
       const page = await EventService.searchEvents(
