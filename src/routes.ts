@@ -32,11 +32,11 @@ export default [
       route("mcp", "routes/mcp.tsx", { id: "agents-mcp" }),
       route("skills", "routes/skills-settings.tsx", { id: "agents-skills" }),
       route("plugins", "routes/skills-plugins.tsx", { id: "agents-plugins" }),
-      // Critic / verification is a global service config (endpoint + model +
+      // Verification / critic is a global service config (endpoint + model +
       // API key), so it's a hub building block editing global agent_settings —
       // not a per-profile knob (the profile model is secret-free). #1456.
-      route("critic", "routes/verification-settings.tsx", {
-        id: "agents-critic",
+      route("verification", "routes/verification-settings.tsx", {
+        id: "agents-verification",
       }),
       route("secrets", "routes/secrets-settings.tsx", { id: "agents-secrets" }),
     ]),

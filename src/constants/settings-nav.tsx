@@ -60,9 +60,9 @@ export const AGENTS_HUB_NAV_ITEMS: SettingsNavItem[] = [
   },
   {
     icon: <Shield className="size-4" strokeWidth={2} aria-hidden />,
-    to: "/agents/critic",
-    text: "SETTINGS$NAV_CRITIC",
-    subtitle: "SETTINGS$PAGE_CRITIC_SUBLINE",
+    to: "/agents/verification",
+    text: "SETTINGS$NAV_VERIFICATION",
+    subtitle: "SETTINGS$PAGE_VERIFICATION_SUBLINE",
   },
   {
     icon: <KeyIcon width={16} height={16} />,
