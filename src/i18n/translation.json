@@ -31908,23 +31908,6 @@
     "zh-CN": "模型",
     "zh-TW": "模型"
   },
-  "SETTINGS$AGENT_SECTION_TOOLS_MCP": {
-    "en": "Tools & MCP",
-    "ar": "الأدوات و MCP",
-    "ca": "Eines i MCP",
-    "de": "Tools & MCP",
-    "es": "Herramientas y MCP",
-    "fr": "Outils et MCP",
-    "it": "Strumenti e MCP",
-    "ja": "ツールと MCP",
-    "ko-KR": "도구 및 MCP",
-    "no": "Verktøy og MCP",
-    "pt": "Ferramentas e MCP",
-    "tr": "Araçlar ve MCP",
-    "uk": "Інструменти та MCP",
-    "zh-CN": "工具与 MCP",
-    "zh-TW": "工具與 MCP"
-  },
   "SETTINGS$AGENT_SECTION_MEMORY": {
     "en": "Memory",
     "ar": "الذاكرة",
@@ -32060,23 +32043,6 @@
     "uk": "Виберіть, який профіль LLM використовує цей агент.",
     "zh-CN": "选择此智能体使用的 LLM 配置。",
     "zh-TW": "選擇此代理使用的 LLM 設定檔。"
-  },
-  "SETTINGS$AGENT_SECTION_TOOLS_MCP_DESC": {
-    "en": "Pick which MCP servers this agent can use.",
-    "ar": "اختر خوادم MCP التي يمكن لهذا الوكيل استخدامها.",
-    "ca": "Trieu quins servidors MCP pot fer servir aquest agent.",
-    "de": "Wählen Sie, welche MCP-Server dieser Agent verwenden darf.",
-    "es": "Elige qué servidores MCP puede usar este agente.",
-    "fr": "Choisissez les serveurs MCP que cet agent peut utiliser.",
-    "it": "Scegli quali server MCP può usare questo agente.",
-    "ja": "このエージェントが使用できる MCP サーバーを選択します。",
-    "ko-KR": "이 에이전트가 사용할 수 있는 MCP 서버를 선택하세요.",
-    "no": "Velg hvilke MCP-servere denne agenten kan bruke.",
-    "pt": "Escolha quais servidores MCP este agente pode usar.",
-    "tr": "Bu aracının kullanabileceği MCP sunucularını seçin.",
-    "uk": "Виберіть, які сервери MCP може використовувати цей агент.",
-    "zh-CN": "选择此智能体可以使用的 MCP 服务器。",
-    "zh-TW": "選擇此代理可使用的 MCP 伺服器。"
   },
   "SETTINGS$AGENT_SECTION_MEMORY_DESC": {
     "en": "Control how older context is summarized to fit the context window.",
@@ -32281,23 +32247,6 @@
     "uk": "Сервери MCP налаштовуються в каталозі MCP.",
     "zh-CN": "MCP 服务器在 MCP 目录中管理。",
     "zh-TW": "MCP 伺服器在 MCP 目錄中管理。"
-  },
-  "SETTINGS$AGENT_TOOLS_DEFERRED_NOTE": {
-    "en": "Per-tool control is coming soon. For now an agent uses its default tools.",
-    "ar": "التحكم في كل أداة على حدة قادم قريبًا. حاليًا يستخدم الوكيل أدواته الافتراضية.",
-    "ca": "El control per eina arribarà aviat. De moment, l'agent fa servir les eines per defecte.",
-    "de": "Die Steuerung einzelner Tools kommt bald. Vorerst nutzt ein Agent seine Standard-Tools.",
-    "es": "El control por herramienta llegará pronto. Por ahora, el agente usa sus herramientas predeterminadas.",
-    "fr": "Le contrôle par outil arrive bientôt. Pour l'instant, un agent utilise ses outils par défaut.",
-    "it": "Il controllo per singolo strumento arriverà presto. Per ora l'agente usa gli strumenti predefiniti.",
-    "ja": "ツールごとの制御は近日提供予定です。現在はエージェントの既定のツールを使用します。",
-    "ko-KR": "도구별 제어 기능이 곧 제공됩니다. 현재는 에이전트가 기본 도구를 사용합니다.",
-    "no": "Kontroll per verktøy kommer snart. Foreløpig bruker en agent standardverktøyene sine.",
-    "pt": "O controle por ferramenta chegará em breve. Por enquanto, o agente usa as ferramentas padrão.",
-    "tr": "Araç bazında denetim yakında geliyor. Şimdilik aracı varsayılan araçlarını kullanır.",
-    "uk": "Керування окремими інструментами зʼявиться незабаром. Наразі агент використовує типові інструменти.",
-    "zh-CN": "按工具控制即将推出。目前智能体使用其默认工具。",
-    "zh-TW": "逐工具控制即將推出。目前代理使用其預設工具。"
   },
   "SETTINGS$AGENT_MEMORY_TRIGGER_LABEL": {
     "en": "Summarize when the conversation reaches (events)",

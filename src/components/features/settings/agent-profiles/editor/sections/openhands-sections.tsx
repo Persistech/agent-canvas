@@ -41,8 +41,8 @@ export function ToolsMcpSection({ form }: SectionProps) {
   const { t } = useTranslation("openhands");
   return (
     <SectionShell
-      title={t(I18nKey.SETTINGS$AGENT_SECTION_TOOLS_MCP)}
-      description={t(I18nKey.SETTINGS$AGENT_SECTION_TOOLS_MCP_DESC)}
+      title={t(I18nKey.SETTINGS$AGENT_SECTION_MCP)}
+      description={t(I18nKey.SETTINGS$AGENT_SECTION_MCP_DESC)}
     >
       <McpServerRefsSelect
         availableServers={form.mcpServerNames}
@@ -50,11 +50,6 @@ export function ToolsMcpSection({ form }: SectionProps) {
         onChange={form.setMcpServerRefs}
       />
       <CatalogManageLink i18nKey={I18nKey.SETTINGS$AGENT_MANAGE_MCP_SERVERS} />
-      <div className="rounded-md border border-dashed border-[#3D4046] p-3">
-        <Typography.Text className="text-xs text-[#717888]">
-          {t(I18nKey.SETTINGS$AGENT_TOOLS_DEFERRED_NOTE)}
-        </Typography.Text>
-      </div>
     </SectionShell>
   );
 }

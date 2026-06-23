@@ -43,7 +43,7 @@ const SECTIONS: SectionDef[] = [
   },
   {
     id: "tools-mcp",
-    labelKey: I18nKey.SETTINGS$AGENT_SECTION_TOOLS_MCP,
+    labelKey: I18nKey.SETTINGS$AGENT_SECTION_MCP,
     kinds: ["openhands"],
   },
   {
