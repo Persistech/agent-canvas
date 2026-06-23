@@ -32944,5 +32944,39 @@
     "uk": "Сервери MCP",
     "zh-CN": "MCP 服务器",
     "zh-TW": "MCP 伺服器"
+  },
+  "SETTINGS$AGENT_CONDENSER_KEEP_FIRST": {
+    "en": "Keep first",
+    "ar": "الاحتفاظ بالأوائل",
+    "ca": "Mantén els primers",
+    "de": "Erste behalten",
+    "es": "Mantener los primeros",
+    "fr": "Conserver les premiers",
+    "it": "Mantieni i primi",
+    "ja": "最初を保持",
+    "ko-KR": "처음 유지",
+    "no": "Behold første",
+    "pt": "Manter os primeiros",
+    "tr": "İlkleri koru",
+    "uk": "Зберігати перші",
+    "zh-CN": "保留开头",
+    "zh-TW": "保留開頭"
+  },
+  "SETTINGS$AGENT_CONDENSER_MAX_TOKENS": {
+    "en": "Max tokens",
+    "ar": "الحد الأقصى للرموز",
+    "ca": "Tokens màxims",
+    "de": "Max. Tokens",
+    "es": "Tokens máximos",
+    "fr": "Tokens max",
+    "it": "Token massimi",
+    "ja": "最大トークン数",
+    "ko-KR": "최대 토큰",
+    "no": "Maks tokens",
+    "pt": "Tokens máximos",
+    "tr": "Maks token",
+    "uk": "Макс. токенів",
+    "zh-CN": "最大令牌数",
+    "zh-TW": "最大權杖數"
   }
 }

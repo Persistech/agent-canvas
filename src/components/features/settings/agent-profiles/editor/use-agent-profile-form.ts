@@ -57,19 +57,27 @@ function isKnownAcpModel(
   );
 }
 
-/** The round-tripped `condenser` is the SDK's discriminated config object; a
- * summarizing condenser carries a numeric `max_size` (the trigger). We only
- * ever override that one field, preserving the embedded `llm`/`keep_first`. */
-function getCondenserMaxSize(condenser: unknown): number | null {
-  if (
-    condenser &&
-    typeof condenser === "object" &&
-    "max_size" in condenser &&
-    typeof (condenser as { max_size: unknown }).max_size === "number"
-  ) {
-    return (condenser as { max_size: number }).max_size;
-  }
-  return null;
+/** The profile `condenser` is a flat config object — the same fields the global
+ * Condenser page edits (enabled / max_size / keep_first / max_tokens /
+ * condenser_kind / minimum_progress / hard_context_reset_*). The editor surfaces
+ * the common knobs and round-trips the rest untouched, so nothing is lost. */
+export type CondenserConfig = Record<string, unknown>;
+
+const DEFAULT_CONDENSER: CondenserConfig = {
+  enabled: true,
+  condenser_kind: "llm_summarizing",
+  max_size: 240,
+  keep_first: 2,
+  max_tokens: null,
+  minimum_progress: 0.1,
+  hard_context_reset_max_retries: 5,
+  hard_context_reset_context_scaling: 0.8,
+};
+
+function toCondenserConfig(condenser: unknown): CondenserConfig {
+  return condenser && typeof condenser === "object"
+    ? { ...(condenser as CondenserConfig) }
+    : { ...DEFAULT_CONDENSER };
 }
 
 /** Round-tripped OpenHands fields the editor preserves but does not surface as
@@ -79,7 +87,6 @@ function getCondenserMaxSize(condenser: unknown): number | null {
 interface OpenHandsExtras {
   agent?: string;
   skills?: unknown[];
-  condenser?: unknown;
 }
 
 export interface UseAgentProfileFormArgs {
@@ -146,19 +153,13 @@ export function useAgentProfileForm({
     openhands?.verification ?? DEFAULT_VERIFICATION,
   );
   const openHandsExtrasRef = useRef<OpenHandsExtras>(
-    openhands
-      ? {
-          agent: openhands.agent,
-          skills: openhands.skills,
-          condenser: openhands.condenser,
-        }
-      : {},
+    openhands ? { agent: openhands.agent, skills: openhands.skills } : {},
   );
-  const initialCondenserMaxSize = getCondenserMaxSize(openhands?.condenser);
-  const hasSummarizingCondenser = initialCondenserMaxSize !== null;
-  const [condenserMaxSize, setCondenserMaxSize] = useState(
-    String(initialCondenserMaxSize ?? 240),
+  const [condenser, setCondenser] = useState<CondenserConfig>(
+    toCondenserConfig(openhands?.condenser),
   );
+  const patchCondenser = (partial: CondenserConfig) =>
+    setCondenser((prev) => ({ ...prev, ...partial }));
 
   // --- ACP ---
   const acp = profile?.agent_kind === "acp" ? profile : null;
@@ -271,23 +272,6 @@ export function useAgentProfileForm({
 
     const concurrency = Number(toolConcurrency);
     const extras = openHandsExtrasRef.current;
-    // Round-trip the loaded condenser; when it's a summarizing condenser apply
-    // the (possibly edited) trigger size, preserving its other fields.
-    const nextSize = Number(condenserMaxSize);
-    const condenserField =
-      mode === "edit" && extras.condenser !== undefined
-        ? {
-            condenser: hasSummarizingCondenser
-              ? {
-                  ...(extras.condenser as Record<string, unknown>),
-                  max_size:
-                    Number.isFinite(nextSize) && nextSize > 0
-                      ? Math.floor(nextSize)
-                      : (initialCondenserMaxSize ?? 240),
-                }
-              : extras.condenser,
-          }
-        : {};
     return {
       agent_kind: "openhands",
       llm_profile_ref: llmProfileRef,
@@ -298,6 +282,8 @@ export function useAgentProfileForm({
         Number.isFinite(concurrency) && concurrency >= 1
           ? Math.floor(concurrency)
           : 1,
+      // The flat condenser config (edited fields + round-tripped rest).
+      condenser,
       // On edit, round-trip the loaded verification block; on create only send
       // it once the user enables the critic, otherwise let the server seed its
       // own default (avoids pinning a possibly-stale default critic_mode).
@@ -307,7 +293,6 @@ export function useAgentProfileForm({
       ...(mode === "edit" && extras.agent !== undefined
         ? { agent: extras.agent, skills: extras.skills ?? [] }
         : {}),
-      ...condenserField,
     };
   };
 
@@ -405,9 +390,8 @@ export function useAgentProfileForm({
     setToolConcurrency,
     verification,
     setVerification,
-    hasSummarizingCondenser,
-    condenserMaxSize,
-    setCondenserMaxSize,
+    condenser,
+    patchCondenser,
     // ACP
     commandText,
     setCommandText,

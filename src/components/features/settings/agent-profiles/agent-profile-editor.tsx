@@ -24,7 +24,6 @@ import {
   CondenserSection,
   VerificationSection,
   PersonalitySection,
-  AdvancedSection,
 } from "./editor/sections/openhands-sections";
 import {
   ProviderModelSection,
@@ -118,8 +117,6 @@ export function AgentProfileEditor({
         return <VerificationSection form={form} />;
       case "personality":
         return <PersonalitySection form={form} />;
-      case "advanced":
-        return <AdvancedSection form={form} />;
       case "provider-model":
         return <ProviderModelSection form={form} />;
       case "launch":

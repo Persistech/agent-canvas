@@ -60,31 +60,61 @@ export function ToolsMcpSection({ form }: SectionProps) {
   );
 }
 
+const numStr = (v: unknown, fallback = "") =>
+  typeof v === "number" && Number.isFinite(v) ? String(v) : fallback;
+
 export function CondenserSection({ form }: SectionProps) {
   const { t } = useTranslation("openhands");
+  const enabled = !!form.condenser.enabled;
   return (
     <SectionShell
       title={t(I18nKey.SETTINGS$NAV_CONDENSER)}
       description={t(I18nKey.SETTINGS$PAGE_CONDENSER_SUBLINE)}
     >
-      {form.hasSummarizingCondenser ? (
-        <SettingsInput
-          testId="agent-profile-condenser-max-size"
-          label={t(I18nKey.SETTINGS$CONDENSER_MAX_SIZE)}
-          type="number"
-          min={10}
-          step={1}
-          className="w-full max-w-xs"
-          value={form.condenserMaxSize}
-          onChange={form.setCondenserMaxSize}
-        />
-      ) : (
-        <Typography.Text
-          className="text-sm text-[#A3A3A3]"
-          testId="agent-profile-memory-default"
-        >
-          {t(I18nKey.SETTINGS$AGENT_MEMORY_NO_CONDENSER)}
-        </Typography.Text>
+      <SettingsSwitch
+        testId="agent-profile-condenser-enabled"
+        isToggled={enabled}
+        onToggle={(v) => form.patchCondenser({ enabled: v })}
+      >
+        {t(I18nKey.SCHEMA$CONDENSER$ENABLED$LABEL)}
+      </SettingsSwitch>
+
+      {enabled && (
+        <div className="flex flex-col gap-4 border-l border-[#3D4046] pl-4">
+          <SettingsInput
+            testId="agent-profile-condenser-max-size"
+            label={t(I18nKey.SCHEMA$CONDENSER$MAX_SIZE$LABEL)}
+            type="number"
+            min={10}
+            step={1}
+            className="w-full max-w-xs"
+            value={numStr(form.condenser.max_size, "240")}
+            onChange={(v) => form.patchCondenser({ max_size: Number(v) })}
+          />
+          <SettingsInput
+            testId="agent-profile-condenser-keep-first"
+            label={t(I18nKey.SETTINGS$AGENT_CONDENSER_KEEP_FIRST)}
+            type="number"
+            min={0}
+            step={1}
+            className="w-full max-w-xs"
+            value={numStr(form.condenser.keep_first, "2")}
+            onChange={(v) => form.patchCondenser({ keep_first: Number(v) })}
+          />
+          <SettingsInput
+            testId="agent-profile-condenser-max-tokens"
+            label={t(I18nKey.SETTINGS$AGENT_CONDENSER_MAX_TOKENS)}
+            type="number"
+            min={1}
+            step={1}
+            className="w-full max-w-xs"
+            showOptionalTag
+            value={numStr(form.condenser.max_tokens)}
+            onChange={(v) =>
+              form.patchCondenser({ max_tokens: v.trim() ? Number(v) : null })
+            }
+          />
+        </div>
       )}
     </SectionShell>
   );
@@ -120,35 +150,6 @@ export function PersonalitySection({ form }: SectionProps) {
         showOptionalTag
         value={form.systemSuffix}
         onChange={form.setSystemSuffix}
-      />
-    </SectionShell>
-  );
-}
-
-export function AdvancedSection({ form }: SectionProps) {
-  const { t } = useTranslation("openhands");
-  return (
-    <SectionShell
-      title={t(I18nKey.SETTINGS$AGENT_SECTION_ADVANCED)}
-      description={t(I18nKey.SETTINGS$AGENT_SECTION_ADVANCED_DESC)}
-    >
-      <SettingsSwitch
-        testId="agent-profile-sub-agents"
-        isToggled={form.enableSubAgents}
-        onToggle={form.setEnableSubAgents}
-      >
-        {t(I18nKey.SCHEMA$ENABLE_SUB_AGENTS$LABEL)}
-      </SettingsSwitch>
-
-      <SettingsInput
-        testId="agent-profile-tool-concurrency"
-        label={t(I18nKey.SETTINGS$AGENT_PROFILE_TOOL_CONCURRENCY_LABEL)}
-        type="number"
-        min={1}
-        step={1}
-        className="w-full max-w-xs"
-        value={form.toolConcurrency}
-        onChange={form.setToolConcurrency}
       />
     </SectionShell>
   );

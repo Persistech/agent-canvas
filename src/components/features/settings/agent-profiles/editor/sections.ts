@@ -9,7 +9,6 @@ export type SectionId =
   | "condenser"
   | "verification"
   | "personality"
-  | "advanced"
   | "provider-model"
   | "launch"
   | "mcp"
@@ -62,11 +61,6 @@ const SECTIONS: SectionDef[] = [
   {
     id: "personality",
     labelKey: I18nKey.SETTINGS$AGENT_SECTION_PERSONALITY,
-    kinds: ["openhands"],
-  },
-  {
-    id: "advanced",
-    labelKey: I18nKey.SETTINGS$AGENT_SECTION_ADVANCED,
     kinds: ["openhands"],
   },
   // ACP

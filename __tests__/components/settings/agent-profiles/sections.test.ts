@@ -12,7 +12,6 @@ describe("getSectionsForKind", () => {
       "condenser",
       "verification",
       "personality",
-      "advanced",
     ]);
   });
 

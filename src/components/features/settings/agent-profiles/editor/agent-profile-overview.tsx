@@ -145,11 +145,11 @@ export function AgentProfileOverview({
               : mcpScope(form.mcpServerRefs)}
           </Row>
           <Row label={t(I18nKey.SETTINGS$NAV_CONDENSER)}>
-            {form.hasSummarizingCondenser
+            {form.condenser.enabled
               ? t(I18nKey.SETTINGS$AGENT_OVERVIEW_MEMORY_TRIGGER, {
-                  count: Number(form.condenserMaxSize),
+                  count: Number(form.condenser.max_size),
                 })
-              : t(I18nKey.SETTINGS$AGENT_OVERVIEW_MEMORY_DEFAULT)}
+              : t(I18nKey.SETTINGS$AGENT_OVERVIEW_DISABLED)}
           </Row>
           <Row label={t(I18nKey.SCHEMA$VERIFICATION$SECTION_LABEL)}>
             {form.verification.critic_enabled

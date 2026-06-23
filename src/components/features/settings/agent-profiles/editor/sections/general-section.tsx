@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ProfileNameInput } from "#/components/features/settings/llm-profiles/profile-name-input";
+import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { SettingsInput } from "#/components/features/settings/settings-input";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import type { AgentProfileForm } from "../use-agent-profile-form";
@@ -41,6 +43,30 @@ export function GeneralSection({ form }: GeneralSectionProps) {
           {t(I18nKey.SETTINGS$AGENT_PROFILE_KIND_FIXED_HINT)}
         </Typography.Text>
       </div>
+
+      {!form.isAcp && (
+        <>
+          <hr className="border-[#3D4046]" />
+          <SettingsSwitch
+            testId="agent-profile-sub-agents"
+            isToggled={form.enableSubAgents}
+            onToggle={form.setEnableSubAgents}
+          >
+            {t(I18nKey.SCHEMA$ENABLE_SUB_AGENTS$LABEL)}
+          </SettingsSwitch>
+
+          <SettingsInput
+            testId="agent-profile-tool-concurrency"
+            label={t(I18nKey.SETTINGS$AGENT_PROFILE_TOOL_CONCURRENCY_LABEL)}
+            type="number"
+            min={1}
+            step={1}
+            className="w-full max-w-xs"
+            value={form.toolConcurrency}
+            onChange={form.setToolConcurrency}
+          />
+        </>
+      )}
     </SectionShell>
   );
 }
