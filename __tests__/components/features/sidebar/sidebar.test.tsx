@@ -180,10 +180,6 @@ vi.mock("#/components/features/sidebar/sidebar-conversation-list", () => ({
   ),
 }));
 
-vi.mock("#/hooks/use-settings-nav-items", () => ({
-  useSettingsNavItems: () => [],
-}));
-
 function getDesktopSidebar(collapsed?: boolean): HTMLElement {
   const selector =
     collapsed === undefined
@@ -294,23 +290,25 @@ describe("Sidebar", () => {
     expect(sidebar.dataset.collapsed).toBe("false");
   });
 
-  it("shows collapsed server/settings action icons when sidebar is collapsed", () => {
+  it("shows the collapsed server action icon when sidebar is collapsed", () => {
     useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
-    expect(screen.getByTestId("collapsed-settings-link")).toBeInTheDocument();
+    // The standalone "Settings" rail entry was dissolved (#1456); Application
+    // is a regular top-level nav item now (asserted below), and there is no
+    // separate collapsed settings link.
+    expect(screen.queryByTestId("collapsed-settings-link")).toBeNull();
     expect(
       screen.getByTestId("collapsed-backend-selector-link"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("backend-status-dot")).toBeInTheDocument();
   });
 
-  it("navigates to settings when collapsed settings icon is clicked", () => {
-    useSidebarStore.setState({ collapsed: true });
+  it("navigates to Application when the rail Application icon is clicked", () => {
     const { navigate } = renderSidebar("/conversations");
 
-    fireEvent.click(screen.getByTestId("collapsed-settings-link"));
-    expect(navigate).toHaveBeenCalledWith("/settings", { replace: false });
+    fireEvent.click(screen.getByTestId("sidebar-application-link"));
+    expect(navigate).toHaveBeenCalledWith("/application", { replace: false });
   });
 
   it("opens the backend popover when hovering the collapsed backend icon", async () => {
@@ -433,6 +431,7 @@ describe("Sidebar", () => {
       "sidebar-conversations-link",
       "sidebar-automations-link",
       "sidebar-agents-link",
+      "sidebar-application-link",
     ]) {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();

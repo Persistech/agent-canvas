@@ -144,7 +144,7 @@ export function AgentProfileOverview({
               ? diag.resolved_mcp_servers.join(", ")
               : mcpScope(form.mcpServerRefs)}
           </Row>
-          <Row label={t(I18nKey.SETTINGS$AGENT_OVERVIEW_MEMORY)}>
+          <Row label={t(I18nKey.SETTINGS$NAV_CONDENSER)}>
             {form.hasSummarizingCondenser
               ? t(I18nKey.SETTINGS$AGENT_OVERVIEW_MEMORY_TRIGGER, {
                   count: Number(form.condenserMaxSize),

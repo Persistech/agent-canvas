@@ -63,16 +63,13 @@ describe("useAgentsHubNavItems", () => {
     ]);
   });
 
-  it("groups the nav with Profiles + Building blocks headers", () => {
+  it("renders a single flat list with no group headers", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
-    const headers = renderHook(() => useAgentsHubNavItems())
-      .result.current.filter((i) => i.type === "header")
-      .map((i) => (i.type === "header" ? i.text : null));
-    expect(headers).toEqual([
-      I18nKey.SETTINGS$AGENTS_HUB_PROFILES_HEADER,
-      I18nKey.SETTINGS$AGENTS_HUB_BUILDING_BLOCKS_HEADER,
-    ]);
+    const headers = renderHook(
+      () => useAgentsHubNavItems(),
+    ).result.current.filter((i) => i.type === "header");
+    expect(headers).toEqual([]);
   });
 
   it("renames LLM to LLM Profiles on local backends", () => {

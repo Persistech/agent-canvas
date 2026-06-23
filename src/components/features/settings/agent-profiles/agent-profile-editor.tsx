@@ -21,7 +21,7 @@ import { GeneralSection } from "./editor/sections/general-section";
 import {
   ModelSection,
   ToolsMcpSection,
-  MemorySection,
+  CondenserSection,
   VerificationSection,
   PersonalitySection,
   AdvancedSection,
@@ -112,8 +112,8 @@ export function AgentProfileEditor({
         return <ModelSection form={form} />;
       case "tools-mcp":
         return <ToolsMcpSection form={form} />;
-      case "memory":
-        return <MemorySection form={form} />;
+      case "condenser":
+        return <CondenserSection form={form} />;
       case "verification":
         return <VerificationSection form={form} />;
       case "personality":

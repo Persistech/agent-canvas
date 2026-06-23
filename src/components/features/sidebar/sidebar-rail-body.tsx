@@ -8,12 +8,10 @@ import {
   Settings,
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
-import { NavigationLink } from "#/components/shared/navigation-link";
 import { SidebarCollapsedIconSlot } from "./sidebar-collapsed-icon-slot";
 import { SidebarNavLink } from "./sidebar-nav-link";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
 import { SidebarConversationList } from "./sidebar-conversation-list";
@@ -44,7 +42,6 @@ export interface SidebarRailBodyProps {
   onExpand: () => void;
   showCollapsedExpandButton: boolean;
   isAgentsActive: boolean;
-  currentPath: string;
   activeBackendHealth: { isConnected: boolean | null } | undefined;
   collapsedBackendPopoverOpen: boolean;
   setCollapsedBackendPopoverOpen: (open: boolean) => void;
@@ -67,7 +64,6 @@ export function SidebarRailBody({
   onExpand,
   showCollapsedExpandButton,
   isAgentsActive,
-  currentPath,
   activeBackendHealth,
   collapsedBackendPopoverOpen,
   setCollapsedBackendPopoverOpen,
@@ -208,6 +204,14 @@ export function SidebarRailBody({
           collapsed={collapsed}
           icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
         />
+        <SidebarNavLink
+          to="/application"
+          label={t(I18nKey.SETTINGS$NAV_APPLICATION)}
+          testId="sidebar-application-link"
+          disabled={linkDisabled}
+          collapsed={collapsed}
+          icon={<Settings width={ICON_SIZE} height={ICON_SIZE} />}
+        />
       </nav>
 
       <SidebarConversationList collapsed={collapsed} />
@@ -219,26 +223,6 @@ export function SidebarRailBody({
             "mt-auto pb-2 cursor-pointer",
           )}
         >
-          <StyledTooltip
-            content={t(I18nKey.SIDEBAR$SETTINGS)}
-            placement="right"
-          >
-            <NavigationLink
-              to="/settings"
-              data-testid="collapsed-settings-link"
-              aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
-              className={sidebarNavRowClassName({ collapsed: true })}
-            >
-              <SidebarCollapsedIconSlot
-                active={currentPath.startsWith("/settings")}
-              >
-                <Settings width={ICON_SIZE} height={ICON_SIZE} />
-              </SidebarCollapsedIconSlot>
-              <span className={sidebarNavLabelClassName(true)}>
-                {t(I18nKey.SIDEBAR$SETTINGS)}
-              </span>
-            </NavigationLink>
-          </StyledTooltip>
           <div
             className="relative"
             ref={collapsedBackendPopoverRef}

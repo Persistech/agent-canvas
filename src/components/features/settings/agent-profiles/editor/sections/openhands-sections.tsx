@@ -60,17 +60,17 @@ export function ToolsMcpSection({ form }: SectionProps) {
   );
 }
 
-export function MemorySection({ form }: SectionProps) {
+export function CondenserSection({ form }: SectionProps) {
   const { t } = useTranslation("openhands");
   return (
     <SectionShell
-      title={t(I18nKey.SETTINGS$AGENT_SECTION_MEMORY)}
-      description={t(I18nKey.SETTINGS$AGENT_SECTION_MEMORY_DESC)}
+      title={t(I18nKey.SETTINGS$NAV_CONDENSER)}
+      description={t(I18nKey.SETTINGS$PAGE_CONDENSER_SUBLINE)}
     >
       {form.hasSummarizingCondenser ? (
         <SettingsInput
           testId="agent-profile-condenser-max-size"
-          label={t(I18nKey.SETTINGS$AGENT_MEMORY_TRIGGER_LABEL)}
+          label={t(I18nKey.SETTINGS$CONDENSER_MAX_SIZE)}
           type="number"
           min={10}
           step={1}

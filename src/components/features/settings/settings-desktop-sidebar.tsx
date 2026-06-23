@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
+import { SettingsNavRenderedItem } from "#/constants/settings-nav";
 import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { SettingsNavHeader } from "./settings-nav-header";

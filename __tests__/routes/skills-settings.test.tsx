@@ -94,16 +94,6 @@ describe("SkillsSettingsScreen", () => {
       "skills-settings-description",
     );
     expect(description).toHaveTextContent("SETTINGS$SKILLS_PAGE_DESCRIPTION");
-    expect(screen.getByText("NAV$AGENTS")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("sidebar-extensions-/agents/skills"),
-    ).toHaveTextContent("Skills");
-    expect(
-      screen.getByTestId("sidebar-extensions-/agents/plugins"),
-    ).toHaveTextContent("Plugins");
-    expect(
-      screen.getByTestId("sidebar-extensions-/agents/mcp"),
-    ).toHaveTextContent("MCP Servers");
   });
 
   it("shows card subtitle text from skill content when description is omitted", async () => {

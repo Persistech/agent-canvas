@@ -111,7 +111,7 @@ export function Sidebar() {
   }, [isMobileNavOpen, closeMobileNav]);
 
   React.useEffect(() => {
-    if (currentPath === "/settings") {
+    if (currentPath === "/application" || currentPath.startsWith("/agents")) {
       setSettingsModalIsOpen(false);
     } else if (
       !isFetchingSettings &&
@@ -195,7 +195,6 @@ export function Sidebar() {
     onExpand: () => setCollapsed(false),
     showCollapsedExpandButton,
     isAgentsActive,
-    currentPath,
     activeBackendHealth,
     collapsedBackendPopoverOpen,
     setCollapsedBackendPopoverOpen,

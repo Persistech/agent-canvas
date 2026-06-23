@@ -6,7 +6,7 @@ export type SectionId =
   | "general"
   | "model"
   | "tools-mcp"
-  | "memory"
+  | "condenser"
   | "verification"
   | "personality"
   | "advanced"
@@ -50,8 +50,8 @@ const SECTIONS: SectionDef[] = [
     kinds: ["openhands"],
   },
   {
-    id: "memory",
-    labelKey: I18nKey.SETTINGS$AGENT_SECTION_MEMORY,
+    id: "condenser",
+    labelKey: I18nKey.SETTINGS$NAV_CONDENSER,
     kinds: ["openhands"],
   },
   {

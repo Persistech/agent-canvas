@@ -15,8 +15,11 @@ const REDIRECTS: Record<string, string> = {
   "/settings/llm": "/agents/llm",
   "/settings/secrets": "/agents/secrets",
   "/settings/agents": "/agents/profiles",
-  // Behavior pages folded into the profile editor.
-  "/settings/agent": "/agents/profiles",
+  // The "Settings" hub was dissolved; Application is now a top-level rail item.
+  "/settings": "/application",
+  "/settings/app": "/application",
+  // Behavior pages folded into the profile editor. (`/settings/agent` stays a
+  // real, nav-less route — the launch path + ACP e2e still use it.)
   "/settings/condenser": "/agents/profiles",
   "/settings/verification": "/agents/profiles",
 };

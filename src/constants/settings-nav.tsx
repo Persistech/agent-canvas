@@ -1,27 +1,29 @@
-import { AppWindow, Boxes, Server } from "lucide-react";
+import { Boxes, Server } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 import RobotIcon from "#/icons/u-robot.svg?react";
 import SkillsIcon from "#/icons/skills.svg?react";
+import { I18nKey } from "#/i18n/declaration";
 
 export interface SettingsNavItem {
   icon: React.ReactElement;
   to: string;
   text: string;
-  /** Short grey subline under the page title (`settings.tsx`). */
+  /** Short grey subline under the page title. */
   subtitle: string;
 }
 
-// Settings shrank to genuinely cross-cutting items (#1456); everything
-// agent-related moved to the Agents hub (`AGENTS_HUB_NAV_ITEMS`).
-export const OSS_NAV_ITEMS: SettingsNavItem[] = [
-  {
-    icon: <AppWindow className="size-4" strokeWidth={2} aria-hidden />,
-    to: "/settings/app",
-    text: "SETTINGS$NAV_APPLICATION",
-    subtitle: "SETTINGS$PAGE_APPLICATION_SUBLINE",
-  },
-];
+/** A row in a settings-style left nav: a link, a group header, or a divider.
+ * Shared by the Agents hub nav + the settings-layout sidebar renderers. */
+export type SettingsNavRenderedItem =
+  | {
+      type: "item";
+      item: SettingsNavItem;
+      disabled?: boolean;
+      disabledAgentName?: string;
+    }
+  | { type: "header"; text: I18nKey }
+  | { type: "divider" };
 
 // The Agents hub: the profile library (compose) + the building blocks
 // (defined once, referenced by profiles). See #1456.

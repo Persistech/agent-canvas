@@ -1,5 +1,5 @@
 import { SettingsDesktopSidebar } from "./settings-desktop-sidebar";
-import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
+import { SettingsNavRenderedItem } from "#/constants/settings-nav";
 import { settingsLayoutMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import { I18nKey } from "#/i18n/declaration";
 

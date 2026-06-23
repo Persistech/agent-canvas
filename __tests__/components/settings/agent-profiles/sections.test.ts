@@ -9,7 +9,7 @@ describe("getSectionsForKind", () => {
       "general",
       "model",
       "tools-mcp",
-      "memory",
+      "condenser",
       "verification",
       "personality",
       "advanced",

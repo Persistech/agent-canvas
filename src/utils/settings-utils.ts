@@ -63,14 +63,6 @@ export function isSettingsPageHidden(
   return false;
 }
 
-export function getFirstAvailablePath(
-  _featureFlags: WebClientFeatureFlags | undefined,
-): string | null {
-  // Settings shrank to cross-cutting items (#1456); Application is always
-  // available and is the natural landing for the gear.
-  return "/settings/app";
-}
-
 export function getFirstAvailableAgentsPath(): string {
   // The profile library is always available; building-block catalogs may be
   // feature-flagged off, but Profiles never is.
