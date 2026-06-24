@@ -50,6 +50,7 @@ beforeEach(() => {
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
   vi.mocked(axios.request).mockReset();
+  vi.mocked(axios.post).mockReset();
 });
 
 afterEach(() => {
@@ -59,31 +60,46 @@ afterEach(() => {
 });
 
 describe("pauseConversation cloud branch", () => {
-  it("POSTs directly to the cloud sandbox pause endpoint", async () => {
+  it("POSTs to the cloud runtime conversation interrupt endpoint", async () => {
     vi.spyOn(
       AgentServerConversationService,
       "batchGetAppConversations",
-    ).mockResolvedValue([buildConversation({ sandbox_id: "sandbox-xyz" })]);
-    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
+    ).mockResolvedValue([
+      buildConversation({
+        conversation_url: "https://runtime.example.com",
+        session_api_key: "runtime-session-key",
+        sandbox_id: null,
+      }),
+    ]);
+    vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
 
     await pauseConversation("conv-abc");
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/sandboxes/sandbox-xyz/pause`,
+    expect(axios.request).not.toHaveBeenCalled();
+    expect(axios.post).toHaveBeenCalledOnce();
+    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(url).toContain("/api/cloud-proxy");
+    expect(body).toMatchObject({
+      host: "https://runtime.example.com",
       method: "POST",
-      headers: { Authorization: "Bearer bearer-token" },
+      path: "/api/conversations/conv-abc/interrupt",
+      headers: { "X-Session-API-Key": "runtime-session-key" },
+      body: null,
     });
   });
 
-  it("throws and does not call the cloud API when the cloud conversation has no sandbox_id", async () => {
+  it("throws and does not call the cloud API when the runtime auth details are unavailable", async () => {
     vi.spyOn(
       AgentServerConversationService,
       "batchGetAppConversations",
-    ).mockResolvedValue([buildConversation({ sandbox_id: null })]);
+    ).mockResolvedValue([
+      buildConversation({ conversation_url: null, session_api_key: null }),
+    ]);
 
-    await expect(pauseConversation("conv-abc")).rejects.toThrow(/sandbox_id/);
+    await expect(pauseConversation("conv-abc")).rejects.toThrow(
+      /sandbox is still starting/,
+    );
     expect(axios.request).not.toHaveBeenCalled();
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });

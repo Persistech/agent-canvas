@@ -55,14 +55,10 @@ export const useUnifiedPauseConversation = () => {
       }
       toast.success(t(I18nKey.TOAST$CONVERSATION_STOPPED), TOAST_OPTIONS);
 
-      // Update both execution_status and sandbox_status together so that
-      // WebSocketProviderWrapper's sandbox_status === "PAUSED" gate fires
-      // immediately when the user reopens this conversation — preventing a
-      // WebSocket connection attempt against the now-paused sandbox host
-      // before the next useActiveConversation poll returns.
+      // The stop action interrupts the active agent loop but does not pause the
+      // cloud runtime sandbox, so leave sandbox_status untouched.
       patchConversationInCache(queryClient, variables.conversationId, {
         execution_status: ExecutionStatus.PAUSED,
-        sandbox_status: "PAUSED",
       });
 
       if (currentConversationId === variables.conversationId) {
