@@ -8,7 +8,10 @@ import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
-import { useBreakpoint } from "#/hooks/use-breakpoint";
+import {
+  useBreakpoint,
+  SIDEBAR_RAIL_COLLAPSE_MAX_WIDTH,
+} from "#/hooks/use-breakpoint";
 import { useAgentsHubNavItems } from "#/hooks/use-agents-hub-nav-items";
 import {
   getFirstAvailableAgentsPath,
@@ -44,7 +47,9 @@ function AgentsHubScreen() {
   const location = useLocation();
   const matches = useMatches();
   const navItems = useAgentsHubNavItems();
-  const isMobile = useBreakpoint(768);
+  // Match the CSS `md` boundary (and agents-index) so the mobile-hub title is
+  // hidden on exactly the widths the mobile hub actually renders.
+  const isMobile = useBreakpoint(SIDEBAR_RAIL_COLLAPSE_MAX_WIDTH);
   const [hideSectionHeader, setHideSectionHeader] = useState(false);
 
   const { currentSectionTitle, currentSectionSubtitle } = useMemo(() => {

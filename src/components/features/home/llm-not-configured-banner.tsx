@@ -44,7 +44,7 @@ export function LlmNotConfiguredBanner() {
         testId="home-llm-not-configured-action"
         type="button"
         variant="primary"
-        onClick={() => navigate("/settings/llm")}
+        onClick={() => navigate("/agents/llm")}
       >
         {t(I18nKey.HOME$LLM_NOT_CONFIGURED_ACTION)}
       </BrandButton>
