@@ -312,13 +312,24 @@ export const CONVERSATION_HANDLERS = [
     "*/api/conversations/:conversationId/events/search",
     async ({ params, request }) => {
       const conversationId = params.conversationId as string;
+      const searchParams = new URL(request.url).searchParams;
       const paginationPage = await maybeReturnPaginationEvents(
         conversationId,
-        new URL(request.url).searchParams,
+        searchParams,
       );
       if (paginationPage) return HttpResponse.json(paginationPage);
-      const items = CONVERSATION_EVENTS[conversationId] ?? [];
-      return HttpResponse.json({ items, next_page_id: null });
+
+      const staticEvents = CONVERSATION_EVENTS[conversationId];
+      if (staticEvents) {
+        return HttpResponse.json(
+          searchPaginationEvents(
+            staticEvents as OpenHandsEvent[],
+            searchParams,
+          ),
+        );
+      }
+
+      return HttpResponse.json({ items: [], next_page_id: null });
     },
   ),
 

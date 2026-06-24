@@ -1,6 +1,3 @@
-import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
-import type { ConversationHistoryPage } from "#/hooks/query/use-conversation-history";
-import { ExecutionStatus } from "#/types/agent-server/core";
 import type { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
 
 export const TABLE_DEMO_CONVERSATION_ID = "table-demo";
@@ -59,43 +56,3 @@ export const TABLE_DEMO_EVENTS: OpenHandsEvent[] = [
     1,
   ),
 ];
-
-export function isTableDemoConversationId(
-  conversationId: string | null | undefined,
-): boolean {
-  return conversationId === TABLE_DEMO_CONVERSATION_ID;
-}
-
-export function getTableDemoAppConversation(): AppConversation {
-  const timestamp = new Date(TABLE_DEMO_BASE_TIME).toISOString();
-
-  return {
-    id: TABLE_DEMO_CONVERSATION_ID,
-    created_by_user_id: null,
-    selected_repository: null,
-    selected_branch: null,
-    git_provider: null,
-    title: "Wide table demo",
-    trigger: null,
-    pr_number: [],
-    llm_model: "openhands/claude-haiku-4-5-20251001",
-    metrics: null,
-    created_at: timestamp,
-    updated_at: timestamp,
-    execution_status: ExecutionStatus.IDLE,
-    conversation_url: null,
-    session_api_key: null,
-    sandbox_id: null,
-    workspace: { working_dir: "/workspace/project" },
-    public: false,
-    sub_conversation_ids: [],
-  };
-}
-
-export function getTableDemoHistoryPage(): ConversationHistoryPage {
-  return {
-    events: TABLE_DEMO_EVENTS,
-    hasMore: false,
-    nextPageId: null,
-  };
-}
