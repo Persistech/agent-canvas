@@ -908,6 +908,38 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
+/**
+ * Build the `request.secrets` map shared by the standard and planning
+ * conversation builders. Every saved secret rides as a LookupSecret the
+ * agent-server resolves from its own store at spawn time — `request.secrets` is
+ * the sole channel, uniform for ACP and non-ACP (agent-canvas#1039). For ACP the
+ * resolution runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the
+ * loopback fetch can't deadlock. Returns `undefined` when there are no custom
+ * secrets so callers can omit the field.
+ */
+function buildCustomSecrets(
+  customSecrets: Array<{ name: string; description?: string }> | undefined,
+): Record<string, LookupSecret> | undefined {
+  if (!customSecrets?.length) return undefined;
+
+  const backend = getEffectiveLocalBackend();
+  const headers = backend ? buildAuthHeaders(backend) : {};
+
+  const secrets: Record<string, LookupSecret> = {};
+  for (const secret of customSecrets) {
+    const lookupSecret: LookupSecret = {
+      kind: "LookupSecret",
+      url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+      description: secret.description,
+    };
+    if (Object.keys(headers).length > 0) {
+      lookupSecret.headers = headers;
+    }
+    secrets[secret.name] = lookupSecret;
+  }
+  return secrets;
+}
+
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ): AgentSettingsStartConversationPayload {
@@ -1010,30 +1042,8 @@ export function buildStartConversationRequest(
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
-  // Every saved secret rides as a LookupSecret the agent-server resolves back
-  // from its own store at spawn time — ``request.secrets`` is the sole channel,
-  // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
-  // runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the loopback
-  // fetch can't deadlock.
-  if (options.customSecrets && options.customSecrets.length > 0) {
-    const backend = getEffectiveLocalBackend();
-    const headers = backend ? buildAuthHeaders(backend) : {};
-
-    const secrets: Record<string, LookupSecret> = {};
-    for (const secret of options.customSecrets) {
-      const lookupSecret: LookupSecret = {
-        kind: "LookupSecret",
-        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
-        description: secret.description,
-      };
-
-      if (Object.keys(headers).length > 0) {
-        lookupSecret.headers = headers;
-      }
-
-      secrets[secret.name] = lookupSecret;
-    }
-
+  const secrets = buildCustomSecrets(options.customSecrets);
+  if (secrets) {
     payload.secrets = secrets;
   }
 
@@ -1119,25 +1129,8 @@ export function buildStartPlanningConversationRequest(options: {
     payload.secrets_encrypted = true;
   }
 
-  if (options.customSecrets && options.customSecrets.length > 0) {
-    const backend = getEffectiveLocalBackend();
-    const headers = backend ? buildAuthHeaders(backend) : {};
-
-    const secrets: Record<string, LookupSecret> = {};
-    for (const secret of options.customSecrets) {
-      const lookupSecret: LookupSecret = {
-        kind: "LookupSecret",
-        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
-        description: secret.description,
-      };
-
-      if (Object.keys(headers).length > 0) {
-        lookupSecret.headers = headers;
-      }
-
-      secrets[secret.name] = lookupSecret;
-    }
-
+  const secrets = buildCustomSecrets(options.customSecrets);
+  if (secrets) {
     payload.secrets = secrets;
   }
 

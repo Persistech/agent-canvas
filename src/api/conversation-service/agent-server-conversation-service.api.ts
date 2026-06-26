@@ -463,13 +463,15 @@ class AgentServerConversationService {
     ).createConversation<DirectConversationInfo>(payload);
 
     const existing = getStoredConversationMetadata(parentConversationId);
+    // Spread `existing` so optional fields added to ConversationMetadata later
+    // are carried forward instead of being silently dropped (the setter does a
+    // full replace). Required fields are defaulted up front and overridden by
+    // `existing` when present.
     setStoredConversationMetadata(parentConversationId, {
-      selected_repository: existing?.selected_repository ?? null,
-      selected_branch: existing?.selected_branch ?? null,
-      git_provider: existing?.git_provider ?? null,
-      selected_workspace: existing?.selected_workspace ?? null,
-      workspace_mode: existing?.workspace_mode ?? null,
-      active_profile: existing?.active_profile ?? null,
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      ...(existing ?? {}),
       local_planning_conversation_id: data.id,
     });
 
