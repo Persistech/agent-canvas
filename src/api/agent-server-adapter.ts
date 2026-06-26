@@ -30,9 +30,9 @@ import {
 } from "#/constants/llm-subscription";
 import {
   buildPlanPath,
-  LOCAL_PLANNER_INITIAL_MESSAGE,
   LOCAL_PLANNER_PARENT_TAG_KEY,
   PLAN_STRUCTURE_TEXT,
+  PLANNING_AGENT_INSTRUCTION,
   PLANNING_FILE_EDITOR_TOOL_NAME,
   PLANNING_SYSTEM_PROMPT_FILENAME,
 } from "#/utils/plan-file";
@@ -1048,6 +1048,22 @@ export function buildStartPlanningConversationRequest(options: {
   const llm = buildNormalizedLlmSettings(agentSettings.llm);
 
   const planPath = buildPlanPath(options.workingDir);
+
+  // Put the planner's directive + boundaries in the system prompt (matching the
+  // OpenHands app-server's PLANNING_AGENT_INSTRUCTION), preserving any suffix
+  // buildAgentContext already set (e.g. the runtime-services block).
+  const agentContext = buildAgentContext(agentSettings);
+  const existingSuffix = agentContext.system_message_suffix;
+  agentContext.system_message_suffix =
+    typeof existingSuffix === "string"
+      ? `${PLANNING_AGENT_INSTRUCTION}\n\n${existingSuffix}`
+      : PLANNING_AGENT_INSTRUCTION;
+
+  // Idle planner: "Create a Plan" only switches to plan mode and provisions
+  // this conversation; the user sends the first message themselves, so nothing
+  // is injected into the chat. An explicit initialMessage is still honored.
+  const initialMessage = buildInitialMessage(options.initialMessage);
+
   const payload: RawAgentStartConversationPayload = {
     agent: {
       kind: "Agent",
@@ -1067,7 +1083,7 @@ export function buildStartPlanningConversationRequest(options: {
       // the bare SDK `get_planning_agent()` preset (which sets no context); it
       // mirrors how the frontend builds every agent, so the local planner is
       // not context-starved relative to the code agent.
-      agent_context: buildAgentContext(agentSettings),
+      agent_context: agentContext,
       // Mirror the SDK planning preset's condenser (openhands-tools preset
       // `get_planning_condenser`): a larger rolling window and more pinned
       // initial context than the default, with its own usage_id so its
@@ -1092,16 +1108,7 @@ export function buildStartPlanningConversationRequest(options: {
     autotitle: false,
     worktree: false,
     tags: { [LOCAL_PLANNER_PARENT_TAG_KEY]: options.parentConversationId },
-    initial_message: {
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text: options.initialMessage ?? LOCAL_PLANNER_INITIAL_MESSAGE,
-        },
-      ],
-      run: true,
-    },
+    ...(initialMessage ? { initial_message: initialMessage } : {}),
   };
 
   if (options.secretsEncrypted) {

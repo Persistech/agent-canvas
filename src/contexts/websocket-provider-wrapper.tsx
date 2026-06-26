@@ -17,13 +17,20 @@ export function WebSocketProviderWrapper({
   const localPlanningConversationId = useConversationStore(
     (state) => state.localPlanningConversationId,
   );
-  const planningConversationIds =
-    conversation?.sub_conversation_ids &&
-    conversation.sub_conversation_ids.length > 0
-      ? conversation.sub_conversation_ids
-      : localPlanningConversationId
-        ? [localPlanningConversationId]
-        : [];
+  // Stable reference across renders: ConversationWebSocketProvider keys effects
+  // on `subConversationIds` (planning-history tracking + the deferred PLAN.md
+  // read), so a fresh array literal each render re-fires them and wipes the
+  // pending plan read — the local planner's PLAN.md would never surface. The
+  // cloud path was already stable via react-query's `sub_conversation_ids`.
+  const planningConversationIds = React.useMemo(() => {
+    if (
+      conversation?.sub_conversation_ids &&
+      conversation.sub_conversation_ids.length > 0
+    ) {
+      return conversation.sub_conversation_ids;
+    }
+    return localPlanningConversationId ? [localPlanningConversationId] : [];
+  }, [conversation?.sub_conversation_ids, localPlanningConversationId]);
   const { data: subConversations } = useSubConversations(
     planningConversationIds,
   );

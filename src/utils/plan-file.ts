@@ -37,8 +37,24 @@ export const PLAN_STRUCTURE_TEXT = [
   "   * This section should describe what success looks like — expected outputs, behaviors, or conditions.",
 ].join("\n");
 
-export const LOCAL_PLANNER_INITIAL_MESSAGE =
-  "Create or update the plan for the current task in the configured PLAN.md file.";
+// System-prompt suffix for the local planning agent (mirrors the OpenHands
+// app-server's PLANNING_AGENT_INSTRUCTION). The planner's directive + boundaries
+// live in the system prompt; the planning conversation is created idle, so the
+// user types the first message themselves and nothing is injected into the chat.
+export const PLANNING_AGENT_INSTRUCTION = [
+  "<IMPORTANT_PLANNING_BOUNDARIES>",
+  "You are a Planning Agent that can ONLY create plans - you CANNOT execute code or make changes.",
+  "",
+  "Create or update the plan for the current task in the configured PLAN.md file.",
+  "",
+  "After you finalize the plan in PLAN.md:",
+  '- Do NOT ask "Ready to proceed?" or offer to execute the plan',
+  "- Do NOT attempt to run any implementation commands",
+  "- Instead, tell the user they can click the **Build** button below the plan preview to switch to the code agent and execute the plan.",
+  "",
+  "Your role ends when the plan is finalized. Implementation is handled by the code agent.",
+  "</IMPORTANT_PLANNING_BOUNDARIES>",
+].join("\n");
 
 export function buildPlanPath(workingDir: string): string {
   const normalized = workingDir.replace(/\/+$/, "");

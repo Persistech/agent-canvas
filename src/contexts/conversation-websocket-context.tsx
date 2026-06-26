@@ -961,11 +961,18 @@ export function ConversationWebSocketProvider({
       const currentMode = useConversationStore.getState().conversationMode;
       const currentSocket =
         currentMode === "plan" ? planningAgentSocket : mainSocket;
+      // In plan mode the message belongs to the planning conversation; keep the
+      // REST fallback consistent with the WebSocket routing above (else a first
+      // message sent before the planning socket opens hits the code agent).
+      const targetConversationId =
+        currentMode === "plan"
+          ? (subConversations?.[0]?.id ?? conversationId)
+          : conversationId;
 
       if (currentSocket?.readyState !== WebSocket.OPEN) {
         // WebSocket not connected - queue message via REST API
         // Message will be delivered automatically when conversation becomes ready
-        if (!conversationId) {
+        if (!targetConversationId) {
           const error = new Error("No conversation ID available");
           setErrorMessage(error.message);
           throw error;
@@ -973,7 +980,7 @@ export function ConversationWebSocketProvider({
 
         try {
           await new ConversationClient(getAgentServerClientOptions()).sendEvent(
-            conversationId,
+            targetConversationId,
             {
               role: "user",
               content: message.content,
@@ -1005,7 +1012,13 @@ export function ConversationWebSocketProvider({
         throw error;
       }
     },
-    [mainSocket, planningAgentSocket, setErrorMessage, conversationId],
+    [
+      mainSocket,
+      planningAgentSocket,
+      setErrorMessage,
+      conversationId,
+      subConversations,
+    ],
   );
 
   // Track main socket state changes
