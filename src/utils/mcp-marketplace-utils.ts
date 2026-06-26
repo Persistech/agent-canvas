@@ -4,9 +4,26 @@ import type {
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
   IntegrationTransport,
+  MarketplaceField,
 } from "@openhands/extensions/integrations";
 
 export type { MarketplaceEntry };
+
+/**
+ * A remote (`shttp`/`sse`) MCP transport that may declare named request
+ * headers via `headerFields`. The published `@openhands/extensions` type for
+ * the `shttp`/`sse` transports does not yet include `headerFields` (it lands
+ * in https://github.com/OpenHands/extensions/pull/364), so this local view
+ * adds the optional field. Catalog JSON authored with `headerFields` flows
+ * through at runtime regardless of the installed type defs; this just keeps
+ * the compiler happy until the published types catch up.
+ */
+export type McpRemoteTransport = Extract<
+  IntegrationTransport,
+  { url: string }
+> & {
+  headerFields?: MarketplaceField[];
+};
 
 type McpIntegrationAuthConfig = IntegrationAuthConfig & {
   credentialSecretName?: string;
@@ -18,7 +35,9 @@ export type McpMarketplaceConnectionOption = Omit<
   "auth" | "provider" | "transport"
 > & {
   provider: "mcp";
-  transport: IntegrationTransport;
+  transport:
+    | McpRemoteTransport
+    | Extract<IntegrationTransport, { kind: "stdio" }>;
   auth: McpIntegrationAuthConfig;
 };
 
