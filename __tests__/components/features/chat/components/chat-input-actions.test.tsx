@@ -42,6 +42,18 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "#/components/features/chat/components/chat-input-llm-profile-picker",
+  () => ({
+    ChatInputLlmProfilePicker: () => (
+      <div data-testid="llm-profile-picker-stub" />
+    ),
+    ChatInputLlmProfileMenuContent: () => (
+      <div data-testid="llm-profile-menu-stub" />
+    ),
+  }),
+);
+
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
 }));
@@ -73,20 +85,43 @@ describe("ChatInputActions", () => {
     useActiveConversationMock.mockReturnValue({ data: undefined });
   });
 
-  it("renders the AgentProfile picker on a local backend", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+  it("renders the AgentProfile picker on the home page (local)", () => {
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: null },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />);
-
+    // Home keeps the start-new/activate AgentProfile picker (#3727).
     expect(screen.getByTestId("agent-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("llm-profile-picker-stub"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("chat-input-llm-model"),
     ).not.toBeInTheDocument();
   });
 
-  it("renders the AgentProfile picker for local ACP conversations", () => {
+  it("renders the LLM-profile switcher inside a local OpenHands conversation", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: "test-conversation-id" },
+    });
+
+    // In a conversation the user live-switches the LLM profile, not start-new.
+    expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the model switcher inside a local ACP conversation", () => {
     useActiveConversationMock.mockReturnValue({
       data: {
         conversation_id: "test-conversation-id",
@@ -95,13 +130,17 @@ describe("ChatInputActions", () => {
       },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />);
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: "test-conversation-id" },
+    });
 
-    // Local ACP now uses the unified AgentProfile picker (start-new-with-
-    // profile), not the inline model label.
-    expect(screen.getByTestId("agent-profile-picker-stub")).toBeInTheDocument();
+    // ACP in a conversation live-switches the running model via ChatInputModel.
+    expect(screen.getByTestId("chat-input-llm-model")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("chat-input-llm-model"),
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("llm-profile-picker-stub"),
     ).not.toBeInTheDocument();
   });
 
