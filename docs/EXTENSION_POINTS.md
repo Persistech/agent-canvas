@@ -151,7 +151,8 @@ Grounded surface map:
 1. **`when` / whitelisted UI-context primitive** — ✅ implemented (shared dependency of
    everything below; no capability). See § "3. Command metadata + the `when` / UI-context
    primitive".
-2. **Chat "add" menu slot** — XS; pure reuse of the menus mechanism.
+2. **Chat "add" menu slot** — ✅ implemented (XS; pure reuse of the menus mechanism). See
+   § "2. Chat "add" menu".
 3. **Settings page contribution** — webview body + merge into `use-settings-nav-items` + one
    catch-all `/settings/x/:extensionId` route; **no new capability** if the page persists via
    the extension's existing `storage`.
@@ -186,14 +187,22 @@ Shipped as the first declarative point built on this recipe (see the "today" tab
 - **Not yet:** an `onMenu:<slot>` activation event (unnecessary — command activation already
   covers it).
 
-### 2. Chat "add" menu (and why *not* slash commands)
-- **Surface:** the chat "add" menu in the submission area (next to the code/plan selector),
-  `src/components/features/chat/components/chat-input-actions.tsx` — built on the **same
-  `ContextMenu` primitives** as the menus point, so this is **one more `MENU_SLOTS` id**
-  (e.g. `chatInput/actions`), not a new mechanism.
+### 2. Chat "add" menu — ✅ implemented (and why *not* slash commands)
+- **Surface:** the chat "add"/overflow menu in the submission area (next to the code/plan +
+  model controls), `src/components/features/chat/components/chat-input-actions.tsx` — built on
+  the **same `ContextMenu` primitives** as the menus point, so this is **one more `MENU_SLOTS`
+  id** (`chatInput/actions`), not a new mechanism. Contributed items render via the shared
+  `<ExtensionMenuItems slot="chatInput/actions" />` into the three-dots overflow menu, and their
+  presence forces that overflow trigger to appear even when the toolbar otherwise fits inline.
 - **Analog:** editor toolbar / quick actions.
-- **Shape:** a `contributes.menus` slot whose items run a contributed command. Declarative;
-  **no new capability** to render or to run the command.
+- **Shape:** a `contributes.menus` slot whose items run a contributed command (and may carry a
+  `when` clause, § 3). Declarative; **no new capability** to render or to run the command.
+  ```jsonc
+  "contributes": {
+    "commands": [{ "command": "hello.say", "title": "Hello: Say hi" }],
+    "menus": { "chatInput/actions": [{ "command": "hello.say" }] }
+  }
+  ```
 - **Slash commands are deliberately *not* a contribution point.** `useSlashCommand`
   (`src/hooks/chat/use-slash-command.ts`) populates the `/` menu from `BUILT_IN_COMMANDS` +
   conversation skills + microagents. **Skills already own "type `/` to run a workflow,"** so a

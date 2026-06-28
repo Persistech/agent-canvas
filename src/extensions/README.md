@@ -312,8 +312,9 @@ resolved via jsDelivr with `engines.agentCanvas` host-compatibility enforcement*
 **in-place update detection/application** (`checkForUpdate`/`updateExtension`, surfaced in
 the management UI alongside each install's source ref), and the **`contributes.menus`
 declarative contribution point** (menu items bound to a contributed command, placed into
-named menu slots via `menu-slots.ts` and rendered by `extension-menu-items.tsx` — the
-first host slot is the conversation-tabs context menu), and the **`when` / UI-context
+named menu slots via `menu-slots.ts` and rendered by `extension-menu-items.tsx` — host slots
+are the conversation-tabs context menu and the chat input "add"/overflow menu
+(`chatInput/actions`)), and the **`when` / UI-context
 visibility primitive** (a tiny `&&`-conjunction evaluator in `when.ts` over a
 whitelisted, read-only host UI-context in `ui-context.tsx`, applied by `useMenuItems`
 so hidden items render no extension code and need no capability) are implemented and tested

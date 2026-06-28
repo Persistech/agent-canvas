@@ -13,6 +13,8 @@
 export const MENU_SLOTS = {
   /** The conversation-tabs overflow/context menu. */
   conversationTabsContext: "conversationTabs/context",
+  /** The chat input "add"/overflow actions menu (next to the code/plan + model controls). */
+  chatInputActions: "chatInput/actions",
 } as const;
 
 export type MenuSlotId = (typeof MENU_SLOTS)[keyof typeof MENU_SLOTS];
