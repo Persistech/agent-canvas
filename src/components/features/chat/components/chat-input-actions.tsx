@@ -36,6 +36,9 @@ import { I18nKey } from "#/i18n/declaration";
 import { ToolsContextMenuIconText } from "../../controls/tools-context-menu-icon-text";
 import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { ContextMenu } from "#/ui/context-menu";
+import { ExtensionMenuItems } from "#/components/features/extensions/extension-menu-items";
+import { useMenuItems } from "#/extensions/use-contributions";
+import { MENU_SLOTS } from "#/extensions/menu-slots";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
 import {
@@ -85,6 +88,9 @@ export function ChatInputActions({
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
   const { handlePlanClick, isCreatingConversation } = useHandlePlanClick();
+  // Declarative extension menu items contributed into this slot, already filtered
+  // by each item's `when` clause. Showing them runs no extension code.
+  const extensionMenuItems = useMenuItems(MENU_SLOTS.chatInputActions);
 
   const actionsRowRef = React.useRef<HTMLDivElement>(null);
   const rightSectionRef = React.useRef<HTMLDivElement>(null);
@@ -219,7 +225,8 @@ export function ChatInputActions({
   const hasOverflowItems =
     !showAddFileInline ||
     (showChangeAgentButton && !showCodeInline) ||
-    !showModelInline;
+    !showModelInline ||
+    extensionMenuItems.length > 0;
 
   React.useEffect(() => {
     if (!hasOverflowItems) {
@@ -432,6 +439,10 @@ export function ChatInputActions({
           </div>
         </div>
       )}
+      <ExtensionMenuItems
+        slot={MENU_SLOTS.chatInputActions}
+        onAfterSelect={closeOverflowMenus}
+      />
     </ContextMenu>
   );
 

@@ -1,8 +1,12 @@
 import React from "react";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { contributionRegistry } from "#/extensions/contribution-registry";
+import { MENU_SLOTS } from "#/extensions/menu-slots";
+import type { MenuItem } from "#/extensions/types";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -249,5 +253,56 @@ describe("ChatInputActions", () => {
     );
 
     expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
+  });
+
+  describe("extension menu items (chatInput/actions slot)", () => {
+    afterEach(() => contributionRegistry.clear());
+
+    function registerItem(overrides: Partial<MenuItem> = {}): MenuItem {
+      const item: MenuItem = {
+        extensionId: "acme.hello",
+        menu: MENU_SLOTS.chatInputActions,
+        command: "hello.say",
+        title: "Hello: Say hi",
+        run: vi.fn(),
+        ...overrides,
+      };
+      contributionRegistry.register(item.extensionId, { menus: [item] });
+      return item;
+    }
+
+    it("surfaces a contributed item via the overflow menu", async () => {
+      const user = userEvent.setup();
+      registerItem();
+
+      renderWithProviders(<ChatInputActions disabled={false} />);
+
+      // A contributed item makes the overflow trigger appear even when the
+      // toolbar otherwise fits inline.
+      const trigger = screen.getByLabelText(
+        "CHAT_INTERFACE$MORE_INPUT_ACTIONS",
+      );
+      await user.click(trigger);
+
+      expect(
+        screen.getByTestId("extension-menu-item-acme.hello-hello.say"),
+      ).toBeInTheDocument();
+    });
+
+    it("does not surface an item whose when clause fails the UI-context", () => {
+      // No ExtensionUiContextProvider here, so `backend` is unknown and a
+      // `backend == cloud` clause is false — the item is filtered out and never
+      // reaches the DOM, so the overflow trigger isn't forced open.
+      registerItem({ when: "backend == cloud" });
+
+      renderWithProviders(<ChatInputActions disabled={false} />);
+
+      expect(
+        screen.queryByLabelText("CHAT_INTERFACE$MORE_INPUT_ACTIONS"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("extension-menu-item-acme.hello-hello.say"),
+      ).not.toBeInTheDocument();
+    });
   });
 });
