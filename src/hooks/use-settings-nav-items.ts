@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { Puzzle } from "lucide-react";
 import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
 import { OSS_NAV_ITEMS, SettingsNavItem } from "#/constants/settings-nav";
@@ -6,6 +8,8 @@ import { isSettingsPageHidden } from "#/utils/settings-utils";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveAgentProfile } from "#/hooks/use-active-agent-profile";
+import { useSettingsPages } from "#/extensions/use-contributions";
+import { extensionSettingsPath } from "#/utils/extension-settings-path";
 
 export type SettingsNavRenderedItem =
   | {
@@ -21,6 +25,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const { data: config } = useConfig();
   const { data: settings } = useSettings();
   const { backend } = useActiveBackend();
+  const settingsPages = useSettingsPages();
   const featureFlags = config?.feature_flags;
 
   // The active AgentProfile is the source of truth for the current agent kind
@@ -47,7 +52,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   // Agent profiles are available on both local and cloud backends — the cloud
   // enterprise app-server exposes the same `/api/agent-profiles` surface
   // (OpenHands #15060, epic #3730), so the nav item is no longer local-gated.
-  return OSS_NAV_ITEMS.filter(
+  const builtInItems: SettingsNavRenderedItem[] = OSS_NAV_ITEMS.filter(
     (item) => !isSettingsPageHidden(item.to, featureFlags),
   ).map((item) => {
     // Local backends present "LLM Profiles" as the section name + subtitle
@@ -79,4 +84,32 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
     }
     return { type: "item", item: renamedItem };
   });
+
+  // Merge extension-contributed settings pages after the built-ins. Pages are
+  // already filtered by their `when` clause (host facts only — no extension code
+  // runs to show/hide them). One nav item per extension; the catch-all route
+  // (`/settings/x/:extensionId`) mounts that extension's settings page.
+  const seenExtensions = new Set<string>();
+  const extensionItems: SettingsNavRenderedItem[] = [];
+  for (const page of settingsPages) {
+    if (seenExtensions.has(page.extensionId)) continue;
+    seenExtensions.add(page.extensionId);
+    extensionItems.push({
+      type: "item",
+      item: {
+        icon: createElement(Puzzle, {
+          width: 16,
+          height: 16,
+          "aria-hidden": true,
+        }),
+        to: extensionSettingsPath(page.extensionId),
+        // Author-provided strings, not i18n keys; `t()` falls back to the raw
+        // string when there's no matching key, so they render verbatim.
+        text: page.title,
+        subtitle: page.title,
+      },
+    });
+  }
+
+  return [...builtInItems, ...extensionItems];
 }
