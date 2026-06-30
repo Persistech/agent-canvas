@@ -137,7 +137,6 @@ describe("recommended automations", () => {
   it("renders the proven automations before the beta ones, each in popularity order", () => {
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         onSelect={vi.fn()}
       />,
@@ -165,7 +164,6 @@ describe("recommended automations", () => {
   it("groups the non-proven automations under a labeled Beta section", () => {
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         onSelect={vi.fn()}
       />,
@@ -224,7 +222,6 @@ describe("recommended automations", () => {
   it("filters recommendations by required MCP keywords", () => {
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         query="standup"
         onSelect={vi.fn()}
@@ -242,7 +239,6 @@ describe("recommended automations", () => {
   it("shows a left-aligned MCP icon stack on each card", () => {
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         onSelect={vi.fn()}
       />,
@@ -292,7 +288,6 @@ describe("recommended automations", () => {
     try {
       render(
         <RecommendedAutomationsSection
-          backendKind="local"
           installedServers={[]}
           onSelect={vi.fn()}
         />,
@@ -324,7 +319,6 @@ describe("recommended automations", () => {
   it("shows a decorative plus badge on each card without toggle behavior", () => {
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         onSelect={vi.fn()}
       />,
@@ -349,7 +343,6 @@ describe("recommended automations", () => {
 
     render(
       <RecommendedAutomationsSection
-        backendKind="local"
         installedServers={[]}
         onSelect={onSelect}
       />,

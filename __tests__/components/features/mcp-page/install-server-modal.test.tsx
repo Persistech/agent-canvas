@@ -131,11 +131,9 @@ describe("InstallServerModal", () => {
     // without relying on the catalog choosing to mark one this way.
     const entry: MarketplaceEntry = {
       id: "synthetic-required",
-      kind: "mcp",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -174,11 +172,9 @@ describe("InstallServerModal", () => {
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
     const entry: MarketplaceEntry = {
       id: "synthetic-optional",
-      kind: "mcp",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -261,7 +257,9 @@ describe("InstallServerModal", () => {
     };
     const expectedServer: Record<string, unknown> = {
       url: transport.url,
-      transport: transport.kind,
+      // toSdkMcpConfig only tags SSE servers with a `transport` field; shttp
+      // (the default) is emitted without one.
+      ...(transport.kind === "sse" ? { transport: "sse" } : {}),
     };
     if (credentialInput) {
       expectedServer.headers = { Authorization: "Bearer lin_api_secret" };
@@ -311,11 +309,9 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-test-fail",
-      kind: "mcp",
       name: "Failing Server",
       description: "Always fails the connection test.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -394,11 +390,9 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-test-pass",
-      kind: "mcp",
       name: "Passing Server",
       description: "Always passes the connection test.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -435,11 +429,9 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-pending",
-      kind: "mcp",
       name: "Pending Server",
       description: "Connection test never resolves.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -478,11 +470,9 @@ describe("InstallServerModal", () => {
   // types without depending on the live integration catalog.
   const STDIO_ENTRY = {
     id: "synthetic-stdio",
-    kind: "mcp",
     name: "Synthetic Stdio Server",
     description: "Stdio server used to test the save-as-secret feature.",
     iconBg: "#000000",
-    defaultConnectionOptionId: "stdio",
     connectionOptions: [
       {
         id: "stdio",
@@ -525,11 +515,9 @@ describe("InstallServerModal", () => {
 
   const SHTTP_ENTRY = {
     id: "synthetic-shttp-secret",
-    kind: "mcp",
     name: "Synthetic Hosted Server",
     description: "Hosted server used to test credential secret saving.",
     iconBg: "#000000",
-    defaultConnectionOptionId: "api",
     connectionOptions: [
       {
         id: "api",

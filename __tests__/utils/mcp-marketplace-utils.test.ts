@@ -6,7 +6,6 @@ import {
   getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
-  isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
@@ -15,7 +14,6 @@ const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
 const tavilyEntry = mcpMarketplace.find((e) => e.id === "tavily")!;
 const linearEntry = mcpMarketplace.find((e) => e.id === "linear")!;
-const filesystemEntry = mcpMarketplace.find((e) => e.id === "filesystem")!;
 
 function optionTransport(entry: typeof slackEntry, optionId = "api") {
   const transport = entry.connectionOptions.find(
@@ -112,7 +110,6 @@ describe("getInstallableMcpConnectionOption", () => {
     >[0] = {
       ...slackEntry,
       id: "oauth-only",
-      defaultConnectionOptionId: "oauth",
       connectionOptions: [
         {
           id: "oauth",
@@ -134,23 +131,10 @@ describe("getInstallableMcpConnectionOption", () => {
     >[0] = {
       ...slackEntry,
       id: "no-mcp",
-      defaultConnectionOptionId: undefined,
       connectionOptions: [],
     };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);
     expect(option).toBeUndefined();
-  });
-});
-
-describe("isMarketplaceEntryAvailable", () => {
-  it("treats unset availability as 'all'", () => {
-    expect(isMarketplaceEntryAvailable(slackEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(slackEntry, "cloud")).toBe(true);
-  });
-
-  it("hides local-only entries on cloud", () => {
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "cloud")).toBe(false);
   });
 });
 
@@ -255,7 +239,10 @@ describe("findCatalogEntryForServer", () => {
     // "Installed".
     const linear = mcpMarketplace.find((e) => e.id === "linear")!;
     const linearTransport = getDefaultMcpTransport(linear);
-    if (!linearTransport || (linearTransport.kind !== "shttp" && linearTransport.kind !== "sse")) {
+    if (
+      !linearTransport ||
+      (linearTransport.kind !== "shttp" && linearTransport.kind !== "sse")
+    ) {
       // Linear may use a different transport - skip this specific URL test
       return;
     }

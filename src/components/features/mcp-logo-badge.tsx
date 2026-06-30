@@ -3,7 +3,7 @@ import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations
 import {
   INTEGRATION_FALLBACK_LOGO,
   INTEGRATION_LOGOS,
-} from "@openhands/extensions/integrations/logos";
+} from "#/utils/integration-logos";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<

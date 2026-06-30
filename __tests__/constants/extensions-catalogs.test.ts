@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
-import { INTEGRATION_LOGOS } from "@openhands/extensions/integrations/logos";
+import { INTEGRATION_LOGOS } from "#/utils/integration-logos";
 import { INTEGRATION_CATALOG } from "@openhands/extensions/integrations";
 import {
   getDefaultMcpTransport,
@@ -40,11 +40,10 @@ describe("OpenHands extensions catalogs", () => {
     // Act
     const linear = catalog.find((entry) => entry.id === "linear")!;
 
-    // Assert: upstream provides SSE transport
+    // Assert: upstream provides the working streamable-HTTP transport
     expect(getDefaultMcpTransport(linear)).toEqual({
-      kind: "sse",
-      url: "https://mcp.linear.app/sse",
-      apiKeyOptional: true,
+      kind: "shttp",
+      url: "https://mcp.linear.app/mcp",
     });
   });
 
@@ -55,12 +54,11 @@ describe("OpenHands extensions catalogs", () => {
 
     // Assert: the shared JSON module still carries the upstream values.
     const rawOption = raw?.connectionOptions.find(
-      (option) => option.transport?.kind === "sse",
+      (option) => option.transport?.kind === "shttp",
     );
     expect(rawOption?.transport).toEqual({
-      kind: "sse",
-      url: "https://mcp.linear.app/sse",
-      apiKeyOptional: true,
+      kind: "shttp",
+      url: "https://mcp.linear.app/mcp",
     });
   });
 

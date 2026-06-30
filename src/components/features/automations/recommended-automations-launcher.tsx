@@ -191,7 +191,6 @@ export function RecommendedAutomationsLauncher({
   return (
     <>
       <RecommendedAutomationsSection
-        backendKind={activeBackend.backend.kind}
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}

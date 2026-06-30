@@ -34,11 +34,8 @@ export function getMcpConnectionOptions(
 export function getDefaultMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
-  const options = getMcpConnectionOptions(entry);
-  return (
-    options.find((option) => option.id === entry.defaultConnectionOptionId) ??
-    options[0]
-  );
+  // The catalog orders connectionOptions with the intended default first.
+  return getMcpConnectionOptions(entry)[0];
 }
 
 function isLocallyInstallableMcpOption(
@@ -54,9 +51,7 @@ export function getInstallableMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
   const options = getMcpConnectionOptions(entry);
-  const defaultOption = options.find(
-    (option) => option.id === entry.defaultConnectionOptionId,
-  );
+  const defaultOption = options[0];
   if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
     return defaultOption;
   }
@@ -155,15 +150,6 @@ function transportMatchesServer(
 
   // stdio: match on the registered server name.
   return server.type === "stdio" && server.name === transport.serverName;
-}
-
-export function isMarketplaceEntryAvailable(
-  entry: MarketplaceEntry,
-  backendKind: "local" | "cloud",
-): boolean {
-  if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
-    return true;
-  return entry.runtimeAvailability === backendKind;
 }
 
 function normalize(query: string): string {
