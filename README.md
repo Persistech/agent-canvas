@@ -143,3 +143,22 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 - [Architecture overview](./docs/architecture.md)
 - [Development guide](./docs/DEVELOPMENT.md)
 - [Self-hosting guide](./docs/SELF_HOSTING.md)
+- [Security & threat model](./docs/SECURITY.md)
+
+## Security
+
+agent-canvas is a **local-machine tool** that runs an agent-server (often
+`localhost:18000`) and a static frontend (often `localhost:3001`) on the
+same machine. The default deployment generates a random session API key
+that lives in the browser JS heap and is never persisted to disk; only
+public-mode deployments and user-added custom backends persist keys to
+`localStorage`.
+
+The full threat model — including what the keys can do, where they live,
+what we do about XSS, the shipped Content-Security-Policy, and a hardening
+checklist for self-hosters — lives in **[docs/SECURITY.md](./docs/SECURITY.md)**.
+
+If you find a vulnerability, please follow our
+[security policy][security-md] rather than filing a public issue.
+
+[security-md]: https://github.com/OpenHands/agent-canvas/blob/main/SECURITY.md

@@ -6,3 +6,4 @@ This directory contains the project documentation.
 - [Using ACP agents](./ACP_AGENTS.md): onboard and configure external agents (Claude Code, Codex, Gemini CLI).
 - [Development guide](./DEVELOPMENT.md)
 - [Self-hosting guide](./SELF_HOSTING.md)
+- [Security & threat model](./SECURITY.md): trust boundary, key storage, Content-Security-Policy, and hardening checklist.

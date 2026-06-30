@@ -418,4 +418,101 @@ describe("static-server.mjs", () => {
     expect(response.status).not.toBe(200);
     await expect(response.text()).resolves.not.toContain("secret");
   });
+
+  describe("security headers", () => {
+    it("emits a Content-Security-Policy header on HTML responses", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServerWithRoutes(buildDir, {
+        "/api": "http://127.0.0.1:18000",
+      });
+      const response = await fetch(`${origin}/index.html`);
+
+      expect(response.status).toBe(200);
+      const csp = response.headers.get("content-security-policy");
+      expect(csp).toBeTruthy();
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("http://127.0.0.1:18000");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).toContain("object-src 'none'");
+      expect(csp).toContain("base-uri 'self'");
+    });
+
+    it("emits broad security headers on every response", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+      writeFileSync(path.join(buildDir, "app.js"), "console.log('x')");
+
+      const origin = await startServer(buildDir);
+      const html = await fetch(`${origin}/index.html`);
+      expect(html.headers.get("x-frame-options")).toBe("DENY");
+      expect(html.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(html.headers.get("referrer-policy")).toBe(
+        "strict-origin-when-cross-origin",
+      );
+      expect(html.headers.get("strict-transport-security")).toContain(
+        "max-age=",
+      );
+      expect(html.headers.get("permissions-policy")).toContain("camera=()");
+
+      const js = await fetch(`${origin}/app.js`);
+      expect(js.status).toBe(200);
+      // CSP only goes on HTML; .js must not have it.
+      expect(js.headers.get("content-security-policy")).toBeNull();
+      // But the broad headers do.
+      expect(js.headers.get("x-frame-options")).toBe("DENY");
+      expect(js.headers.get("x-content-type-options")).toBe("nosniff");
+    });
+
+    it("includes every proxy target's origin in connect-src", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServerWithRoutes(buildDir, {
+        "/api": "http://localhost:18000",
+        "/api/automation": "http://localhost:18001",
+      });
+      const response = await fetch(`${origin}/index.html`);
+      const csp = response.headers.get("content-security-policy") ?? "";
+
+      expect(csp).toContain("http://localhost:18000");
+      expect(csp).toContain("http://localhost:18001");
+      expect(csp).toContain("https://us.i.posthog.com");
+      expect(csp).toContain("https://z.openhands.dev");
+      expect(csp).toContain("ws:");
+      expect(csp).toContain("wss:");
+    });
+  });
+
+  // Helper that mirrors `startServer` but lets the test configure proxy
+  // routes. Co-located with the security-headers describe so it can share
+  // the `servers` / `tempDirs` cleanup closures.
+  async function startServerWithRoutes(
+    dir: string,
+    routes: Record<string, string>,
+  ) {
+    const server = await startStaticServer({
+      port: 0,
+      host: "127.0.0.1",
+      dir,
+      routes,
+    });
+    servers.push(server);
+
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Static server did not bind to a TCP port");
+    }
+    return `http://127.0.0.1:${address.port}`;
+  }
 });
