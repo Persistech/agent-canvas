@@ -84,7 +84,7 @@ describe("useSettingsNavItems", () => {
     });
   });
 
-  it("keeps the generic LLM settings item on cloud backends", () => {
+  it("keeps the generic LLM settings item and hides the AgentProfile library on cloud backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useActiveBackendMock.mockReturnValue({
       backend: { kind: "cloud" },
@@ -93,8 +93,13 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
 
+    // The AgentProfile library is local-only (the cloud app-server has no
+    // /api/agent-profiles surface yet, #3730), so it is hidden on cloud; every
+    // other item renders with its canonical (non-"LLM Profiles") name.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
+      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/agents").map(
+        (item) => ({ type: "item", item }),
+      ),
     );
   });
 

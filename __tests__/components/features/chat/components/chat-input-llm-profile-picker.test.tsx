@@ -78,12 +78,12 @@ describe("ChatInputLlmProfilePicker", () => {
     expect(selectProfile).not.toHaveBeenCalled();
   });
 
-  it("links to the LLM catalog in the Agents hub", () => {
+  it("links to the LLM profiles settings page", () => {
     const { container } = renderWithProviders(<ChatInputLlmProfilePicker />);
     fireEvent.click(screen.getByTestId("chat-input-llm-profile"));
 
     expect(
-      container.ownerDocument.querySelector('a[href="/agents/llm"]'),
+      container.ownerDocument.querySelector('a[href="/settings/llm"]'),
     ).not.toBeNull();
   });
 });
