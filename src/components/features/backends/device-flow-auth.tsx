@@ -17,8 +17,12 @@ type DeviceFlowStatusDisplay = "inline" | "modal";
 interface DeviceFlowAuthProps {
   /** The host URL for the cloud backend */
   host: string;
-  /** Callback when authentication succeeds with the API key */
-  onSuccess: (apiKey: string) => void;
+  /**
+   * Callback when authentication succeeds. The endpoint returns the user id
+   * (the API key itself lives in the HttpOnly cookie and is never exposed
+   * to JavaScript, so we cannot pass it through here).
+   */
+  onSuccess: (userId: string) => void;
   /** Test ID prefix for the component */
   testIdRoot: string;
   /** Whether the login button should be disabled (e.g., when no host is entered) */
@@ -109,15 +113,15 @@ export function DeviceFlowAuth({
 
   // Call onSuccess when authentication completes
   React.useEffect(() => {
-    if (deviceFlow.status === "success" && deviceFlow.apiKey) {
+    if (deviceFlow.status === "success" && deviceFlow.userId) {
       try {
-        onSuccess(deviceFlow.apiKey);
+        onSuccess(deviceFlow.userId);
       } finally {
         deviceFlow.reset();
         popupRef.current?.close();
       }
     }
-  }, [deviceFlow.status, deviceFlow.apiKey, deviceFlow.reset, onSuccess]);
+  }, [deviceFlow.status, deviceFlow.userId, deviceFlow.reset, onSuccess]);
 
   const handleStartAuth = () => {
     // Normalize and validate the host URL

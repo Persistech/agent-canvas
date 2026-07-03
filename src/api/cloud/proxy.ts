@@ -5,7 +5,10 @@ import {
 } from "../agent-server-config";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { NoBackendAvailableError } from "../agent-server-client-options";
-import { buildAuthHeaders } from "../backend-registry/auth";
+import {
+  buildAuthHeaders,
+  isCookieAuthenticated,
+} from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
 export interface CloudProxyRequest {
@@ -92,8 +95,18 @@ export async function callCloudProxy<TResponse = unknown>(
     ...(req.headers ?? {}),
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
+  const cookieAuthenticated = isCookieAuthenticated(req.backend);
 
   if (!req.hostOverride) {
+    // App-host call. The HttpOnly `api_key` cookie is set on the cloud
+    // domain (`app.all-hands.dev` and similar) by `POST /oauth/device/cookie`,
+    // so for cookie-authenticated backends we must ask the browser to attach
+    // it. `withCredentials: true` only takes effect when the upstream
+    // responds with `Access-Control-Allow-Credentials: true` and a specific
+    // `Access-Control-Allow-Origin`, which the cloud API does for the
+    // agent-canvas frontend. Non-cookie auth (bearer / session key) is
+    // already carried in `upstreamHeaders`, so we leave credentials off for
+    // those to avoid leaking cookies we never set.
     const response = await axios.request<TResponse>({
       url: `${upstreamHost.replace(/\/+$/, "")}${req.path}`,
       method: req.method,
@@ -101,6 +114,7 @@ export async function callCloudProxy<TResponse = unknown>(
       ...(req.body !== undefined ? { data: req.body } : {}),
       timeout: (req.timeoutSeconds ?? 30) * 1000,
       ...(req.responseType ? { responseType: req.responseType } : {}),
+      ...(cookieAuthenticated ? { withCredentials: true } : {}),
     });
 
     return response.data;
@@ -114,6 +128,14 @@ export async function callCloudProxy<TResponse = unknown>(
   // Do not resolve this through the backend registry: when the active backend
   // is cloud, borrowing some other registered local backend would silently
   // route cloud traffic through the wrong user-configured server.
+  //
+  // Proxied (runtime-sandbox) calls are still gated on a real bearer /
+  // session key in `upstreamHeaders`. Cookie-based auth alone is not yet
+  // supported for `hostOverride` flows because the cloud HttpOnly cookie
+  // is bound to the cloud app origin and cannot be forwarded by the
+  // agent-server on a different domain — a future server-side change
+  // would let the proxy mint a same-domain forwarded cookie for those
+  // sandbox calls.
   const response = await axios.post<TResponse>(
     `${proxyBaseUrl.replace(/\/+$/, "")}/api/cloud-proxy`,
     {

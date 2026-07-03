@@ -19,8 +19,12 @@ export interface DeviceFlowState {
   verificationUrl: string | null;
   /** User code to display as fallback */
   userCode: string | null;
-  /** The resulting API key on success */
-  apiKey: string | null;
+  /**
+   * The user id returned by the cookie endpoint on success. The API key
+   * itself is **not** exposed here — it lives in the HttpOnly cookie
+   * minted by `POST /oauth/device/cookie` so XSS payloads cannot read it.
+   */
+  userId: string | null;
   /** Error message if status is "error" */
   error: string | null;
   /** Error code for programmatic handling */
@@ -40,7 +44,7 @@ const initialState: DeviceFlowState = {
   status: "idle",
   verificationUrl: null,
   userCode: null,
-  apiKey: null,
+  userId: null,
   error: null,
   errorCode: null,
 };
@@ -48,9 +52,18 @@ const initialState: DeviceFlowState = {
 /**
  * React hook for managing OAuth 2.0 Device Flow authentication.
  *
+ * The flow itself uses the cookie endpoint (`POST /oauth/device/cookie`)
+ * introduced in OpenHands/OpenHands#15104, which writes the API key into
+ * an HttpOnly `api_key` cookie instead of returning it in the response
+ * body. The hook therefore does **not** surface the API key to callers —
+ * the only public success-state artifact is the `userId` returned in the
+ * `{success, user_id}` response body. The actual credential stays in
+ * the cookie jar and is sent on subsequent cloud requests via
+ * `credentials: "include"`.
+ *
  * Usage:
  * ```tsx
- * const { status, verificationUrl, apiKey, error, start, cancel, reset } = useDeviceFlow();
+ * const { status, verificationUrl, error, start, cancel, reset } = useDeviceFlow();
  *
  * // Start auth
  * start("https://app.all-hands.dev");
@@ -60,9 +73,10 @@ const initialState: DeviceFlowState = {
  *   window.open(verificationUrl, "_blank");
  * }
  *
- * // Use API key on success
- * if (status === "success" && apiKey) {
- *   setApiKeyField(apiKey);
+ * // React to success — mark the backend as cookie-authenticated and let
+ * // the cookie carry the credential from here on.
+ * if (status === "success") {
+ *   markBackendCookieAuthenticated();
  * }
  * ```
  */
@@ -114,7 +128,7 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
       });
 
       try {
-        const tokenResponse = await pollForToken(
+        const cookieResponse = await pollForToken(
           host,
           authResponse.device_code,
           {
@@ -128,7 +142,7 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
         setState({
           ...initialState,
           status: "success",
-          apiKey: tokenResponse.access_token,
+          userId: cookieResponse.user_id,
         });
       } catch (error) {
         // Early return if component unmounted or user cancelled

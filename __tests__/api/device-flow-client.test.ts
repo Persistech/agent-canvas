@@ -158,33 +158,64 @@ describe("device-flow-client", () => {
   });
 
   describe("pollForToken", () => {
-    it("returns token response on immediate success", async () => {
-      const mockTokenResponse = {
-        access_token: "api-key-123",
-        token_type: "Bearer",
+    it("returns cookie response on immediate success", async () => {
+      const mockCookieResponse = {
+        success: true,
+        user_id: "user-123",
       };
 
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(mockTokenResponse),
+        json: () => Promise.resolve(mockCookieResponse),
       });
 
       const result = await pollForToken(TEST_HOST_URL, "device123", {
         interval: 5,
       });
 
-      expect(result).toEqual(mockTokenResponse);
-      // Should call the cloud endpoint directly.
+      expect(result).toEqual(mockCookieResponse);
+      // Should call the cookie endpoint and forward credentials so the
+      // browser actually stores the Set-Cookie header from the response.
       expect(fetch).toHaveBeenCalledWith(
-        `${TEST_HOST_URL}/oauth/device/token`,
+        `${TEST_HOST_URL}/oauth/device/cookie`,
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
             "Content-Type": "application/x-www-form-urlencoded",
           }),
+          credentials: "include",
         }),
       );
+    });
+
+    it("does not return the API key in the body or in JS state", async () => {
+      // Simulates an upstream that accidentally also wrote `access_token`
+      // into the response body — the frontend should ignore it and only
+      // surface what the cookie endpoint contract guarantees.
+      const mockResponseWithSecret = {
+        success: true,
+        user_id: "user-123",
+        access_token: "should-never-be-exposed",
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockResponseWithSecret),
+      });
+
+      const result = await pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+      });
+
+      // The result type does not even declare access_token — make sure it
+      // does not leak through to our typed shape.
+      expect(result).not.toHaveProperty("access_token");
+      expect(result).toEqual({
+        success: true,
+        user_id: "user-123",
+      });
     });
 
     it("polls until authorization is complete", async () => {
@@ -202,8 +233,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -220,7 +251,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(1000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
       expect(fetch).toHaveBeenCalledTimes(2);
     });
 
@@ -239,8 +270,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -257,7 +288,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(10000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
     });
 
     it("throws on expired_token error", async () => {
@@ -356,8 +387,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -374,7 +405,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(30000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
       expect(fetch).toHaveBeenCalledTimes(2);
     });
 
@@ -393,8 +424,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -412,7 +443,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(10000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
     });
 
     it("increments interval by 5 seconds per RFC 8628 when slow_down has no interval", async () => {
@@ -430,8 +461,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -448,7 +479,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(10000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
     });
 
     it("continues polling on network errors instead of failing immediately", async () => {
@@ -458,8 +489,8 @@ describe("device-flow-client", () => {
         status: 200,
         json: () =>
           Promise.resolve({
-            access_token: "api-key-123",
-            token_type: "Bearer",
+            success: true,
+            user_id: "user-123",
           }),
       };
 
@@ -479,7 +510,7 @@ describe("device-flow-client", () => {
       await vi.advanceTimersByTimeAsync(1000);
 
       const result = await pollPromise;
-      expect(result.access_token).toBe("api-key-123");
+      expect(result.user_id).toBe("user-123");
       expect(consoleSpy).toHaveBeenCalledWith(
         "Network error during polling, retrying:",
         networkError,

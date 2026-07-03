@@ -27,13 +27,20 @@ export interface DeviceAuthorizationResponse {
   interval: number;
 }
 
-export interface DeviceTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in?: number;
+export interface DeviceCookieResponse {
+  /**
+   * The cloud backend's `POST /oauth/device/cookie` mirrors the device-flow
+   * validation semantics of `/oauth/device/token` but mints the API key as
+   * an HttpOnly `Set-Cookie` header rather than returning it in the body,
+   * so the secret never lands in JavaScript / browser history / proxy logs.
+   * The cookie is HttpOnly, so JS cannot read it back; that's the whole
+   * XSS-mitigation point of this endpoint.
+   */
+  success: true;
+  user_id: string;
 }
 
-interface DeviceTokenErrorResponse {
+interface DeviceCookieErrorResponse {
   error: string;
   error_description?: string;
   interval?: number;
@@ -70,6 +77,12 @@ export function isOpenHandsCloudHost(host: string): boolean {
 
 /**
  * Make a direct request to the OpenHands Cloud device-flow endpoint.
+ *
+ * Includes `credentials: "include"` so the browser stores any `Set-Cookie`
+ * returned by the upstream (notably the HttpOnly `api_key` cookie set by
+ * `POST /oauth/device/cookie`) and sends it on subsequent same-site
+ * requests. The cookie is HttpOnly so JavaScript cannot read it back, which
+ * is the XSS-exfiltration mitigation this endpoint enables.
  */
 async function makeCloudRequest(
   upstreamHost: string,
@@ -96,6 +109,7 @@ async function makeCloudRequest(
     },
     body: requestBody,
     signal,
+    credentials: "include",
   });
 
   return response;
@@ -174,19 +188,31 @@ export interface PollOptions {
 
 /**
  * Poll for the API key after user authorization.
- * Requests are sent directly to the cloud host.
+ *
+ * Calls the cloud backend's `POST /oauth/device/cookie` endpoint, which
+ * mirrors `/oauth/device/token` end-to-end (rate limiting, status checks,
+ * API key lookup) but writes the resulting API key into the HttpOnly
+ * `api_key` cookie instead of returning it in the response body. The
+ * response body only carries `{success, user_id}`. The cookie is HttpOnly
+ * so JavaScript cannot read it, and subsequent same-site cloud API calls
+ * pick it up automatically via `credentials: "include"` on the request.
+ *
+ * This is the XSS-mitigating replacement for the older `/token` flow,
+ * which returned the API key in the response body and forced the client
+ * to stash it in `localStorage`.
  *
  * @param host - The cloud backend host URL
  * @param deviceCode - The device code from startDeviceFlow
  * @param options - Polling options including interval, timeout, and abort signal
- * @returns DeviceTokenResponse containing the access_token (API key)
+ * @returns DeviceCookieResponse confirming the cookie was set (no API key is
+ *   ever returned to the caller).
  * @throws DeviceFlowError if polling fails, user denies access, or timeout expires
  */
 export async function pollForToken(
   host: string,
   deviceCode: string,
   options: PollOptions,
-): Promise<DeviceTokenResponse> {
+): Promise<DeviceCookieResponse> {
   const normalizedHost = host.replace(/\/+$/, "");
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   let interval = Math.max(1, options.interval) * 1000; // At least 1 second
@@ -208,7 +234,7 @@ export async function pollForToken(
       const response = await makeCloudRequest(
         normalizedHost,
         "POST",
-        "/oauth/device/token",
+        "/oauth/device/cookie",
         tokenRequestBody,
         "application/x-www-form-urlencoded",
         options.signal,
@@ -216,20 +242,19 @@ export async function pollForToken(
 
       if (response.ok) {
         const data = await response.json();
-        if (!data.access_token) {
+        if (!data.success || !data.user_id) {
           throw new DeviceFlowError(
-            "Invalid token response: missing access_token",
+            "Invalid cookie response: missing success/user_id",
           );
         }
         return {
-          access_token: data.access_token,
-          token_type: data.token_type ?? "Bearer",
-          expires_in: data.expires_in,
+          success: true,
+          user_id: data.user_id,
         };
       }
 
       // Handle error responses
-      let errorData: DeviceTokenErrorResponse;
+      let errorData: DeviceCookieErrorResponse;
       try {
         errorData = await response.json();
       } catch {

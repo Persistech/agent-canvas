@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 
 import { type Backend } from "#/api/backend-registry/types";
+import { COOKIE_AUTH_SENTINEL } from "#/api/backend-registry/auth";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
@@ -95,8 +96,12 @@ export function ManageBackendsModal({
   );
 
   const handleCloudLogin = React.useCallback(
-    (backend: Backend, apiKey: string) => {
-      updateBackend(backend.id, { apiKey });
+    (backend: Backend) => {
+      // Cookie-based device flow: the API key is in an HttpOnly cookie set
+      // by `POST /oauth/device/cookie`. Store the sentinel in `apiKey` so
+      // the UI shows the backend as logged in across reloads; the real
+      // credential is unreachable from JavaScript.
+      updateBackend(backend.id, { apiKey: COOKIE_AUTH_SENTINEL });
     },
     [updateBackend],
   );
@@ -160,7 +165,7 @@ export function ManageBackendsModal({
                           name: backend.name,
                         })
                       }
-                      onLogin={(apiKey) => handleCloudLogin(backend, apiKey)}
+                      onLogin={() => handleCloudLogin(backend)}
                     />
                   ))}
                 </ul>

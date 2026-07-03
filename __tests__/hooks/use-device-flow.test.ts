@@ -31,11 +31,16 @@ describe("useDeviceFlow", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.verificationUrl).toBeNull();
     expect(result.current.userCode).toBeNull();
-    expect(result.current.apiKey).toBeNull();
+    expect(result.current.userId).toBeNull();
     expect(result.current.error).toBeNull();
+    // The API key is intentionally **not** exposed in the cookie-based flow
+    // because the cookie endpoint mints it as an HttpOnly cookie rather
+    // than returning it to JS — exposing `apiKey` here would re-create the
+    // XSS-exfiltration surface the cookie endpoint exists to remove.
+    expect(result.current).not.toHaveProperty("apiKey");
   });
 
-  it("transitions through states on successful auth", async () => {
+  it("transitions through states on successful cookie auth", async () => {
     const mockAuthResponse = {
       device_code: "device123",
       user_code: "USER-1234",
@@ -46,9 +51,9 @@ describe("useDeviceFlow", () => {
       interval: 5,
     };
 
-    const mockTokenResponse = {
-      access_token: "api-key-123",
-      token_type: "Bearer",
+    const mockCookieResponse = {
+      success: true as const,
+      user_id: "user-123",
     };
 
     // Make startDeviceFlow resolve after a tick to allow observing states
@@ -57,8 +62,8 @@ describe("useDeviceFlow", () => {
       resolveStart = resolve;
     });
 
-    let resolvePoll: (value: typeof mockTokenResponse) => void;
-    const pollPromise = new Promise<typeof mockTokenResponse>((resolve) => {
+    let resolvePoll: (value: typeof mockCookieResponse) => void;
+    const pollPromise = new Promise<typeof mockCookieResponse>((resolve) => {
       resolvePoll = resolve;
     });
 
@@ -90,13 +95,13 @@ describe("useDeviceFlow", () => {
 
     // Resolve pollForToken
     await act(async () => {
-      resolvePoll!(mockTokenResponse);
+      resolvePoll!(mockCookieResponse);
       await Promise.resolve(); // flush microtasks
     });
 
-    // Now should be success
+    // Now should be success with the user id — never the API key.
     expect(result.current.status).toBe("success");
-    expect(result.current.apiKey).toBe("api-key-123");
+    expect(result.current.userId).toBe("user-123");
   });
 
   it("handles startDeviceFlow error", async () => {
@@ -197,16 +202,16 @@ describe("useDeviceFlow", () => {
       interval: 5,
     };
 
-    const mockTokenResponse = {
-      access_token: "api-key-123",
-      token_type: "Bearer",
+    const mockCookieResponse = {
+      success: true as const,
+      user_id: "user-123",
     };
 
     vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
       mockAuthResponse,
     );
     vi.mocked(deviceFlowClient.pollForToken).mockResolvedValue(
-      mockTokenResponse,
+      mockCookieResponse,
     );
 
     const { result } = renderHook(() => useDeviceFlow());
@@ -224,7 +229,7 @@ describe("useDeviceFlow", () => {
     });
 
     expect(result.current.status).toBe("idle");
-    expect(result.current.apiKey).toBeNull();
+    expect(result.current.userId).toBeNull();
   });
 
   it("cancels previous flow when starting a new one", async () => {

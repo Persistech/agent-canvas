@@ -25,7 +25,12 @@ interface BackendRowProps {
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
-  onLogin?: (apiKey: string) => void;
+  /**
+   * Called once a cookie-based device-flow login completes. The cookie
+   * endpoint never exposes the API key to JS, so this only signals that
+   * auth succeeded; the cookie carries the credential from here on.
+   */
+  onLogin?: () => void;
 }
 
 export function BackendRow({

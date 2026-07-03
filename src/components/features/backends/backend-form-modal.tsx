@@ -23,6 +23,7 @@ import {
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { COOKIE_AUTH_SENTINEL } from "#/api/backend-registry/auth";
 import { getUserFacingConnectionErrorMessage } from "#/utils/user-facing-error";
 import { cn } from "#/utils/utils";
 import {
@@ -902,11 +903,17 @@ function CloudLoginColumn({
   const effectiveHost =
     lockedHost ?? (customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST);
 
-  const handleLoginSuccess = (apiKey: string) => {
+  const handleLoginSuccess = () => {
+    // The cookie-based device-flow endpoint mints the API key into an
+    // HttpOnly cookie rather than returning it to JS, so we cannot
+    // stash a real key in the backend record. The sentinel value lets
+    // `buildAuthHeaders` skip the bearer header and lets the
+    // `callCloudProxy` turn on `withCredentials: true` so the cookie
+    // carries the credential.
     onConnected({
       name: "OpenHands Cloud",
       host: normalizeHost(effectiveHost),
-      apiKey,
+      apiKey: COOKIE_AUTH_SENTINEL,
       kind: "cloud",
     });
   };
