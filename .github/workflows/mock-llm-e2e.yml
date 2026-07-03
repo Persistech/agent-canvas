@@ -69,6 +69,23 @@ jobs:
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
           echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve linked SDK PR
+        id: linked_sdk
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          BODY=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq '.body // ""')
+          SDK_PR=$(printf '%s\n' "$BODY" | grep -Eo 'OpenHands/software-agent-sdk/pull/[0-9]+' | head -n1 | grep -Eo '[0-9]+$' || true)
+          if [ -z "$SDK_PR" ]; then
+            echo "No linked software-agent-sdk PR found in PR description."
+            exit 0
+          fi
+
+          SDK_REF=$(gh api "/repos/OpenHands/software-agent-sdk/pulls/${SDK_PR}" --jq '.head.ref')
+          echo "Using software-agent-sdk PR #${SDK_PR} branch: ${SDK_REF}"
+          echo "git_ref=${SDK_REF}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -107,9 +124,14 @@ jobs:
       - name: Install openhands-sdk (for mock LLM server)
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
+          SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          if [ -n "$SDK_GIT_REF" ]; then
+            uv pip install -p .mock-llm-venv "git+https://github.com/OpenHands/software-agent-sdk@${SDK_GIT_REF}#subdirectory=openhands-sdk"
+          else
+            uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          fi
 
       - name: Pre-warm automation backend (uvx cache)
         env:
@@ -120,6 +142,19 @@ jobs:
           # Without this, the 180s Playwright webServer timeout expires
           # before the automation backend finishes installing (~60-90s).
           uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
+
+      - name: Pre-warm linked agent-server (uvx cache)
+        if: steps.linked_sdk.outputs.git_ref != ''
+        env:
+          SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
+        run: |
+          BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${SDK_GIT_REF}"
+          uvx --reinstall \
+            --from "${BASE_GIT_URL}#subdirectory=openhands-agent-server" \
+            --with "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
+            --with "${BASE_GIT_URL}#subdirectory=openhands-tools" \
+            --with "${BASE_GIT_URL}#subdirectory=openhands-workspace" \
+            agent-server --help >/dev/null
 
       - name: Verify mock LLM server starts
         run: |
@@ -185,6 +220,7 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
           AFFECTED_TEST_PATHS: ${{ steps.affected_tests.outputs.test_paths }}
           SELECTIVE_TESTS: ${{ steps.affected_tests.outputs.selective }}
+          OH_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
