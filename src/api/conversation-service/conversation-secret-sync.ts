@@ -1,4 +1,5 @@
-import axios from "axios";
+import { ConversationClient } from "@openhands/typescript-client/clients";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -92,19 +93,13 @@ export async function updateConversationSecret(
     return true;
   }
 
-  const backend = getEffectiveLocalBackend();
-  if (!backend) return false;
+  const client = new ConversationClient(
+    getAgentServerClientOptions({
+      conversationUrl: conversation.conversation_url,
+      sessionApiKey: conversation.session_api_key,
+    }),
+  );
 
-  const host = (
-    conversation.conversation_url
-      ? buildHttpBaseUrl(conversation.conversation_url)
-      : backend.host
-  ).replace(/\/+$/, "");
-
-  const authHeaders = conversation.session_api_key
-    ? { "X-Session-API-Key": conversation.session_api_key }
-    : buildAuthHeaders(backend);
-
-  await axios.post(`${host}${path}`, payload, { headers: authHeaders });
+  await client.updateSecrets(conversation.id, payload);
   return true;
 }
