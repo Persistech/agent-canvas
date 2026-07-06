@@ -7,7 +7,6 @@ on:
     tags:
       - "v*"
   pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       agent_server_image:
@@ -152,9 +151,12 @@ jobs:
             echo "agent_server_sdk_git_ref=" >> "$GITHUB_OUTPUT"
           fi
 
-          # Resolve automation version (input override > config/defaults.json)
+          # Resolve automation version (input override > linked SDK compatible
+          # release > config/defaults.json)
           if [ -n "$AUTOMATION_VERSION_INPUT" ]; then
             echo "automation_version=$AUTOMATION_VERSION_INPUT" >> "$GITHUB_OUTPUT"
+          elif [ -n "$LINKED_AGENT_SERVER_GIT_REF" ]; then
+            echo "automation_version=1.1.2" >> "$GITHUB_OUTPUT"
           else
             echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           fi

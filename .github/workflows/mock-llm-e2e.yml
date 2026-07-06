@@ -147,11 +147,11 @@ jobs:
         run: |
           AUTOMATION_VERSION="$DEFAULT_AUTOMATION_VERSION"
           if [ -n "$SDK_GIT_REF" ]; then
-            # Linked SDK refs can emit newer event schemas than the default
-            # automation release's pinned openhands-sdk can parse. Use the
-            # first automation release with SDK 1.31.x support for linked SDK
+            # Linked SDK refs can emit newer schemas than the default
+            # automation release's pinned SDK can parse. Use the first
+            # automation release pinned to openhands-sdk 1.31.1 for linked SDK
             # PR test runs.
-            AUTOMATION_VERSION="1.1.1"
+            AUTOMATION_VERSION="1.1.2"
           fi
 
           # Pre-install openhands-automation into the uvx cache so the
@@ -238,7 +238,7 @@ jobs:
           AFFECTED_TEST_PATHS: ${{ steps.affected_tests.outputs.test_paths }}
           SELECTIVE_TESTS: ${{ steps.affected_tests.outputs.selective }}
           OH_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
-          OH_AUTOMATION_VERSION: ${{ steps.linked_sdk.outputs.git_ref != '' && '1.1.1' || '' }}
+          OH_AUTOMATION_VERSION: ${{ steps.linked_sdk.outputs.git_ref != '' && '1.1.2' || '' }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
