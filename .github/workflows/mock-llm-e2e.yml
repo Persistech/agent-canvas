@@ -58,6 +58,7 @@ jobs:
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-report.md
       MOCK_LLM_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      LINKED_SDK_AUTOMATION_GIT_REF: 86724b25ba44d1dd726cab074aae7affdf27d70c
 
     steps:
       - name: Check out repository
@@ -146,19 +147,23 @@ jobs:
           SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           AUTOMATION_VERSION="$DEFAULT_AUTOMATION_VERSION"
+          AUTOMATION_GIT_REF=""
           if [ -n "$SDK_GIT_REF" ]; then
             # Linked SDK refs can emit newer schemas than the default
-            # automation release's pinned SDK can parse. Use the first
-            # automation release pinned to openhands-sdk 1.31.1 for linked SDK
-            # PR test runs.
-            AUTOMATION_VERSION="1.1.2"
+            # automation release's pinned SDK can parse. Use the automation
+            # commit that matches the linked SDK test surface for PR runs.
+            AUTOMATION_GIT_REF="$LINKED_SDK_AUTOMATION_GIT_REF"
           fi
 
           # Pre-install openhands-automation into the uvx cache so the
           # agent-canvas binary doesn't need to download it at startup.
           # Without this, the 180s Playwright webServer timeout expires
           # before the automation backend finishes installing (~60-90s).
-          uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
+          if [ -n "$AUTOMATION_GIT_REF" ]; then
+            uvx --refresh --from "git+https://github.com/OpenHands/automation@${AUTOMATION_GIT_REF}" python -c "from openhands.automation.app import app; print('automation package cached')"
+          else
+            uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
+          fi
 
       - name: Pre-warm linked agent-server (uvx cache)
         if: steps.linked_sdk.outputs.git_ref != ''
@@ -238,7 +243,7 @@ jobs:
           AFFECTED_TEST_PATHS: ${{ steps.affected_tests.outputs.test_paths }}
           SELECTIVE_TESTS: ${{ steps.affected_tests.outputs.selective }}
           OH_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
-          OH_AUTOMATION_VERSION: ${{ steps.linked_sdk.outputs.git_ref != '' && '1.1.2' || '' }}
+          OH_AUTOMATION_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref != '' && env.LINKED_SDK_AUTOMATION_GIT_REF || '' }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"

@@ -17,6 +17,10 @@ on:
         description: Automation server version (pip)
         type: string
         default: ""
+      automation_git_ref:
+        description: Automation server git ref
+        type: string
+        default: ""
       image:
         description: GHCR image name
         type: string
@@ -34,6 +38,7 @@ permissions:
 
 env:
   IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/openhands/agent-canvas' }}
+  LINKED_SDK_AUTOMATION_GIT_REF: 86724b25ba44d1dd726cab074aae7affdf27d70c
   # Use the PR head SHA for PR events so tags point at the actual code.
   RELEVANT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   RELEVANT_REF: ${{ github.head_ref != '' && format('refs/heads/{0}', github.head_ref) || github.ref }}
@@ -132,6 +137,7 @@ jobs:
           LINKED_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
           DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
           AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
+          AUTOMATION_GIT_REF_INPUT: ${{ inputs.automation_git_ref }}
           DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
           POSTHOG_STAGING_KEY: ${{ vars.POSTHOG_STAGING_KEY }}
           POSTHOG_PROD_KEY: ${{ vars.POSTHOG_PROD_KEY }}
@@ -151,14 +157,20 @@ jobs:
             echo "agent_server_sdk_git_ref=" >> "$GITHUB_OUTPUT"
           fi
 
-          # Resolve automation version (input override > linked SDK compatible
-          # release > config/defaults.json)
+          # Resolve automation source (input override > linked SDK compatible
+          # git ref > config/defaults.json)
           if [ -n "$AUTOMATION_VERSION_INPUT" ]; then
             echo "automation_version=$AUTOMATION_VERSION_INPUT" >> "$GITHUB_OUTPUT"
+            echo "automation_git_ref=" >> "$GITHUB_OUTPUT"
+          elif [ -n "$AUTOMATION_GIT_REF_INPUT" ]; then
+            echo "automation_version=" >> "$GITHUB_OUTPUT"
+            echo "automation_git_ref=$AUTOMATION_GIT_REF_INPUT" >> "$GITHUB_OUTPUT"
           elif [ -n "$LINKED_AGENT_SERVER_GIT_REF" ]; then
-            echo "automation_version=1.1.2" >> "$GITHUB_OUTPUT"
+            echo "automation_version=" >> "$GITHUB_OUTPUT"
+            echo "automation_git_ref=$LINKED_SDK_AUTOMATION_GIT_REF" >> "$GITHUB_OUTPUT"
           else
             echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
+            echo "automation_git_ref=" >> "$GITHUB_OUTPUT"
           fi
 
           # Build arch-suffixed tags (e.g., sha-abc1234-amd64)
@@ -252,6 +264,7 @@ jobs:
             AGENT_SERVER_IMAGE=${{ steps.prep.outputs.agent_server_image }}
             AGENT_SERVER_SDK_GIT_REF=${{ steps.prep.outputs.agent_server_sdk_git_ref }}
             AUTOMATION_VERSION=${{ steps.prep.outputs.automation_version }}
+            AUTOMATION_GIT_REF=${{ steps.prep.outputs.automation_git_ref }}
             AGENT_CANVAS_VERSION=${{ steps.config.outputs.agent_canvas_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
@@ -278,6 +291,7 @@ jobs:
           TAGS: ${{ steps.prep.outputs.tags }}
           AGENT_SERVER_IMAGE: ${{ steps.prep.outputs.agent_server_image }}
           AUTOMATION_VERSION: ${{ steps.prep.outputs.automation_version }}
+          AUTOMATION_GIT_REF: ${{ steps.prep.outputs.automation_git_ref }}
         run: |
           mkdir -p build-info
           jq -n \
@@ -287,10 +301,11 @@ jobs:
             --arg tags "$TAGS" \
             --arg agent_server_image "$AGENT_SERVER_IMAGE" \
             --arg automation_version "$AUTOMATION_VERSION" \
+            --arg automation_git_ref "$AUTOMATION_GIT_REF" \
             --arg platform "${{ matrix.platform }}" \
             --arg git_sha "${{ env.RELEVANT_SHA }}" \
             --arg git_ref "$RELEVANT_REF" \
-            '{arch: $arch, image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, platform: $platform, git_sha: $git_sha, git_ref: $git_ref}' \
+            '{arch: $arch, image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, automation_git_ref: $automation_git_ref, platform: $platform, git_sha: $git_sha, git_ref: $git_ref}' \
             > "build-info/${{ matrix.arch }}.json"
           cat "build-info/${{ matrix.arch }}.json"
 
@@ -453,6 +468,7 @@ jobs:
           ALL_TAGS=""
           AGENT_SERVER_IMAGE=""
           AUTOMATION_VERSION=""
+          AUTOMATION_GIT_REF=""
           GIT_SHA=""
           GIT_REF=""
           ARCHS=""
@@ -474,6 +490,7 @@ jobs:
               SHORT_SHA="$FILE_SHA"
               AGENT_SERVER_IMAGE=$(jq -r '.agent_server_image' "$info_file")
               AUTOMATION_VERSION=$(jq -r '.automation_version' "$info_file")
+              AUTOMATION_GIT_REF=$(jq -r '.automation_git_ref // ""' "$info_file")
               GIT_SHA=$(jq -r '.git_sha' "$info_file")
               GIT_REF=$(jq -r '.git_ref' "$info_file")
             fi
@@ -502,10 +519,11 @@ jobs:
             --arg archs "$ARCHS" \
             --arg agent_server_image "$AGENT_SERVER_IMAGE" \
             --arg automation_version "$AUTOMATION_VERSION" \
+            --arg automation_git_ref "$AUTOMATION_GIT_REF" \
             --arg git_sha "$GIT_SHA" \
             --arg git_ref "$GIT_REF" \
             --arg ghcr_url "https://github.com/OpenHands/agent-canvas/pkgs/container/agent-canvas" \
-            '{image: $image, short_sha: $short_sha, all_tags: $all_tags, architectures: $archs, agent_server_image: $agent_server_image, automation_version: $automation_version, git_sha: $git_sha, git_ref: $git_ref, ghcr_package_url: $ghcr_url}')
+            '{image: $image, short_sha: $short_sha, all_tags: $all_tags, architectures: $archs, agent_server_image: $agent_server_image, automation_version: $automation_version, automation_git_ref: $automation_git_ref, git_sha: $git_sha, git_ref: $git_ref, ghcr_package_url: $ghcr_url}')
 
           echo "Consolidated build summary:"
           echo "$BUILD_SUMMARY" | jq .
@@ -544,6 +562,12 @@ jobs:
           ARCHS=$(echo "$BUILD_SUMMARY" | jq -r '.architectures')
           AGENT_SERVER_IMAGE=$(echo "$BUILD_SUMMARY" | jq -r '.agent_server_image')
           AUTOMATION_VERSION=$(echo "$BUILD_SUMMARY" | jq -r '.automation_version')
+          AUTOMATION_GIT_REF=$(echo "$BUILD_SUMMARY" | jq -r '.automation_git_ref // ""')
+          if [ -n "$AUTOMATION_GIT_REF" ] && [ "$AUTOMATION_GIT_REF" != "null" ]; then
+            AUTOMATION_DISPLAY="OpenHands/automation@${AUTOMATION_GIT_REF}"
+          else
+            AUTOMATION_DISPLAY="openhands-automation==${AUTOMATION_VERSION}"
+          fi
           GIT_SHA=$(echo "$BUILD_SUMMARY" | jq -r '.git_sha')
 
           PR_CONTENT=$(cat << EOF
@@ -559,7 +583,7 @@ jobs:
           | **Image** | \`${IMAGE}\` |
           | **Architectures** | ${ARCHS} |
           | **Agent Server** | \`${AGENT_SERVER_IMAGE}\` |
-          | **Automation** | \`openhands-automation==${AUTOMATION_VERSION}\` |
+          | **Automation** | \`${AUTOMATION_DISPLAY}\` |
           | **Commit** | \`${GIT_SHA}\` |
 
           **Pull (multi-arch manifest)**

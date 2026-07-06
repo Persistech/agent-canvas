@@ -22,6 +22,7 @@
 #   docker build --build-arg AGENT_SERVER_IMAGE=... --build-arg AUTOMATION_VERSION=... -f docker/Dockerfile .
 ARG AGENT_SERVER_IMAGE
 ARG AUTOMATION_VERSION
+ARG AUTOMATION_GIT_REF=""
 
 # ── Stage 1: Build frontend ──────────────────────────────────────────────────
 FROM node:24-slim AS frontend-build
@@ -70,6 +71,7 @@ RUN node -e " \
 FROM ${AGENT_SERVER_IMAGE} AS final
 
 ARG AUTOMATION_VERSION
+ARG AUTOMATION_GIT_REF=""
 ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
@@ -98,8 +100,14 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 # Shared deps (openhands-sdk, fastapi, uvicorn, pydantic, httpx, …) are
 # already satisfied by the agent-server base image, so only automation-
 # specific packages (asyncpg, sqlalchemy, boto3, gcloud, …) are added.
-RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
-    || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
+RUN if [ -n "${AUTOMATION_GIT_REF}" ]; then \
+      AUTOMATION_SOURCE="git+https://github.com/OpenHands/automation@${AUTOMATION_GIT_REF}" && \
+      uv pip install --system "${AUTOMATION_SOURCE}" 2>/dev/null \
+        || pip install --no-cache-dir "${AUTOMATION_SOURCE}"; \
+    else \
+      uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
+        || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"; \
+    fi
 
 RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
       BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${AGENT_SERVER_SDK_GIT_REF}" && \
