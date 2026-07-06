@@ -6,8 +6,6 @@ import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-con
 import { MAX_CONTENT_LENGTH } from "#/components/conversation-events/chat/event-content-helpers/shared";
 import { I18nKey } from "#/i18n/declaration";
 
-const MAX_HIGHLIGHTED_CONTENT_LENGTH = 20000;
-
 interface CodeBlockProps {
   code: string;
   /** Prism language hint (e.g. "bash", "python"). */
@@ -48,9 +46,8 @@ export function CodeBlock({
   const toggleLabel = isExpanded
     ? t(I18nKey.BUTTON$COLLAPSE)
     : t(I18nKey.BUTTON$EXPAND);
-  const shouldHighlight = text.length <= MAX_HIGHLIGHTED_CONTENT_LENGTH;
 
-  const block = shouldHighlight ? (
+  const block = (
     <SyntaxHighlighter
       className="rounded-lg text-xs"
       style={vscDarkPlus}
@@ -64,10 +61,6 @@ export function CodeBlock({
     >
       {text}
     </SyntaxHighlighter>
-  ) : (
-    <pre className="overflow-auto whitespace-pre-wrap rounded-lg bg-[#1e1e1e] p-[1em] font-mono text-[13px] leading-[1.5] text-[#d4d4d4]">
-      <code>{text}</code>
-    </pre>
   );
 
   return (
