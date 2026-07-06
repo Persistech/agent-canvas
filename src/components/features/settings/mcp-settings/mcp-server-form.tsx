@@ -285,7 +285,9 @@ export function MCPServerForm({
     return env;
   };
 
-  const formatEnvironmentVariables = (env?: Record<string, string>): string => {
+  const formatEnvironmentVariables = (
+    env?: Record<string, string> | null,
+  ): string => {
     if (!env) return "";
     return Object.entries(env)
       .map(([key, value]) => `${key}=${value}`)
@@ -294,7 +296,7 @@ export function MCPServerForm({
 
   const editableAuthValue = (auth: MCPAuthCredential | undefined): string => {
     if (auth?.strategy === "bearer" || auth?.strategy === "api_key") {
-      return auth.value;
+      return auth.value ?? "";
     }
     return "";
   };
