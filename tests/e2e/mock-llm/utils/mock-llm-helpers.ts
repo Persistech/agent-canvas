@@ -337,11 +337,17 @@ async function retryOnTransient(
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const resp =
-        method === "GET" ? await request.get(url, options) :
-        method === "PATCH" ? await request.patch(url, options) :
-        method === "POST" ? await request.post(url, options) :
-        await request.delete(url, options);
-      if ((resp.status() === 502 || resp.status() === 503) && attempt < retries) {
+        method === "GET"
+          ? await request.get(url, options)
+          : method === "PATCH"
+            ? await request.patch(url, options)
+            : method === "POST"
+              ? await request.post(url, options)
+              : await request.delete(url, options);
+      if (
+        (resp.status() === 502 || resp.status() === 503) &&
+        attempt < retries
+      ) {
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
@@ -357,7 +363,12 @@ async function retryOnTransient(
       throw err;
     }
   }
-  throw (lastError ?? new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`));
+  throw (
+    lastError ??
+    new Error(
+      `retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`,
+    )
+  );
 }
 
 /**
@@ -371,40 +382,52 @@ export async function ensureMockLLMProfileViaAPI(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  const settingsResp = await retryOnTransient(request, "GET", `${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "X-Expose-Secrets": "encrypted",
+  const settingsResp = await retryOnTransient(
+    request,
+    "GET",
+    `${BACKEND_URL}/api/settings`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "X-Expose-Secrets": "encrypted",
+      },
     },
-  });
+  );
 
   if (settingsResp.ok()) {
     const settings = await settingsResp.json();
     const llm = settings?.agent_settings?.llm;
     if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
+      await ensureDefaultOpenHandsTools(request);
       return; // Already configured
     }
   }
 
-  const patchResp = await retryOnTransient(request, "PATCH", `${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "Content-Type": "application/json",
-    },
-    data: {
-      agent_settings_diff: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_AGENT_URL,
+  const patchResp = await retryOnTransient(
+    request,
+    "PATCH",
+    `${BACKEND_URL}/api/settings`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "Content-Type": "application/json",
+      },
+      data: {
+        agent_settings_diff: {
+          llm: {
+            model,
+            api_key: "mock-api-key-for-testing",
+            base_url: MOCK_LLM_AGENT_URL,
+          },
         },
       },
     },
-  });
+  );
   expect(
     patchResp.ok(),
     `PATCH /api/settings failed: ${patchResp.status()}`,
   ).toBe(true);
+  await ensureDefaultOpenHandsTools(request);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -446,6 +469,7 @@ export async function ensureMockLLMProfile(
 
   // ── Activate the profile ────────────────────────────────────────────
   await activateProfileViaUI(page, profileName);
+  await ensureDefaultOpenHandsTools(page.request);
 }
 
 /**
@@ -636,7 +660,12 @@ export async function registerTrajectory(
   request: APIRequestContext,
   name: string,
   turns: Array<
-    | { tool_call: { name: string; arguments: Record<string, unknown> | string } }
+    | {
+        tool_call: {
+          name: string;
+          arguments: Record<string, unknown> | string;
+        };
+      }
     | { text: string }
   >,
 ) {
@@ -647,7 +676,9 @@ export async function registerTrajectory(
       headers: { "Content-Type": "application/json" },
     },
   );
-  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(true);
+  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(
+    true,
+  );
 }
 
 /**
@@ -664,7 +695,9 @@ export async function activateTrajectory(
       headers: { "Content-Type": "application/json" },
     },
   );
-  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(true);
+  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(
+    true,
+  );
 }
 
 /**
@@ -783,13 +816,32 @@ export const MOCK_ACP_COMMAND_PYTHON =
 export const MOCK_ACP_COMMAND_SCRIPT =
   process.env.MOCK_ACP_CONTAINER_SCRIPT || MOCK_ACP_SERVER_PATH;
 
+const DEFAULT_OPENHANDS_TOOLS = [
+  { name: "terminal", params: {} },
+  { name: "file_editor", params: {} },
+  { name: "task_tracker", params: {} },
+];
+
+async function ensureDefaultOpenHandsTools(request: APIRequestContext) {
+  const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        tools: DEFAULT_OPENHANDS_TOOLS,
+      },
+    },
+  });
+  expect(resp.ok(), `PATCH /api/settings tools: ${resp.status()}`).toBe(true);
+}
+
 /**
  * @deprecated Use `resetToOpenHandsAgentViaUI(page)` to exercise the UI path.
  * Kept only for callers that cannot open a page (should not exist in new tests).
  */
-export async function resetToOpenHandsAgent(
-  request: APIRequestContext,
-) {
+export async function resetToOpenHandsAgent(request: APIRequestContext) {
   const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
