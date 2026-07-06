@@ -124,17 +124,25 @@ async function waitForRunStatus(
   timeoutMs = 30_000,
 ) {
   const deadline = Date.now() + timeoutMs;
+  let lastRuns: unknown[] = [];
   while (Date.now() < deadline) {
     const data = await listAutomationRuns(request, automationId);
     const runs = data.runs ?? data.items ?? [];
+    lastRuns = runs;
     const match = runs.find(
       (r: { status: string }) => r.status === expectedStatus,
     );
     if (match) return match;
+    const failed = runs.find((r: { status: string }) => r.status === "FAILED");
+    if (failed) {
+      throw new Error(
+        `Automation run reached FAILED while waiting for "${expectedStatus}": ${JSON.stringify(failed)}`,
+      );
+    }
     await new Promise((r) => setTimeout(r, 1_000));
   }
   throw new Error(
-    `No run with status "${expectedStatus}" after ${timeoutMs}ms`,
+    `No run with status "${expectedStatus}" after ${timeoutMs}ms. Last runs: ${JSON.stringify(lastRuns).slice(0, 1000)}`,
   );
 }
 
@@ -445,7 +453,7 @@ test.describe("mock-LLM automation lifecycle", () => {
                 : Array.isArray(msg.content)
                   ? (msg.content as Array<{ type?: string; text?: string }>)
                       .filter((c) => c.type === "text" || typeof c === "string")
-                      .map((c) => (typeof c === "string" ? c : c.text ?? ""))
+                      .map((c) => (typeof c === "string" ? c : (c.text ?? "")))
                       .join("")
                   : "";
             if (text.includes("<RUNTIME_SERVICES>")) return text;
@@ -507,7 +515,9 @@ test.describe("mock-LLM automation lifecycle", () => {
     // The ConfigurationSection renders schedule_human (e.g. "Every day at 9:00 AM")
     // or falls back to the raw cron expression.
     await test.step("verify cron schedule displayed on detail page", async () => {
-      await expect(page.getByText(CRON_SCHEDULE)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(CRON_SCHEDULE)).toBeVisible({
+        timeout: 10_000,
+      });
     });
 
     await test.step("verify run shows COMPLETED with conversation link", async () => {
@@ -548,5 +558,4 @@ test.describe("mock-LLM automation lifecycle", () => {
       }
     });
   });
-
 });
