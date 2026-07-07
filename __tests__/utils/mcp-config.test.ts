@@ -287,6 +287,51 @@ describe("toSdkMcpConfig", () => {
   });
 });
 
+describe("parseMcpConfig — flat server-map shape (openhands-sdk 1.32.0)", () => {
+  // openhands-sdk 1.32.0 (#3964, "settings-backed MCP auth credentials")
+  // changed mcp_config from the wrapped `{ mcpServers: { <name>: cfg } }` shape
+  // to a flat `{ <name>: cfg }` server-map on read. The SDK still migrates a
+  // wrapped shape on write, so both must parse identically.
+
+  it("parses a flat server-map the same as the equivalent wrapped shape", () => {
+    const flat = {
+      "my-search": { url: "https://search.example/mcp" },
+      fetch: { command: "uvx", args: ["mcp-server-fetch"] },
+    };
+    const wrapped = { mcpServers: flat };
+
+    expect(parseMcpConfig(flat)).toEqual(parseMcpConfig(wrapped));
+  });
+
+  it("parses stdio, sse, and shttp servers from a flat server-map", () => {
+    const flat = {
+      tool: { command: "uvx", args: ["some-tool"] },
+      search: { url: "https://sse.example", transport: "sse" },
+      docs: { url: "https://shttp.example" },
+    };
+
+    const parsed = parseMcpConfig(flat);
+
+    expect(parsed.stdio_servers).toEqual([
+      { name: "tool", command: "uvx", args: ["some-tool"] },
+    ]);
+    expect(parsed.sse_servers).toEqual([
+      { name: "search", url: "https://sse.example" },
+    ]);
+    expect(parsed.shttp_servers).toEqual([
+      { name: "docs", url: "https://shttp.example" },
+    ]);
+  });
+
+  it("returns empty when the flat map has no server-shaped entries", () => {
+    expect(parseMcpConfig({})).toEqual({
+      sse_servers: [],
+      stdio_servers: [],
+      shttp_servers: [],
+    });
+  });
+});
+
 describe("parseMcpConfig — deprecated Linear SSE migration", () => {
   // Linear removed its MCP SSE transport; persisted configs that still
   // point at https://mcp.linear.app/sse must be rewritten to streamable

@@ -442,11 +442,17 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasEncryptedMcpSecrets(mcpConfig: unknown): boolean {
-  if (!isPlainRecord(mcpConfig) || !isPlainRecord(mcpConfig.mcpServers)) {
-    return false;
-  }
+  if (!isPlainRecord(mcpConfig)) return false;
 
-  return Object.values(mcpConfig.mcpServers).some((server) => {
+  // Two on-the-wire shapes are accepted: the legacy wrapped
+  // { mcpServers: { <name>: cfg } } and the flat { <name>: cfg } server-map
+  // openhands-sdk 1.32.0 (#3964) returns on GET. Mirrors parseMcpConfig's
+  // shape detection in #/utils/mcp-config.
+  const servers = isPlainRecord(mcpConfig.mcpServers)
+    ? mcpConfig.mcpServers
+    : mcpConfig;
+
+  return Object.values(servers).some((server) => {
     if (!isPlainRecord(server)) return false;
     return ["env", "headers"].some((key) => {
       const values = server[key];

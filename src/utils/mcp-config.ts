@@ -113,13 +113,23 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 
   const obj = value as Record<string, unknown>;
 
-  if (
-    !("mcpServers" in obj) ||
-    !obj.mcpServers ||
-    typeof obj.mcpServers !== "object"
-  ) {
-    return { ...EMPTY_MCP_CONFIG };
-  }
+  // Two on-the-wire shapes are accepted:
+  //   - Legacy wrapped:  { mcpServers: { <name>: <config> } }
+  //   - Flat server-map: { <name>: <config> }
+  // openhands-sdk 1.32.0 (#3964, "settings-backed MCP auth credentials")
+  // changed `mcp_config` from the wrapped shape to a flat `dict[str, MCPServer]`
+  // server-map on read. It still migrates wrapped input, so writes may keep the
+  // wrapper, but GET now returns the flat form — detect it the same way the SDK
+  // migration does (presence of the `mcpServers` key), else treat `obj` itself
+  // as the server-map.
+  const wrapped =
+    "mcpServers" in obj &&
+    !!obj.mcpServers &&
+    typeof obj.mcpServers === "object";
+  const mcpServers = (wrapped ? obj.mcpServers : obj) as Record<
+    string,
+    Record<string, unknown>
+  >;
 
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
@@ -128,8 +138,6 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   // separately and merged after the loop so an existing hand-added /mcp
   // entry (with its own api_key/timeout) wins over the migrated one.
   const migratedShttpServers: MCPSHTTPServer[] = [];
-
-  const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (!serverConfig || typeof serverConfig !== "object") continue;

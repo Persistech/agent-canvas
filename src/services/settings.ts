@@ -51,11 +51,12 @@ export const DEFAULT_SETTINGS: Settings = {
       enable_iterative_refinement: false,
     },
     enable_sub_agents: false,
-    mcp_config: {
-      sse_servers: [],
-      stdio_servers: [],
-      shttp_servers: [],
-    },
+    // Omitted (not `{ sse_servers: [], ... }`): at runtime this field holds
+    // raw SDK wire data (wrapped or, since openhands-sdk 1.32.0 / #3964, a
+    // flat server-map), re-parsed via parseMcpConfig at every read site — the
+    // frontend-parsed MCPConfig shape never legitimately appears here. `mcp.tsx`
+    // reads this field directly and would misparse the array-valued
+    // placeholder as three bogus flat-map server entries.
   },
   conversation_settings_schema: null,
   conversation_settings: {

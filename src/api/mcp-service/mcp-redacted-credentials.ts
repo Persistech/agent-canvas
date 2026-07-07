@@ -98,10 +98,16 @@ async function fetchEncryptedStoredServer(
 ): Promise<StoredMcpServer | undefined> {
   const response = await SettingsService.fetchSettingsFromApi("encrypted");
   const mcpConfig = response.agent_settings?.mcp_config;
-  if (!isRecord(mcpConfig) || !isRecord(mcpConfig.mcpServers)) {
-    return undefined;
-  }
-  return findStoredServer(server, mcpConfig.mcpServers as StoredMcpServers);
+  if (!isRecord(mcpConfig)) return undefined;
+
+  // Two on-the-wire shapes are accepted: the legacy wrapped
+  // { mcpServers: { <name>: cfg } } and the flat { <name>: cfg } server-map
+  // openhands-sdk 1.32.0 (#3964) returns on GET. Mirrors parseMcpConfig's
+  // shape detection in #/utils/mcp-config.
+  const storedServers = isRecord(mcpConfig.mcpServers)
+    ? (mcpConfig.mcpServers as StoredMcpServers)
+    : (mcpConfig as StoredMcpServers);
+  return findStoredServer(server, storedServers);
 }
 
 /**
