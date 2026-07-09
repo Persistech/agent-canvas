@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   search_api_key: "",
   is_new_user: true,
   disabled_skills: [],
+  disabled_mcp_servers: [],
   mcp_config: {
     sse_servers: [],
     stdio_servers: [],

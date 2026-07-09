@@ -474,6 +474,26 @@ function hasEncryptedMcpSecrets(mcpConfig: unknown): boolean {
   return Object.values(mcpConfig).some(hasEncryptedString);
 }
 
+/**
+ * Return the SDK-native `mcp_config` map with any disabled servers removed,
+ * before it is forwarded to a conversation. Disabled servers remain untouched
+ * in the persisted settings, but are hidden from the agent so it cannot
+ * discover or use them. Keys are the server names as stored in `mcp_config`
+ * (mirrored on `MCPServerConfig.sdkKey` for the UI toggle).
+ */
+function stripDisabledMcpServers(
+  mcpConfig: SettingsRecord,
+  disabled: readonly string[] | undefined,
+): SettingsRecord {
+  if (!disabled || disabled.length === 0) {
+    return mcpConfig;
+  }
+  const disabledSet = new Set(disabled);
+  return Object.fromEntries(
+    Object.entries(mcpConfig).filter(([name]) => !disabledSet.has(name)),
+  );
+}
+
 function getConversationConfirmationPolicy(
   conversationSettings: SettingsRecord,
 ) {
@@ -728,7 +748,10 @@ function buildConfiguredAcpAgentSettings(
   // so the ACP subprocess connects to the configured MCP servers at session
   // creation. Only include it when it actually carries servers — an empty or
   // malformed value is dropped rather than sending ``mcp_config: {}``.
-  const mcpConfig = toRecord(agentSettings.mcp_config);
+  const mcpConfig = stripDisabledMcpServers(
+    toRecord(agentSettings.mcp_config),
+    settings.disabled_mcp_servers,
+  );
   if (Object.keys(mcpConfig).length > 0) {
     payload.mcp_config = mcpConfig;
   }
@@ -793,9 +816,14 @@ function buildConfiguredOpenHandsAgentSettings(
     delete llm.subscription_vendor;
   }
 
-  const mcpConfig = toRecord(agentSettings.mcp_config);
+  const mcpConfig = stripDisabledMcpServers(
+    toRecord(agentSettings.mcp_config),
+    settings.disabled_mcp_servers,
+  );
   if (Object.keys(mcpConfig).length === 0) {
     delete agentSettings.mcp_config;
+  } else {
+    agentSettings.mcp_config = mcpConfig;
   }
 
   delete agentSettings.acp_server;

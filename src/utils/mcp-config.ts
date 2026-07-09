@@ -270,14 +270,14 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 
       if (transport === "sse") {
         const name = userGivenServerName(serverName, "sse");
-        const server: MCPSSEServer = { url };
+        const server: MCPSSEServer = { url, sdkKey: serverName };
         if (name) server.name = name;
         if (auth) server.auth = auth;
         if (headers) server.headers = headers;
         sseServers.push(server);
       } else {
         const name = userGivenServerName(serverName, "shttp");
-        const server: MCPSHTTPServer = { url };
+        const server: MCPSHTTPServer = { url, sdkKey: serverName };
         if (name) server.name = name;
         if (serverConfig.timeout != null) {
           server.timeout = serverConfig.timeout as number;
@@ -291,6 +291,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
       const stdioServer: MCPStdioServer = {
         name: serverName,
         command: serverConfig.command,
+        sdkKey: serverName,
       };
       if (serverConfig.args) {
         stdioServer.args = serverConfig.args as string[];

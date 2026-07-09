@@ -236,7 +236,7 @@ describe("MCPPage", () => {
     expect(await screen.findByTestId("mcp-custom-editor")).toBeInTheDocument();
   });
 
-  it("deletes an installed stdio server through the confirmation modal", async () => {
+  it("disables an installed stdio server via the card toggle", async () => {
     // Pre-install a Slack stdio server via the SDK-shaped mcp_config
     // the route reads from agent_settings.mcp_config.
     const settingsWithSlack = buildSettings({
@@ -260,18 +260,48 @@ describe("MCPPage", () => {
 
     renderPage();
 
-    const deleteBtn = await screen.findByTestId("mcp-installed-toggle-stdio-0");
-    fireEvent.click(deleteBtn);
-
-    const confirmBtn = await screen.findByTestId("confirm-button");
-    fireEvent.click(confirmBtn);
+    const toggle = await screen.findByTestId("mcp-installed-toggle-stdio-0");
+    fireEvent.click(toggle);
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
-    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
-      .agent_settings_diff as { mcp_config: unknown };
-    // Server gets pulled out of mcp_config entirely (parseMcpConfig
-    // emits `null` once the last entry is removed).
-    expect(sent.mcp_config).toBeNull();
+    // Disabling only touches the deny-list; mcp_config is left untouched so
+    // nothing is re-configured or removed.
+    expect(saveSpy.mock.calls[0][0]).toEqual({
+      disabled_mcp_servers: ["slack"],
+    });
+  });
+
+  it("re-enables a disabled server and shows the disabled badge", async () => {
+    const settingsWithDisabledSlack = buildSettings({
+      agent_settings: {
+        ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+        mcp_config: {
+          slack: {
+            command: "npx",
+            args: ["-y", "@zencoderai/slack-mcp-server"],
+          },
+        },
+      },
+      disabled_mcp_servers: ["slack"],
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      settingsWithDisabledSlack,
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderPage();
+
+    // Disabled badge reflects the deny-list membership.
+    expect(
+      await screen.findByTestId("mcp-server-disabled-badge-stdio-0"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("mcp-installed-toggle-stdio-0"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(saveSpy.mock.calls[0][0]).toEqual({ disabled_mcp_servers: [] });
   });
 
   it("shows the catalog description and URL on installed server cards", async () => {

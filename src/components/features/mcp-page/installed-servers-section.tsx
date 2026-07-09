@@ -20,16 +20,19 @@ interface InstalledServersSectionProps {
   hasAnyInstalled: boolean;
   /** Current search query — empty string means no filter applied. */
   query?: string;
+  /** SDK map keys of servers the user has disabled. */
+  disabledKeys: ReadonlySet<string>;
   onEdit: (server: MCPServerConfig) => void;
-  onDelete: (serverId: string) => void;
+  onToggleEnabled: (server: MCPServerConfig, enabled: boolean) => void;
 }
 
 export function InstalledServersSection({
   servers,
   hasAnyInstalled,
   query = "",
+  disabledKeys,
   onEdit,
-  onDelete,
+  onToggleEnabled,
 }: InstalledServersSectionProps) {
   const { t } = useTranslation("openhands");
 
@@ -75,8 +78,9 @@ export function InstalledServersSection({
           <InstalledServerCard
             key={server.id}
             server={server}
+            isEnabled={!server.sdkKey || !disabledKeys.has(server.sdkKey)}
             onEdit={() => onEdit(server)}
-            onDelete={() => onDelete(server.id)}
+            onToggleEnabled={(enabled) => onToggleEnabled(server, enabled)}
           />
         ))}
       </div>

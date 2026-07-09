@@ -6,6 +6,12 @@ export type MCPServerType = "sse" | "stdio" | "shttp";
 export interface MCPServerConfig {
   id: string;
   type: MCPServerType;
+  /**
+   * Stable key of this server in the SDK-native `mcp_config` map, used to
+   * reference it in the enable/disable deny-list. Absent for the "add new"
+   * editor sentinel and for servers built from a bare URL string.
+   */
+  sdkKey?: string;
   name?: string;
   url?: string;
   headers?: Record<string, string>;

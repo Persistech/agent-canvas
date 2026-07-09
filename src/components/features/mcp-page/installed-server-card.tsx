@@ -19,8 +19,9 @@ import { getInstalledServerTitle } from "#/utils/mcp-installed-server-display";
 
 interface InstalledServerCardProps {
   server: MCPServerConfig;
+  isEnabled: boolean;
   onEdit: () => void;
-  onDelete: () => void;
+  onToggleEnabled: (enabled: boolean) => void;
 }
 
 function getServerTransportLabel(type: MCPServerConfig["type"]) {
@@ -47,8 +48,9 @@ function getServerDetailLine(server: MCPServerConfig): string {
 
 export function InstalledServerCard({
   server,
+  isEnabled,
   onEdit,
-  onDelete,
+  onToggleEnabled,
 }: InstalledServerCardProps) {
   const { t } = useTranslation("openhands");
   const catalog = findCatalogEntryForServer(
@@ -83,36 +85,46 @@ export function InstalledServerCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <McpLogoBadge
-          entry={catalog}
-          fallback={<Puzzle strokeWidth={2.25} />}
-        />
+        <div className={cn(!isEnabled && "opacity-40")}>
+          <McpLogoBadge
+            entry={catalog}
+            fallback={<Puzzle strokeWidth={2.25} />}
+          />
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <header className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
+            <div className={cn("min-w-0 flex-1", !isEnabled && "opacity-40")}>
               <h3 className="truncate text-sm font-semibold" title={title}>
                 {title}
               </h3>
-              <p className="mt-0.5 text-xs text-tertiary-alt">{transport}</p>
+              <p className="mt-0.5 text-xs text-tertiary-alt">
+                {transport}
+                {!isEnabled ? (
+                  <span data-testid={`mcp-server-disabled-badge-${server.id}`}>
+                    {" · "}
+                    {t(I18nKey.MCP$DISABLED_BADGE)}
+                  </span>
+                ) : null}
+              </p>
             </div>
             <CirclePlusCheckToggle
               testId={`mcp-installed-toggle-${server.id}`}
-              isSelected
-              onToggle={(selected) => {
-                if (!selected) {
-                  onDelete();
-                }
-              }}
-              enableLabelKey={I18nKey.MCP$TOGGLE_ADD_SERVER}
-              disableLabelKey={I18nKey.MCP$TOGGLE_REMOVE_SERVER}
+              isSelected={isEnabled}
+              onToggle={onToggleEnabled}
+              enableLabelKey={I18nKey.MCP$TOGGLE_ENABLE_SERVER}
+              disableLabelKey={I18nKey.MCP$TOGGLE_DISABLE_SERVER}
+              disableTooltipKey={I18nKey.COMMON$DISABLE}
             />
           </header>
 
           {catalog?.description ? (
             <p
               data-testid={`mcp-server-description-${server.id}`}
-              className="line-clamp-2 break-words text-xs leading-relaxed text-tertiary-light"
+              className={cn(
+                "line-clamp-2 break-words text-xs leading-relaxed text-tertiary-light",
+                !isEnabled && "opacity-40",
+              )}
             >
               {catalog.description}
             </p>
@@ -121,7 +133,10 @@ export function InstalledServerCard({
           {detailLine ? (
             <p
               data-testid={`mcp-server-detail-${server.id}`}
-              className="truncate text-xs text-tertiary-alt"
+              className={cn(
+                "truncate text-xs text-tertiary-alt",
+                !isEnabled && "opacity-40",
+              )}
               title={detailLine}
             >
               {detailLine}

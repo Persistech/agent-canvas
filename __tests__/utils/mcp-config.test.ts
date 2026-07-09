@@ -170,14 +170,16 @@ describe("toSdkMcpConfig", () => {
     const parsed = parseMcpConfig(persisted);
 
     expect(parsed.sse_servers).toEqual([
-      { name: "my_search", url: "https://x" },
+      { name: "my_search", url: "https://x", sdkKey: "my_search" },
     ]);
     expect(parsed.shttp_servers).toEqual([
-      { name: "my_docs", url: "https://y" },
+      { name: "my_docs", url: "https://y", sdkKey: "my_docs" },
     ]);
 
     const written = toSdkMcpConfig(parsed);
     expect(Object.keys(written!).sort()).toEqual(["my_docs", "my_search"]);
+    // `sdkKey` is UI-only metadata and must not leak into the SDK payload.
+    expect(written!.my_search).not.toHaveProperty("sdkKey");
   });
 
   it("parses cloud SDK MCPConfig wrapper shape", () => {
@@ -197,13 +199,18 @@ describe("toSdkMcpConfig", () => {
     const parsed = parseMcpConfig(persisted);
 
     expect(parsed.shttp_servers).toEqual([
-      { name: "cloud-weather", url: "https://weather.example/mcp" },
+      {
+        name: "cloud-weather",
+        url: "https://weather.example/mcp",
+        sdkKey: "cloud-weather",
+      },
     ]);
     expect(parsed.stdio_servers).toEqual([
       {
         name: "cloud-files",
         command: "uvx",
         args: ["mcp-server-files"],
+        sdkKey: "cloud-files",
       },
     ]);
   });
@@ -216,7 +223,11 @@ describe("toSdkMcpConfig", () => {
     });
 
     expect(parsed.shttp_servers).toEqual([
-      { name: "mcpServers", url: "https://meta.example/mcp" },
+      {
+        name: "mcpServers",
+        url: "https://meta.example/mcp",
+        sdkKey: "mcpServers",
+      },
     ]);
   });
 
@@ -233,13 +244,15 @@ describe("toSdkMcpConfig", () => {
 
     const parsed = parseMcpConfig(persisted);
 
+    // `name` stays unset (auto keys carry no user intent), but `sdkKey`
+    // still records the stored key so the server can be toggled on/off.
     expect(parsed.sse_servers).toEqual([
-      { url: "https://a" },
-      { url: "https://b" },
+      { url: "https://a", sdkKey: "sse" },
+      { url: "https://b", sdkKey: "sse_1" },
     ]);
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://c" },
-      { url: "https://d" },
+      { url: "https://c", sdkKey: "shttp" },
+      { url: "https://d", sdkKey: "shttp_2" },
     ]);
   });
 

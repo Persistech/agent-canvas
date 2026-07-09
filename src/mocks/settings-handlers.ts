@@ -957,6 +957,7 @@ export const SETTINGS_HANDLERS = [
       git_user_name: null,
       git_user_email: null,
       disabled_skills: [],
+      disabled_mcp_servers: [],
     };
 
     if (!settings) {

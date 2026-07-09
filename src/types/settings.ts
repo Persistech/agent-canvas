@@ -16,11 +16,19 @@ export type ProviderToken = {
   host: string | null;
 };
 
+/**
+ * `sdkKey` is the server's key in the SDK-native `mcp_config` map. It is
+ * populated by {@link parseMcpConfig} and carried through the UI so a server
+ * can be referenced by its stable stored identity (e.g. for the
+ * enable/disable deny-list). It is metadata only — {@link toSdkMcpConfig}
+ * ignores it and regenerates keys on save.
+ */
 export type MCPSSEServer = {
   name?: string;
   url: string;
   headers?: Record<string, string>;
   auth?: MCPAuthCredential;
+  sdkKey?: string;
 };
 
 export type MCPStdioServer = {
@@ -28,6 +36,7 @@ export type MCPStdioServer = {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+  sdkKey?: string;
 };
 
 export type MCPSHTTPServer = {
@@ -36,6 +45,7 @@ export type MCPSHTTPServer = {
   headers?: Record<string, string>;
   timeout?: number;
   auth?: MCPAuthCredential;
+  sdkKey?: string;
 };
 
 export type MCPConfig = {
@@ -161,6 +171,12 @@ export type Settings = {
   is_new_user?: boolean;
   mcp_config?: MCPConfig;
   disabled_skills?: string[];
+  /**
+   * SDK map keys of MCP servers the user has disabled. Disabled servers stay
+   * in `mcp_config` (so nothing is re-configured), but are stripped from the
+   * config forwarded to a conversation, hiding them from the agent.
+   */
+  disabled_mcp_servers?: string[];
   max_budget_per_task: number | null;
   email?: string;
   email_verified?: boolean;

@@ -47,6 +47,7 @@ type CloudSettingsResponse = {
   provider_tokens_set?: Partial<Record<Provider, string | null>>;
   mcp_config?: Record<string, SettingsValue>;
   disabled_skills?: string[];
+  disabled_mcp_servers?: string[];
   agent_settings?: Record<string, SettingsValue> | null;
   conversation_settings?: Record<string, SettingsValue> | null;
   agent_settings_schema?: unknown;

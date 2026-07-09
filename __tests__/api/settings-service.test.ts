@@ -172,6 +172,39 @@ describe("SettingsService", () => {
     ]);
   });
 
+  it("sends disabled_mcp_servers under misc_settings_diff.app_preferences on a local backend", async () => {
+    // disabled_mcp_servers is an AppPreferences field: disabling an MCP
+    // server records its SDK key here rather than mutating mcp_config, so
+    // the server config is preserved and can be re-enabled.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          misc_settings: {
+            app_preferences: { disabled_mcp_servers: ["slack"] },
+          },
+        });
+      }),
+    );
+
+    const result = await SettingsService.saveSettings({
+      disabled_mcp_servers: ["slack"],
+    });
+
+    expect(result).toBe(true);
+    expect(patchBodies).toEqual([
+      {
+        misc_settings_diff: {
+          app_preferences: { disabled_mcp_servers: ["slack"] },
+        },
+      },
+    ]);
+  });
+
   it("surfaces server-side misc_settings.app_preferences in getSettings on a local backend", async () => {
     // The local agent-server returns app_preferences nested under
     // `misc_settings` on GET /api/settings. The mock handler echoes whatever

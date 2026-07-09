@@ -73,8 +73,18 @@ export function useDeleteMcpServer() {
         return;
       }
 
+      // Housekeeping: also drop the deleted server from the disable deny-list
+      // so a future server that happens to reuse the same SDK key isn't
+      // silently created in a disabled state.
+      const disabled = settings?.disabled_mcp_servers ?? [];
+      const prunesDisabled =
+        !!target.sdkKey && disabled.includes(target.sdkKey);
+
       await SettingsService.saveSettings({
         agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
+        ...(prunesDisabled && {
+          disabled_mcp_servers: disabled.filter((k) => k !== target.sdkKey),
+        }),
       });
     },
     onSuccess: () => {

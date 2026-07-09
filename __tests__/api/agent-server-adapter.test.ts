@@ -595,6 +595,66 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
+  describe("disabled MCP servers", () => {
+    const settingsWithServers = (disabled?: string[]) => ({
+      ...DEFAULT_SETTINGS,
+      disabled_mcp_servers: disabled,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        mcp_config: {
+          slack: { command: "npx", args: ["-y", "slack"] },
+          github: { url: "https://api.githubcopilot.com/mcp/" },
+        },
+      },
+    });
+
+    it("strips disabled servers from the forwarded mcp_config (OpenHands)", () => {
+      const payload = buildStartConversationRequest({
+        settings: settingsWithServers(["slack"]),
+      }) as { agent_settings: { mcp_config?: Record<string, unknown> } };
+
+      expect(payload.agent_settings.mcp_config).toBeDefined();
+      expect(payload.agent_settings.mcp_config).not.toHaveProperty("slack");
+      expect(payload.agent_settings.mcp_config).toHaveProperty("github");
+    });
+
+    it("forwards all servers when none are disabled", () => {
+      const payload = buildStartConversationRequest({
+        settings: settingsWithServers([]),
+      }) as { agent_settings: { mcp_config?: Record<string, unknown> } };
+
+      expect(Object.keys(payload.agent_settings.mcp_config ?? {})).toEqual([
+        "slack",
+        "github",
+      ]);
+    });
+
+    it("drops mcp_config entirely when every server is disabled", () => {
+      const payload = buildStartConversationRequest({
+        settings: settingsWithServers(["slack", "github"]),
+      }) as { agent_settings: { mcp_config?: Record<string, unknown> } };
+
+      expect(payload.agent_settings.mcp_config).toBeUndefined();
+    });
+
+    it("strips disabled servers from the forwarded mcp_config (ACP)", () => {
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...settingsWithServers(["slack"]),
+          agent_settings: {
+            ...settingsWithServers(["slack"]).agent_settings,
+            agent_kind: "acp",
+            acp_server: "claude-code",
+            acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          },
+        },
+      }) as { agent_settings: { mcp_config?: Record<string, unknown> } };
+
+      expect(payload.agent_settings.mcp_config).not.toHaveProperty("slack");
+      expect(payload.agent_settings.mcp_config).toHaveProperty("github");
+    });
+  });
+
   describe("canvas_ui tool injection", () => {
     it("registers canvas_ui_tool in tool_module_qualnames when the backend advertises canvas_ui", () => {
       const payload = buildStartConversationRequest({

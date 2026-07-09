@@ -4,14 +4,10 @@ import { ExtensionsNavigation } from "#/components/features/skills/extensions-na
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
+import { useToggleMcpServer } from "#/hooks/mutation/use-toggle-mcp-server";
 import { parseMcpConfig } from "#/utils/mcp-config";
-import {
-  displayErrorToast,
-  displaySuccessToast,
-} from "#/utils/custom-toast-handlers";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
@@ -43,14 +39,11 @@ import {
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
-  const { mutate: deleteMcpServer, isPending: isDeleting } =
-    useDeleteMcpServer();
+  const { mutate: toggleMcpServer } = useToggleMcpServer();
 
   const [installEntry, setInstallEntry] =
     React.useState<MarketplaceEntry | null>(null);
   const [editingServer, setEditingServer] =
-    React.useState<MCPServerConfig | null>(null);
-  const [serverToDelete, setServerToDelete] =
     React.useState<MCPServerConfig | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sectionFilter, setSectionFilter] =
@@ -58,6 +51,10 @@ export default function MCPPage() {
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
+  const disabledKeys = React.useMemo(
+    () => new Set(settings?.disabled_mcp_servers ?? []),
+    [settings?.disabled_mcp_servers],
+  );
   const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 
   // Filter installed servers by the search query. We pair each server
@@ -80,28 +77,19 @@ export default function MCPPage() {
     setEditingServer(server);
   };
 
-  const handleDeleteClick = (serverId: string) => {
-    const target = allServers.find((s) => s.id === serverId);
-    if (target) setServerToDelete(target);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!serverToDelete) return;
-    // Pass the full server config — useDeleteMcpServer re-resolves its
-    // position against the fresh settings at mutation time, so a
-    // background refresh between this click and confirm cannot point
-    // us at the wrong index.
-    deleteMcpServer(serverToDelete, {
-      onSuccess: () => {
-        displaySuccessToast(t(I18nKey.MCP$REMOVE_SUCCESS));
-        setServerToDelete(null);
+  const handleToggleEnabled = (server: MCPServerConfig, enabled: boolean) => {
+    // Servers built from a bare URL string have no stable SDK key to track
+    // in the deny-list, so they can't be individually disabled.
+    if (!server.sdkKey) return;
+    toggleMcpServer(
+      { sdkKey: server.sdkKey, enabled },
+      {
+        onError: (err) => {
+          const message = retrieveAxiosErrorMessage(err as AxiosError);
+          displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+        },
       },
-      onError: (err) => {
-        const message = retrieveAxiosErrorMessage(err as AxiosError);
-        displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
-        setServerToDelete(null);
-      },
-    });
+    );
   };
 
   if (isLoading || !settings) {
@@ -164,8 +152,9 @@ export default function MCPPage() {
                 servers={filteredInstalledServers}
                 hasAnyInstalled={allServers.length > 0}
                 query={searchQuery}
+                disabledKeys={disabledKeys}
                 onEdit={handleEdit}
-                onDelete={handleDeleteClick}
+                onToggleEnabled={handleToggleEnabled}
               />
             </section>
           ) : null}
@@ -193,15 +182,6 @@ export default function MCPPage() {
             server={editingServer}
             existingServers={allServers}
             onClose={() => setEditingServer(null)}
-          />
-        )}
-
-        {serverToDelete && (
-          <ConfirmationModal
-            text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
-            onCancel={() => setServerToDelete(null)}
-            onConfirm={handleConfirmDelete}
-            isConfirming={isDeleting}
           />
         )}
       </main>

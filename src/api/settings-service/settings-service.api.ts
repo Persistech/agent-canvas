@@ -28,6 +28,7 @@ export const APP_PREFERENCE_FIELDS = [
   "git_user_name",
   "git_user_email",
   "disabled_skills",
+  "disabled_mcp_servers",
 ] as const;
 
 export type AppPreferenceField = (typeof APP_PREFERENCE_FIELDS)[number];
