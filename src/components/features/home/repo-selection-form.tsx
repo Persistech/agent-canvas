@@ -147,6 +147,7 @@ export function RepositorySelectionForm({
         provider={selectedProvider || providers[0]}
         value={selectedRepository?.id || null}
         repositoryName={selectedRepository?.full_name || null}
+        // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
         placeholder="user/repo"
         disabled={!selectedProvider || isLoadingSettings}
         onChange={handleRepoSelection}
@@ -231,6 +232,7 @@ export function RepositorySelectionForm({
                 gitProvider: selectedRepository.git_provider || "github",
                 branch: selectedBranch.name || "main",
               },
+              entryPoint: "home_repo_form",
             },
             {
               onSuccess: (data) =>

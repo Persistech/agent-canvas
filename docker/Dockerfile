@@ -70,6 +70,7 @@ RUN node -e " \
 FROM ${AGENT_SERVER_IMAGE} AS final
 
 ARG AUTOMATION_VERSION
+ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 
@@ -100,12 +101,26 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
 
+RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
+      BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${AGENT_SERVER_SDK_GIT_REF}" && \
+      uv pip install --system --force-reinstall \
+        "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
+        "${BASE_GIT_URL}#subdirectory=openhands-tools" \
+        "${BASE_GIT_URL}#subdirectory=openhands-workspace"; \
+    fi
+
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.
 COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
-# Copy the static-server script (serves frontend + proxies to backends)
+# Copy the static-server scripts and their production runtime deps.
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+COPY scripts/proxy-utils.mjs /opt/agent-canvas/proxy-utils.mjs
+COPY --from=frontend-build /build/node_modules/httpxy /opt/agent-canvas/node_modules/httpxy
+COPY --from=frontend-build /build/node_modules/sirv /opt/agent-canvas/node_modules/sirv
+COPY --from=frontend-build /build/node_modules/@polka /opt/agent-canvas/node_modules/@polka
+COPY --from=frontend-build /build/node_modules/mrmime /opt/agent-canvas/node_modules/mrmime
+COPY --from=frontend-build /build/node_modules/totalist /opt/agent-canvas/node_modules/totalist
 
 # Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
 # emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).

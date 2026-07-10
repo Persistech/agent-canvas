@@ -30,9 +30,29 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
   ChangeAgentButton: () => <div data-testid="change-agent-button-stub" />,
 }));
 
-vi.mock("#/components/features/chat/switch-profile-button", () => ({
-  SwitchProfileButton: () => <div data-testid="switch-profile-button-stub" />,
-}));
+vi.mock(
+  "#/components/features/chat/components/chat-input-profile-picker",
+  () => ({
+    ChatInputProfilePicker: () => (
+      <div data-testid="agent-profile-picker-stub" />
+    ),
+    ChatInputProfileMenuContent: () => (
+      <div data-testid="agent-profile-menu-stub" />
+    ),
+  }),
+);
+
+vi.mock(
+  "#/components/features/chat/components/chat-input-llm-profile-picker",
+  () => ({
+    ChatInputLlmProfilePicker: () => (
+      <div data-testid="llm-profile-picker-stub" />
+    ),
+    ChatInputLlmProfileMenuContent: () => (
+      <div data-testid="llm-profile-menu-stub" />
+    ),
+  }),
+);
 
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
@@ -65,22 +85,43 @@ describe("ChatInputActions", () => {
     useActiveConversationMock.mockReturnValue({ data: undefined });
   });
 
-  it("renders the SwitchProfileButton on a local backend", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+  it("renders the AgentProfile picker on the home page (local)", () => {
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: null },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />);
-
+    // Home keeps the start-new/activate AgentProfile picker (#3727).
+    expect(screen.getByTestId("agent-profile-picker-stub")).toBeInTheDocument();
     expect(
-      screen.getByTestId("switch-profile-button-stub"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("llm-profile-picker-stub"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("chat-input-llm-model"),
     ).not.toBeInTheDocument();
   });
 
-  it("renders the static model label for local ACP conversations", () => {
+  it("renders the LLM-profile switcher inside a local OpenHands conversation", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: "test-conversation-id" },
+    });
+
+    // In a conversation the user live-switches the LLM profile, not start-new.
+    expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the model switcher inside a local ACP conversation", () => {
     useActiveConversationMock.mockReturnValue({
       data: {
         conversation_id: "test-conversation-id",
@@ -89,22 +130,29 @@ describe("ChatInputActions", () => {
       },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />);
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: "test-conversation-id" },
+    });
 
-    expect(screen.getByTestId("chat-input-llm-model")).toHaveAttribute(
-      "title",
-      "claude-sonnet-4-6",
-    );
+    // ACP in a conversation live-switches the running model via ChatInputModel.
+    expect(screen.getByTestId("chat-input-llm-model")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("switch-profile-button-stub"),
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("llm-profile-picker-stub"),
     ).not.toBeInTheDocument();
   });
 
-  it("renders the active conversation model on a cloud backend", () => {
+  it("renders the active conversation model in a cloud ACP conversation", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: "gpt-4o",
+      },
     });
 
     renderWithProviders(
@@ -117,15 +165,19 @@ describe("ChatInputActions", () => {
       "gpt-4o",
     );
     expect(
-      screen.queryByTestId("switch-profile-button-stub"),
+      screen.queryByTestId("agent-profile-picker-stub"),
     ).not.toBeInTheDocument();
   });
 
-  it("omits the model label on cloud when the active conversation has no llm_model", () => {
+  it("omits the model label on cloud when the active ACP conversation has no llm_model", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: null },
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
     });
 
     renderWithProviders(
@@ -134,6 +186,31 @@ describe("ChatInputActions", () => {
       </ActiveBackendProvider>,
     );
 
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the LLM-profile switcher inside a cloud OpenHands conversation", () => {
+    // /switch_profile is a real endpoint on both backends (cloud proxies
+    // POST /api/v1/app-conversations/{id}/switch_profile) — cloud OpenHands
+    // conversations get the same live-switch picker as local (#1571 review).
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+    );
+
+    expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("chat-input-llm-model"),
     ).not.toBeInTheDocument();
@@ -171,8 +248,6 @@ describe("ChatInputActions", () => {
       { navigation: { conversationId: null } },
     );
 
-    expect(
-      screen.getByTestId("change-agent-button-stub"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
   });
 });

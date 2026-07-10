@@ -82,6 +82,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
+  getLockedCloudHost: vi.fn(() => null),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -653,6 +654,38 @@ describe("AgentServerConversationService", () => {
       expect(conversation?.llm_model).toBe("Claude Opus 4.7");
     });
 
+    it("sources acp_server from the agent when the acpserver tag is absent", async () => {
+      // Profile launches don't stamp the ``acpserver`` tag client-side, so the
+      // provider identity must survive from ``agent.acp_server`` (SDK #3692)
+      // through ``normalizeAgent``. Without it the chip degrades to a generic
+      // "ACP" and the in-conversation model picker shows no options (#1571).
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp-server-from-agent",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: {
+              kind: "ACPAgent",
+              acp_server: "claude-code",
+              acp_model: "claude-sonnet-4-5",
+              llm: { model: "acp-managed" },
+            },
+            // No ``acpserver`` tag — mirrors an agent_profile_id launch.
+            tags: {},
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp-server-from-agent",
+        ]);
+
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.acp_server).toBe("claude-code");
+    });
+
     it("falls back to acp_model when SDK runtime fields are absent on the wire", async () => {
       // Older agent-servers don't populate ``current_model_*``. The
       // adapter must still surface a model on the chip — falling through
@@ -774,6 +807,8 @@ describe("AgentServerConversationService", () => {
         expect.objectContaining({
           model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
+          // Streaming must stay enabled after a mid-conversation switch.
+          stream: true,
           usage_id: expect.stringMatching(/^profile:haiku:/),
         }),
       );
@@ -815,7 +850,7 @@ describe("AgentServerConversationService", () => {
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
-    it("rejects profile switching on cloud backends before any network call", async () => {
+    it("routes a cloud conversation switch through the app-server switch_profile endpoint", async () => {
       const cloudBackend: Backend = {
         id: "prod",
         name: "Production",
@@ -825,15 +860,20 @@ describe("AgentServerConversationService", () => {
       };
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
+      vi.mocked(axios.request).mockReset();
+      vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
 
-      await expect(
-        AgentServerConversationService.switchProfile("conv-1", "haiku"),
-      ).rejects.toThrow(
-        "LLM profile switching is only supported for local agent-server backends.",
-      );
-      expect(mockActivateProfile).not.toHaveBeenCalled();
+      await AgentServerConversationService.switchProfile("conv-1", "haiku");
+
+      const [cfg] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(cfg).toMatchObject({
+        method: "POST",
+        url: "https://app.all-hands.dev/api/v1/app-conversations/conv-1/switch_profile",
+        data: { profile_name: "haiku" },
+      });
+      // Cloud resolves the swap server-side: no client-side encrypted profile
+      // fetch and no direct switch_llm call.
       expect(mockGetProfile).not.toHaveBeenCalled();
-      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
   });

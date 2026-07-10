@@ -17,7 +17,6 @@ import { LlmSettingsLocalView } from "#/components/features/settings/llm-profile
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   inferInitialView,
   type SettingsFormValues,
@@ -220,6 +219,7 @@ export function LlmSettingsScreen({
             type="password"
             className="w-full"
             value={apiKeyValue}
+            // eslint-disable-next-line i18next/no-literal-string -- masked-key sentinel, not translatable
             placeholder={apiKeyIsSet ? "<hidden>" : ""}
             onChange={(value) => onChange("llm.api_key", value)}
             isDisabled={isDisabled}
@@ -356,7 +356,9 @@ export function LlmSettingsScreen({
                   ) : null}
 
                   {renderApiKeyInput(
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-input",
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-help-anchor",
                   )}
                 </>
@@ -394,13 +396,16 @@ export function LlmSettingsScreen({
                     type="text"
                     className="w-full"
                     value={baseUrlValue}
+                    // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
                     placeholder="https://api.openai.com"
                     onChange={(value) => onChange("llm.base_url", value)}
                     isDisabled={isDisabled}
                   />
 
                   {renderApiKeyInput(
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-input",
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-help-anchor-advanced",
                   )}
                 </>
@@ -500,26 +505,19 @@ export function LlmSettingsScreen({
 }
 
 /**
- * Default export for the route renders different views based on backend type:
- * - Local backends: LlmSettingsLocalView with profile management
- * - Cloud backends: Standard LlmSettingsScreen (profiles are not supported)
+ * Default export for the route renders the LLM-profile management view for both
+ * backend types. Both manage the LLM through named profiles — local via the
+ * agent-server (`/api/profiles`), cloud via the app-server
+ * (`/api/v1/settings/profiles`) — and the view is backend-agnostic because it
+ * goes through ProfilesService, which routes per active backend.
  *
  * The LlmSettingsScreen component is also exported for embedded use cases
- * (e.g., onboarding, profile editing forms).
+ * (e.g., onboarding, the profile create/edit form).
  *
  * Note: This is a route file, only the router should import the default export.
  * Other consumers should use the named export `LlmSettingsScreen` for embedded
  * use cases.
  */
 export default function LlmSettingsRoute() {
-  const { backend } = useActiveBackend();
-  const isCloud = backend.kind === "cloud";
-
-  // Cloud backends use the standard LLM settings form (no profiles support)
-  if (isCloud) {
-    return <LlmSettingsScreen />;
-  }
-
-  // Local backends use the profile management view
   return <LlmSettingsLocalView />;
 }

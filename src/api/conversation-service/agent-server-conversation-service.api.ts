@@ -1,5 +1,6 @@
 import {
   ConversationSortOrder,
+  type ForkConversationRequest,
   type LLMConfig,
 } from "@openhands/typescript-client";
 import {
@@ -22,6 +23,7 @@ import {
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
+import ProfilesService from "../profiles-service/profiles-service.api";
 import {
   batchGetCloudConversations,
   createCloudAppConversation,
@@ -134,14 +136,18 @@ function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
     ? { model: stringOrNull(value.llm.model) }
     : null;
   // ``kind`` is the SDK's pydantic discriminator (``"Agent"`` vs ``"ACPAgent"``);
-  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_model`` is
-  // the Canvas-configured model on the ACPAgent — preserved so the conversation
-  // adapter and the conversation chip can fall back to it when the SDK runtime
-  // model fields aren't populated. Preserving these here makes the wire path
-  // agree with the unit-test path that builds ``DirectConversationInfo``
-  // directly (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
+  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_server`` is
+  // the ACP provider identity (``ACPAgent.acp_server``, SDK #3692) — required so
+  // the adapter can source the chip + in-conversation model list from the agent
+  // when the ``acpserver`` tag is absent (a profile launch doesn't stamp it,
+  // #1571). ``acp_model`` is the Canvas-configured model — preserved so the chip
+  // can fall back to it when the SDK runtime model fields aren't populated.
+  // Preserving these makes the wire path agree with the unit-test path that
+  // builds ``DirectConversationInfo`` directly
+  // (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
   return {
     kind: stringOrNull(value.kind),
+    acp_server: stringOrNull(value.acp_server),
     acp_model: stringOrNull(value.acp_model),
     llm,
   };
@@ -351,6 +357,11 @@ class AgentServerConversationService {
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
+    // Launch from a saved AgentProfile (resolved server-side) instead of the
+    // current encrypted agent_settings (#3727). Supported on both local and the
+    // cloud app-server (OpenHands #15060): local threads it through the
+    // encrypted-settings builder; cloud sends it as a flat request field.
+    agentProfileId?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
       // Cloud path mirrors OpenHands' frontend: build a flat
@@ -358,6 +369,8 @@ class AgentServerConversationService {
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
       // round-trip — the cloud backend holds secrets server-side.
+      // When launching from a profile, send `agent_profile_id`; the backend
+      // resolves it to agent_settings server-side.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -373,6 +386,7 @@ class AgentServerConversationService {
         parent_conversation_id: parentConversationId ?? null,
         agent_type: agentType,
         sandbox_id: sandboxId ?? null,
+        agent_profile_id: agentProfileId ?? null,
       };
       return createCloudAppConversation(request);
     }
@@ -400,6 +414,7 @@ class AgentServerConversationService {
       conversationId,
       workingDir,
       worktree: resolvedWorkspaceMode === "new_worktree",
+      agentProfileId,
     });
 
     const data = await new ConversationClient(
@@ -675,6 +690,58 @@ class AgentServerConversationService {
   }
 
   /**
+   * Forks a conversation, copying event history up to and including
+   * `fromEventId`. Local agent-server only; needs agent-server >= 1.31.0 for
+   * `from_event_id` (older backends copy the whole conversation).
+   */
+  static async forkConversation(
+    sourceConversationId: string,
+    fromEventId: string,
+    title?: string,
+  ): Promise<DirectConversationInfo> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "Branching a conversation isn't supported on the cloud backend yet.",
+      );
+    }
+
+    // `from_event_id` is accepted by `/fork` but not yet typed in
+    // ForkConversationRequest (through client 1.32.0); the client forwards the
+    // body verbatim, so cast to carry it. A title also suppresses the backend
+    // auto-title, so the "(branch)" marker sticks.
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).forkConversation<DirectConversationInfo>(sourceConversationId, {
+      from_event_id: fromEventId,
+      ...(title ? { title } : {}),
+    } as ForkConversationRequest & { from_event_id: string });
+
+    // Carry over the source's client-side metadata (repo/branch/workspace/
+    // profile/plugins) so the fork hydrates its chat-page badges the same way.
+    const sourceMetadata = getStoredConversationMetadata(sourceConversationId);
+    if (sourceMetadata) {
+      setStoredConversationMetadata(data.id, sourceMetadata);
+    }
+
+    return data;
+  }
+
+  /**
+   * Returns an event's `parent_id` (the fork point for branching *before* it),
+   * or undefined at the root. Uses the single-event endpoint because the events
+   * *search* API omits `parent_id`.
+   */
+  static async getEventParentId(
+    conversationId: string,
+    eventId: string,
+  ): Promise<string | undefined> {
+    const event = (await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).getEvent(conversationId, eventId)) as { parent_id?: string | null };
+    return event.parent_id ?? undefined;
+  }
+
+  /**
    * Switches the LLM profile for the running conversation when one is open
    * (POST /switch_profile — per-conversation swap, doesn't change the user's
    * default profile). When called without a conversationId (home page),
@@ -684,15 +751,34 @@ class AgentServerConversationService {
    * The per-conversation endpoint accepts only the profile name, so the UI does
    * not need to fetch or forward profile secrets. That keeps switching working
    * even when the agent server has no OH_SECRET_KEY for encrypted secret export.
+   *
+   * Cloud backends route to the app-server's per-conversation
+   * `/switch_profile`, which owns the profiles and resolves the swap
+   * server-side (base_url/api_key fixups, usage_id derivation, then the
+   * agent-server's switch_llm) — so the client only forwards the profile name,
+   * mirroring {@link switchAcpModel}.
    */
   static async switchProfile(
     conversationId: string | null,
     profileName: string,
   ): Promise<void> {
-    if (getActiveBackend().backend.kind === "cloud") {
-      throw new Error(
-        "LLM profile switching is only supported for local agent-server backends.",
-      );
+    const { backend } = getActiveBackend();
+
+    if (backend.kind === "cloud") {
+      // No conversation (home page): activate globally so the next
+      // conversation starts with it. ProfilesService routes to the cloud
+      // activate endpoint.
+      if (!conversationId) {
+        await ProfilesService.activateProfile(profileName);
+        return;
+      }
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_profile`,
+        body: { profile_name: profileName },
+      });
+      return;
     }
 
     if (!conversationId) {
@@ -715,6 +801,9 @@ class AgentServerConversationService {
     await conversationClient.switchLLM(conversationId, {
       ...profile.config,
       model,
+      // Keep streaming on after a switch (parity with conversation start);
+      // the profile config would otherwise default it to stream=False.
+      stream: true,
       // Avoid stale first-write-wins entries in the backend LLM registry.
       usage_id: `profile:${profileName}:${uuidv4()}`,
     } as LLMConfig);
