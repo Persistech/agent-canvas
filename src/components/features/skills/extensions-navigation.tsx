@@ -3,6 +3,7 @@ import { NavigationLink } from "#/components/shared/navigation-link";
 import { cn } from "#/utils/utils";
 import SkillsIcon from "#/icons/skills.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
+import RobotIcon from "#/icons/robot.svg?react";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import {
   SIDEBAR_ROW_INTERACTIVE_CLASS,
@@ -29,6 +30,12 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
     to: "/mcp",
     label: "MCP Servers",
     icon: <ServerProcessIcon width={16} height={16} />,
+    end: true,
+  },
+  {
+    to: "/sub-agents",
+    label: "Sub-Agents",
+    icon: <RobotIcon width={16} height={16} aria-hidden="true" />,
     end: true,
   },
   {
