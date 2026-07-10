@@ -10,4 +10,7 @@ export const EXTENSIONS_ENABLED =
  * served by the dev middleware (see `vite.config.ts`) that exposes the bundle's
  * `extension.json` and assets.
  */
-export const DEV_EXTENSION_BUNDLE_URLS = ["/__extensions/hello-sidebar"];
+export const DEV_EXTENSION_BUNDLE_URLS = [
+  "/__extensions/hello-sidebar",
+  "/__extensions/sandboxes",
+];

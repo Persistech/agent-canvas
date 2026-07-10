@@ -1,0 +1,24 @@
+{
+  "name": "@openhands/sandboxes-extension",
+  "version": "1.0.0",
+  "description": "Agent Canvas UI extension for managing cloud sandboxes.",
+  "license": "MIT",
+  "author": "OpenHands",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenHands/agent-canvas.git",
+    "directory": "examples/extensions/sandboxes"
+  },
+  "files": [
+    "extension.json",
+    "panel.html",
+    "icon.svg"
+  ],
+  "keywords": [
+    "agent-canvas",
+    "openhands",
+    "extension",
+    "sandboxes",
+    "cloud"
+  ]
+}

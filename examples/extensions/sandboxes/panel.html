@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none';"
+    />
+    <title>Sandboxes</title>
+    <style>
+      :root {
+        /* Background layers */
+        --oh-background: #0B0E14;
+        --oh-surface: #21252F;
+        --oh-surface-raised: #2C313F;
+        --oh-surface-deep: #05070A;
+        
+        /* Text */
+        --oh-foreground: #EEF2F7;
+        --oh-text-secondary: #C3CDDC;
+        --oh-muted: #A3B0C4;
+        --oh-text-dim: #7E8A9E;
+        
+        /* Borders */
+        --oh-border: #4B5468;
+        --oh-border-subtle: #383F50;
+        
+        /* Interactive */
+        --oh-interactive-hover: #4B5468;
+        --oh-interactive-hover-low: #2C313F;
+        
+        /* Accents */
+        --oh-color-primary: #c9b974;
+        --oh-color-success: #a5e75e;
+        --oh-color-danger: #e76a5e;
+        --oh-color-warning: #f0b429;
+        
+        /* Radius */
+        --oh-radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        background: var(--oh-background);
+      }
+      
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: var(--oh-foreground);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      /* Toolbar */
+      .toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+
+      .filter-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .filter-group label {
+        color: var(--oh-text-secondary);
+        font-size: 13px;
+      }
+
+      .checkbox-group {
+        display: flex;
+        gap: 12px;
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        color: var(--oh-text-secondary);
+        font-size: 13px;
+      }
+
+      .checkbox-label input {
+        accent-color: var(--oh-color-primary);
+      }
+
+      .sort-select {
+        background: var(--oh-surface);
+        border: 1px solid var(--oh-border);
+        border-radius: 6px;
+        color: var(--oh-foreground);
+        padding: 6px 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .sort-select:hover {
+        border-color: var(--oh-interactive-hover);
+      }
+
+      /* Buttons */
+      .btn {
+        border: none;
+        border-radius: var(--oh-radius);
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 150ms, background-color 150ms;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: var(--oh-color-primary);
+        color: var(--oh-background);
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--oh-foreground);
+        border: 1px solid var(--oh-border);
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: var(--oh-interactive-hover-low);
+      }
+
+      .btn-sm {
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+
+      .btn-icon {
+        padding: 6px;
+        background: transparent;
+        border: 1px solid var(--oh-border);
+      }
+
+      .btn-icon:hover:not(:disabled) {
+        background: var(--oh-interactive-hover-low);
+      }
+
+      /* Table */
+      .table-container {
+        border: 1px solid var(--oh-border);
+        border-radius: 6px;
+        background: var(--oh-surface);
+        overflow: hidden;
+      }
+
+      .sandbox-row {
+        border-top: 1px solid var(--oh-border);
+        transition: background-color 150ms;
+      }
+
+      .sandbox-row:first-child {
+        border-top: none;
+      }
+
+      .sandbox-header {
+        display: grid;
+        grid-template-columns: 24px 1fr auto auto auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 16px;
+        cursor: pointer;
+        min-height: 56px;
+      }
+
+      .sandbox-header:hover {
+        background: var(--oh-interactive-hover-low);
+      }
+
+      .sandbox-row.expanded .sandbox-header {
+        background: var(--oh-surface-raised);
+      }
+
+      .expand-icon {
+        color: var(--oh-text-dim);
+        transition: transform 150ms;
+        font-size: 12px;
+      }
+
+      .sandbox-row.expanded .expand-icon {
+        transform: rotate(90deg);
+      }
+
+      .sandbox-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .sandbox-name {
+        font-weight: 500;
+        color: var(--oh-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sandbox-id {
+        font-size: 12px;
+        color: var(--oh-text-dim);
+        font-family: monospace;
+      }
+
+      .sandbox-name-input {
+        background: var(--oh-surface-deep);
+        border: 1px solid var(--oh-color-primary);
+        border-radius: 4px;
+        color: var(--oh-foreground);
+        padding: 4px 8px;
+        font-size: 14px;
+        width: 200px;
+      }
+
+      .sandbox-name-input:focus {
+        outline: none;
+        border-color: var(--oh-color-primary);
+      }
+
+      /* Status badges */
+      .badge {
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .badge-running {
+        background: rgba(165, 231, 94, 0.15);
+        color: #a5e75e;
+      }
+
+      .badge-paused {
+        background: rgba(201, 185, 116, 0.15);
+        color: #c9b974;
+      }
+
+      .badge-starting {
+        background: rgba(240, 180, 41, 0.15);
+        color: #f0b429;
+      }
+
+      .badge-error {
+        background: rgba(231, 106, 94, 0.15);
+        color: #e76a5e;
+      }
+
+      .badge-missing, .badge-stopped {
+        background: rgba(126, 138, 158, 0.15);
+        color: #7E8A9E;
+      }
+
+      .time-info {
+        text-align: right;
+        min-width: 100px;
+      }
+
+      .time-label {
+        font-size: 11px;
+        color: var(--oh-text-dim);
+        text-transform: uppercase;
+      }
+
+      .time-value {
+        font-size: 13px;
+        color: var(--oh-text-secondary);
+      }
+
+      /* Expanded content */
+      .sandbox-expanded {
+        display: none;
+        background: var(--oh-surface-deep);
+        border-top: 1px solid var(--oh-border-subtle);
+        padding: 16px;
+      }
+
+      .sandbox-row.expanded .sandbox-expanded {
+        display: block;
+      }
+
+      .expanded-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .expanded-header h4 {
+        margin: 0;
+        font-size: 13px;
+        color: var(--oh-text-secondary);
+        font-weight: 500;
+      }
+
+      .conversation-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .conversation-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        background: var(--oh-surface);
+        border-radius: 6px;
+        border: 1px solid var(--oh-border-subtle);
+      }
+
+      .conversation-item:hover {
+        border-color: var(--oh-border);
+      }
+
+      .conversation-title {
+        color: var(--oh-foreground);
+        font-weight: 500;
+      }
+
+      .conversation-time {
+        font-size: 12px;
+        color: var(--oh-text-dim);
+      }
+
+      .no-conversations {
+        color: var(--oh-text-dim);
+        font-style: italic;
+        padding: 12px;
+        text-align: center;
+      }
+
+      /* States */
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: var(--oh-text-secondary);
+      }
+
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--oh-border);
+        border-top-color: var(--oh-color-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--oh-text-secondary);
+      }
+
+      .empty-state h3 {
+        margin: 0 0 8px 0;
+        color: var(--oh-foreground);
+      }
+
+      .error-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--oh-color-danger);
+        background: rgba(231, 106, 94, 0.1);
+        border-radius: var(--oh-radius);
+        margin-top: 20px;
+      }
+
+      .not-cloud {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--oh-text-secondary);
+      }
+
+      .not-cloud h3 {
+        color: var(--oh-foreground);
+        margin: 0 0 12px 0;
+      }
+
+      /* Actions column */
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div>Loading sandboxes...</div>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        // ===== API Setup =====
+        var parentWindow = window.parent;
+        var nextId = 1;
+        var pending = {};
+
+        window.addEventListener("message", function(event) {
+          if (event.source !== parentWindow) return;
+          var msg = event.data;
+          
+          // Handle theme updates (host sends { type: "agentCanvas:theme", variables: {...} })
+          if (msg && msg.type === "agentCanvas:theme") {
+            applyTheme(msg.variables);
+            return;
+          }
+          
+          if (!msg || msg.kind !== "response") {
+            // Ignore non-response messages (ready signal, etc.)
+            return;
+          }
+          var entry = pending[msg.id];
+          if (!entry) return;
+          delete pending[msg.id];
+          if (msg.error !== undefined) entry.reject(new Error(msg.error));
+          else entry.resolve(msg.result);
+        });
+
+        function request(method, params) {
+          var id = nextId++;
+          return new Promise(function(resolve, reject) {
+            pending[id] = { resolve: resolve, reject: reject };
+            parentWindow.postMessage(
+              { kind: "request", id: id, method: method, params: params },
+              "*"
+            );
+          });
+        }
+
+        var agentCanvas = {
+          backend: {
+            cloudFetch: function(params) {
+              return request("backend.cloudFetch", params);
+            }
+          },
+          storage: {
+            get: function(key) { return request("storage.get", { key: key }); },
+            set: function(key, value) { return request("storage.set", { key: key, value: value }); }
+          },
+          window: {
+            showInformationMessage: function(message) {
+              return request("window.showInformationMessage", { message: message });
+            },
+            showErrorMessage: function(message) {
+              return request("window.showErrorMessage", { message: message });
+            }
+          }
+        };
+
+        // ===== Theme =====
+        function applyTheme(variables) {
+          if (!variables) return;
+          var root = document.documentElement;
+          // Variables come with their full names (e.g., "--oh-background")
+          Object.keys(variables).forEach(function(name) {
+            root.style.setProperty(name, variables[name]);
+          });
+        }
+
+        // ===== State =====
+        var state = {
+          sandboxes: [],
+          conversations: [],
+          sandboxNames: {},
+          expandedSandboxes: new Set(),
+          editingSandboxId: null,
+          filters: { running: true, paused: true, stopped: false },
+          sortBy: "status",
+          loading: true,
+          error: null,
+          cloudAvailable: null
+        };
+
+        // ===== Helpers =====
+        function relativeTime(isoString) {
+          if (!isoString) return "—";
+          var date = new Date(isoString);
+          var now = new Date();
+          var diffMs = now - date;
+          var diffMin = Math.floor(diffMs / 60000);
+          var diffHr = Math.floor(diffMin / 60);
+          var diffDays = Math.floor(diffHr / 24);
+          
+          if (diffMin < 1) return "just now";
+          if (diffMin < 60) return diffMin + " minute" + (diffMin > 1 ? "s" : "") + " ago";
+          if (diffHr < 24) return diffHr + " hour" + (diffHr > 1 ? "s" : "") + " ago";
+          if (diffDays < 7) {
+            return date.toLocaleDateString("en", { weekday: "long" });
+          }
+          return diffDays + " days ago";
+        }
+
+        function getStatusPriority(status) {
+          var priorities = { RUNNING: 1, STARTING: 2, PAUSED: 3, ERROR: 4, MISSING: 5 };
+          return priorities[status] || 6;
+        }
+
+        function groupConversationsBySandbox() {
+          var groups = {};
+          state.conversations.forEach(function(conv) {
+            var sid = conv.sandbox_id;
+            if (!sid) return;
+            if (!groups[sid]) {
+              groups[sid] = {
+                sandboxId: sid,
+                conversations: [],
+                lastActive: null,
+                status: conv.sandbox_status || "MISSING"
+              };
+            }
+            groups[sid].conversations.push(conv);
+            var convUpdated = new Date(conv.updated_at);
+            if (!groups[sid].lastActive || convUpdated > new Date(groups[sid].lastActive)) {
+              groups[sid].lastActive = conv.updated_at;
+            }
+          });
+          
+          // Merge with sandbox info
+          state.sandboxes.forEach(function(sb) {
+            if (!sb || !sb.id) return; // Skip null/invalid entries
+            if (!groups[sb.id]) {
+              groups[sb.id] = {
+                sandboxId: sb.id,
+                conversations: [],
+                lastActive: sb.created_at,
+                status: sb.status
+              };
+            }
+            groups[sb.id].sandboxInfo = sb;
+            groups[sb.id].status = sb.status;
+            groups[sb.id].createdAt = sb.created_at;
+          });
+          
+          return Object.values(groups);
+        }
+
+        function filterAndSort(groups) {
+          // Filter
+          var filtered = groups.filter(function(g) {
+            var status = (g.status || "").toUpperCase();
+            if (status === "RUNNING" && !state.filters.running) return false;
+            if (status === "PAUSED" && !state.filters.paused) return false;
+            if ((status === "MISSING" || status === "ERROR") && !state.filters.stopped) return false;
+            return true;
+          });
+          
+          // Sort
+          filtered.sort(function(a, b) {
+            if (state.sortBy === "status") {
+              return getStatusPriority(a.status) - getStatusPriority(b.status);
+            }
+            if (state.sortBy === "lastActive") {
+              var aTime = new Date(a.lastActive || 0);
+              var bTime = new Date(b.lastActive || 0);
+              return bTime - aTime;
+            }
+            if (state.sortBy === "created") {
+              var aCreated = new Date(a.createdAt || 0);
+              var bCreated = new Date(b.createdAt || 0);
+              return bCreated - aCreated;
+            }
+            return 0;
+          });
+          
+          return filtered;
+        }
+
+        // ===== API Calls =====
+        async function fetchData() {
+          state.loading = true;
+          state.error = null;
+          render();
+          
+          try {
+            // Fetch conversations (includes sandbox info)
+            var convResponse = await agentCanvas.backend.cloudFetch({
+              path: "/api/v1/app-conversations/search?limit=100&sort_order=UPDATED_AT_DESC",
+              method: "GET"
+            });
+            
+            if (convResponse === null) {
+              state.cloudAvailable = false;
+              state.loading = false;
+              render();
+              return;
+            }
+            
+            state.cloudAvailable = true;
+            
+            if (!convResponse.ok) {
+              throw new Error("Failed to fetch conversations: " + (convResponse.status || "unknown error"));
+            }
+            
+            // The API returns { items: [...], next_page_id: N } 
+            var responseData = convResponse.data;
+            state.conversations = Array.isArray(responseData) 
+              ? responseData 
+              : (responseData?.items || responseData?.results || []);
+            
+            // Extract unique sandbox IDs
+            var sandboxIds = [];
+            state.conversations.forEach(function(conv) {
+              if (conv.sandbox_id && sandboxIds.indexOf(conv.sandbox_id) === -1) {
+                sandboxIds.push(conv.sandbox_id);
+              }
+            });
+            
+            // Fetch sandbox details if we have any
+            if (sandboxIds.length > 0) {
+              var idsParam = sandboxIds.map(function(id) { return "id=" + encodeURIComponent(id); }).join("&");
+              var sbResponse = await agentCanvas.backend.cloudFetch({
+                path: "/api/v1/sandboxes?" + idsParam,
+                method: "GET"
+              });
+              
+              if (sbResponse && sbResponse.ok) {
+                var sbData = sbResponse.data;
+                // Handle both array and { items: [...] } formats, filter out nulls
+                var sandboxList = Array.isArray(sbData) 
+                  ? sbData 
+                  : (sbData?.items || sbData?.results || []);
+                state.sandboxes = sandboxList.filter(function(sb) { return sb && sb.id; });
+              }
+            }
+            
+            // Load saved names
+            var savedNames = await agentCanvas.storage.get("sandbox-names");
+            state.sandboxNames = savedNames || {};
+            
+            state.loading = false;
+            render();
+          } catch (err) {
+            state.error = err.message;
+            state.loading = false;
+            render();
+          }
+        }
+
+        async function pauseSandbox(sandboxId) {
+          try {
+            var response = await agentCanvas.backend.cloudFetch({
+              path: "/api/v1/sandboxes/" + encodeURIComponent(sandboxId) + "/pause",
+              method: "POST"
+            });
+            
+            if (response && response.ok) {
+              await agentCanvas.window.showInformationMessage("Sandbox paused successfully");
+              await fetchData();
+            } else {
+              throw new Error("Failed to pause sandbox");
+            }
+          } catch (err) {
+            await agentCanvas.window.showErrorMessage("Error: " + err.message);
+          }
+        }
+
+        async function resumeSandbox(sandboxId) {
+          try {
+            var response = await agentCanvas.backend.cloudFetch({
+              path: "/api/v1/sandboxes/" + encodeURIComponent(sandboxId) + "/resume",
+              method: "POST"
+            });
+            
+            if (response && response.ok) {
+              await agentCanvas.window.showInformationMessage("Sandbox resumed successfully");
+              await fetchData();
+            } else {
+              throw new Error("Failed to resume sandbox");
+            }
+          } catch (err) {
+            await agentCanvas.window.showErrorMessage("Error: " + err.message);
+          }
+        }
+
+        async function saveSandboxName(sandboxId, name) {
+          state.sandboxNames[sandboxId] = name;
+          await agentCanvas.storage.set("sandbox-names", state.sandboxNames);
+          state.editingSandboxId = null;
+          render();
+        }
+
+        // ===== Render =====
+        function render() {
+          var app = document.getElementById("app");
+          
+          // Not connected to cloud
+          if (state.cloudAvailable === false) {
+            app.innerHTML = '\
+              <div class="not-cloud">\
+                <h3>Cloud Backend Required</h3>\
+                <p>Connect to a cloud backend to manage sandboxes.</p>\
+              </div>';
+            return;
+          }
+          
+          // Loading
+          if (state.loading) {
+            app.innerHTML = '\
+              <div class="loading">\
+                <div class="spinner"></div>\
+                <div>Loading sandboxes...</div>\
+              </div>';
+            return;
+          }
+          
+          // Error
+          if (state.error) {
+            app.innerHTML = '\
+              <div class="header">\
+                <h1>Sandboxes</h1>\
+                <button class="btn btn-secondary" onclick="window.refresh()">↻ Refresh</button>\
+              </div>\
+              <div class="error-state">\
+                <strong>Error loading sandboxes</strong><br>' + escapeHtml(state.error) + '\
+              </div>';
+            return;
+          }
+          
+          var groups = groupConversationsBySandbox();
+          var filtered = filterAndSort(groups);
+          
+          var html = '\
+            <div class="header">\
+              <h1>Sandboxes</h1>\
+              <button class="btn btn-secondary" onclick="window.refresh()">↻ Refresh</button>\
+            </div>\
+            <div class="toolbar">\
+              <div class="filter-group">\
+                <label>Show:</label>\
+                <div class="checkbox-group">\
+                  <label class="checkbox-label">\
+                    <input type="checkbox" id="filter-running" ' + (state.filters.running ? 'checked' : '') + '>\
+                    Running\
+                  </label>\
+                  <label class="checkbox-label">\
+                    <input type="checkbox" id="filter-paused" ' + (state.filters.paused ? 'checked' : '') + '>\
+                    Paused\
+                  </label>\
+                  <label class="checkbox-label">\
+                    <input type="checkbox" id="filter-stopped" ' + (state.filters.stopped ? 'checked' : '') + '>\
+                    Stopped/Error\
+                  </label>\
+                </div>\
+              </div>\
+              <div class="filter-group">\
+                <label>Sort by:</label>\
+                <select class="sort-select" id="sort-select">\
+                  <option value="status" ' + (state.sortBy === 'status' ? 'selected' : '') + '>Status</option>\
+                  <option value="lastActive" ' + (state.sortBy === 'lastActive' ? 'selected' : '') + '>Last Active</option>\
+                  <option value="created" ' + (state.sortBy === 'created' ? 'selected' : '') + '>Created</option>\
+                </select>\
+              </div>\
+            </div>';
+          
+          if (filtered.length === 0) {
+            html += '\
+              <div class="empty-state">\
+                <h3>No sandboxes found</h3>\
+                <p>Adjust filters or create a new conversation to start a sandbox.</p>\
+              </div>';
+          } else {
+            html += '<div class="table-container">';
+            filtered.forEach(function(group) {
+              html += renderSandboxRow(group);
+            });
+            html += '</div>';
+          }
+          
+          app.innerHTML = html;
+          attachEventListeners();
+        }
+
+        function renderSandboxRow(group) {
+          var sandboxId = group.sandboxId;
+          var isExpanded = state.expandedSandboxes.has(sandboxId);
+          var isEditing = state.editingSandboxId === sandboxId;
+          var displayName = state.sandboxNames[sandboxId] || sandboxId;
+          var status = (group.status || "MISSING").toUpperCase();
+          var badgeClass = "badge-" + status.toLowerCase();
+          
+          var nameHtml;
+          if (isEditing) {
+            nameHtml = '<input type="text" class="sandbox-name-input" id="name-input-' + sandboxId + '" value="' + escapeHtml(displayName) + '" placeholder="Enter name...">';
+          } else {
+            nameHtml = '\
+              <div class="sandbox-name" title="Click to rename">' + escapeHtml(displayName) + '</div>\
+              ' + (state.sandboxNames[sandboxId] ? '<div class="sandbox-id">' + sandboxId.substring(0, 12) + '...</div>' : '');
+          }
+          
+          var actionBtns = '';
+          if (status === "RUNNING") {
+            actionBtns = '<button class="btn btn-secondary btn-sm" data-action="pause" data-sandbox="' + sandboxId + '">⏸ Pause</button>';
+          } else if (status === "PAUSED") {
+            actionBtns = '<button class="btn btn-primary btn-sm" data-action="resume" data-sandbox="' + sandboxId + '">▶ Wake</button>';
+          }
+          
+          var html = '\
+            <div class="sandbox-row' + (isExpanded ? ' expanded' : '') + '" data-sandbox-id="' + sandboxId + '">\
+              <div class="sandbox-header" data-toggle="' + sandboxId + '">\
+                <span class="expand-icon">▶</span>\
+                <div class="sandbox-info" data-edit="' + sandboxId + '">' + nameHtml + '</div>\
+                <span class="badge ' + badgeClass + '">' + status + '</span>\
+                <div class="time-info">\
+                  <div class="time-label">Last active</div>\
+                  <div class="time-value">' + relativeTime(group.lastActive) + '</div>\
+                </div>\
+                <div class="actions" onclick="event.stopPropagation()">' + actionBtns + '</div>\
+              </div>\
+              <div class="sandbox-expanded">\
+                <div class="expanded-header">\
+                  <h4>Conversations (' + group.conversations.length + ')</h4>\
+                </div>';
+          
+          if (group.conversations.length === 0) {
+            html += '<div class="no-conversations">No conversations in this sandbox</div>';
+          } else {
+            html += '<div class="conversation-list">';
+            group.conversations.forEach(function(conv) {
+              html += '\
+                <div class="conversation-item">\
+                  <span class="conversation-title">' + escapeHtml(conv.title || "Untitled") + '</span>\
+                  <span class="conversation-time">' + relativeTime(conv.updated_at) + '</span>\
+                </div>';
+            });
+            html += '</div>';
+          }
+          
+          html += '</div></div>';
+          return html;
+        }
+
+        function escapeHtml(str) {
+          if (!str) return "";
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        function attachEventListeners() {
+          // Filters
+          var filterRunning = document.getElementById("filter-running");
+          var filterPaused = document.getElementById("filter-paused");
+          var filterStopped = document.getElementById("filter-stopped");
+          
+          if (filterRunning) {
+            filterRunning.addEventListener("change", function() {
+              state.filters.running = this.checked;
+              render();
+            });
+          }
+          if (filterPaused) {
+            filterPaused.addEventListener("change", function() {
+              state.filters.paused = this.checked;
+              render();
+            });
+          }
+          if (filterStopped) {
+            filterStopped.addEventListener("change", function() {
+              state.filters.stopped = this.checked;
+              render();
+            });
+          }
+          
+          // Sort
+          var sortSelect = document.getElementById("sort-select");
+          if (sortSelect) {
+            sortSelect.addEventListener("change", function() {
+              state.sortBy = this.value;
+              render();
+            });
+          }
+          
+          // Row expand/collapse
+          document.querySelectorAll("[data-toggle]").forEach(function(el) {
+            el.addEventListener("click", function(e) {
+              // Don't toggle if clicking on actions or name edit
+              if (e.target.closest(".actions") || e.target.closest("[data-edit]")) return;
+              
+              var sandboxId = this.dataset.toggle;
+              if (state.expandedSandboxes.has(sandboxId)) {
+                state.expandedSandboxes.delete(sandboxId);
+              } else {
+                state.expandedSandboxes.add(sandboxId);
+              }
+              render();
+            });
+          });
+          
+          // Name editing
+          document.querySelectorAll("[data-edit]").forEach(function(el) {
+            el.addEventListener("click", function(e) {
+              e.stopPropagation();
+              var sandboxId = this.dataset.edit;
+              state.editingSandboxId = sandboxId;
+              render();
+              
+              // Focus the input
+              setTimeout(function() {
+                var input = document.getElementById("name-input-" + sandboxId);
+                if (input) {
+                  input.focus();
+                  input.select();
+                }
+              }, 0);
+            });
+          });
+          
+          // Name input handlers
+          document.querySelectorAll(".sandbox-name-input").forEach(function(input) {
+            input.addEventListener("blur", function() {
+              var sandboxId = this.id.replace("name-input-", "");
+              saveSandboxName(sandboxId, this.value.trim() || sandboxId);
+            });
+            input.addEventListener("keydown", function(e) {
+              if (e.key === "Enter") {
+                this.blur();
+              }
+              if (e.key === "Escape") {
+                state.editingSandboxId = null;
+                render();
+              }
+            });
+            input.addEventListener("click", function(e) {
+              e.stopPropagation();
+            });
+          });
+          
+          // Action buttons
+          document.querySelectorAll("[data-action]").forEach(function(btn) {
+            btn.addEventListener("click", function(e) {
+              e.stopPropagation();
+              var action = this.dataset.action;
+              var sandboxId = this.dataset.sandbox;
+              
+              if (action === "pause") {
+                pauseSandbox(sandboxId);
+              } else if (action === "resume") {
+                resumeSandbox(sandboxId);
+              }
+            });
+          });
+        }
+
+        // Global refresh function
+        window.refresh = function() {
+          fetchData();
+        };
+
+        // Auto-refresh every 30 seconds
+        setInterval(function() {
+          if (!state.loading && state.cloudAvailable) {
+            fetchData();
+          }
+        }, 30000);
+
+        // Wait for host "ready" signal before making API calls
+        // The host sends this after the RPC endpoint is established
+        var hostReady = false;
+        window.addEventListener("message", function(event) {
+          if (event.data && event.data.type === "agentCanvas:ready") {
+            if (!hostReady) {
+              hostReady = true;
+              fetchData();
+            }
+          }
+        });
+        
+        // Fallback: if ready signal doesn't arrive within 100ms, try anyway
+        // (for backwards compatibility or if the host doesn't send the signal)
+        setTimeout(function() {
+          if (!hostReady) {
+            hostReady = true;
+            fetchData();
+          }
+        }, 100);
+      })();
+    </script>
+  </body>
+</html>

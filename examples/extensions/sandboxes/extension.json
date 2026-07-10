@@ -1,0 +1,23 @@
+{
+  "id": "openhands.sandboxes",
+  "name": "Sandboxes",
+  "version": "1.0.1",
+  "publisher": "openhands",
+  "engines": { "agentCanvas": "^1.0.0" },
+  "activationEvents": ["onView:sandboxes.main"],
+  "capabilities": [
+    "backend:cloud:read",
+    "backend:cloud:write",
+    "storage"
+  ],
+  "contributes": {
+    "pages": [
+      {
+        "id": "main",
+        "title": "Sandboxes",
+        "icon": "icon.svg",
+        "page": "panel.html"
+      }
+    ]
+  }
+}
