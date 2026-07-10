@@ -89,6 +89,34 @@ export interface DirectConversationInfo {
 // (see scripts/dev-safe.mjs).
 const CANVAS_UI_TOOL_NAME = "canvas_ui";
 const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
+const CANVAS_UI_CLIENT_TOOL = {
+  name: CANVAS_UI_TOOL_NAME,
+  description: `The user is interacting with you inside Agent Canvas, which has a chat panel and a tabbed right-side panel. Use this tool before your chat summary whenever the user should see a file, preview, terminal, or browser result.
+
+Use navigate_to_file with a workspace-relative path for a file you changed. Use show_preview with a workspace-relative path for a previewable artifact. Use open_tab with files after a multi-file change, terminal for command output, or browser after a browser task. One call per logical step is enough.`,
+  parameters: {
+    type: "object",
+    properties: {
+      command: {
+        type: "string",
+        enum: ["navigate_to_file", "open_tab", "show_preview"],
+      },
+      path: { type: "string" },
+      tab: {
+        type: "string",
+        enum: ["files", "browser", "vscode", "terminal", "planner", "tasklist"],
+      },
+    },
+    required: ["command"],
+    additionalProperties: false,
+  },
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+};
 
 const DEFAULT_TOOL_NAMES = [
   "terminal",
@@ -137,6 +165,22 @@ interface RuntimeServicesInfo {
   };
 }
 
+interface RuntimeServicePayload {
+  name: string;
+  url_from_agent?: string;
+  api_prefix?: string;
+  docs_url?: string;
+  openapi_url?: string;
+  auth_header_name?: string;
+  auth_env_var?: string;
+  available?: boolean;
+}
+
+interface RuntimeServicesPayload {
+  mode?: string;
+  services: RuntimeServicePayload[];
+}
+
 /**
  * Return the raw runtime-services JSON string, consulting two sources in order
  * (mirrors `getBakedSessionApiKey` in agent-server-config.ts):
@@ -177,6 +221,52 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
     // injected value.
     return null;
   }
+}
+
+export function buildRuntimeServicesPayload():
+  | RuntimeServicesPayload
+  | undefined {
+  const info = parseRuntimeServicesInfo();
+  if (!info?.services) return undefined;
+
+  const services: RuntimeServicePayload[] = [];
+  const addService = (
+    name: string,
+    service: { url_from_agent?: string } | undefined,
+  ) => {
+    if (service?.url_from_agent) {
+      services.push({ name, url_from_agent: service.url_from_agent });
+    }
+  };
+
+  addService("agent_server", info.services.agent_server);
+  addService("ingress", info.services.ingress);
+  addService("frontend", info.services.frontend ?? info.services.vite);
+
+  const automation = info.services.automation;
+  services.push(
+    automation?.url_from_agent
+      ? {
+          name: "automation",
+          url_from_agent: automation.url_from_agent,
+          ...(automation.api_prefix
+            ? { api_prefix: automation.api_prefix }
+            : {}),
+          ...(automation.docs_url ? { docs_url: automation.docs_url } : {}),
+          ...(automation.openapi_url
+            ? { openapi_url: automation.openapi_url }
+            : {}),
+          ...(automation.auth_env_var
+            ? {
+                auth_header_name: "X-Session-API-Key",
+                auth_env_var: automation.auth_env_var,
+              }
+            : {}),
+        }
+      : { name: "automation", available: false },
+  );
+
+  return { ...(info.mode ? { mode: info.mode } : {}), services };
 }
 
 /**
@@ -885,6 +975,8 @@ type StartConversationPayload = Record<string, unknown> & {
   secrets?: Record<string, LookupSecret>;
   tags?: Record<string, string>;
   tool_module_qualnames?: Record<string, string>;
+  client_tools?: Array<Record<string, unknown>>;
+  runtime_services?: RuntimeServicesPayload;
 };
 
 export interface StartConversationOptions {
@@ -902,6 +994,7 @@ export interface StartConversationOptions {
   // When set, the conversation launches from this AgentProfile (resolved
   // server-side) instead of an inline ``agent_settings`` dump (#3727).
   agentProfileId?: string;
+  agentProfileKind?: "openhands" | "acp";
 }
 
 export function buildStartConversationRequest(
@@ -935,17 +1028,7 @@ export function buildStartConversationRequest(
     // ``agent_profile_id`` and ``agent_settings`` are mutually exclusive agent
     // sources; the profile path lets the server resolve the profile (#3727).
     //
-    // Enrichment boundary: on the profile path the server rebuilds the agent
-    // purely from the stored profile fields, so the client-owned enrichments
-    // this adapter folds into ``agent_settings`` do NOT apply. The exec toolset
-    // (terminal/file_editor/task_tracker) and public-skill loading are the
-    // server/SDK's responsibility to restore on the profile path — tracked in
-    // software-agent-sdk#3967 (profile resolution must attach the default
-    // toolset + public skills, else a profile-launched OpenHands agent has only
-    // Finish/Think). The two genuinely canvas-only enrichments — the
-    // ``canvas_ui`` tool and the dev ``RUNTIME_SERVICES`` system-message-suffix
-    // (``buildAgentContext``) — have no server-side representation and are
-    // intentionally not carried on the profile path.
+    // Canvas-owned launch additions are attached below, outside the profile.
     ...(options.agentProfileId
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),
@@ -960,6 +1043,16 @@ export function buildStartConversationRequest(
     autotitle: true,
     worktree: options.worktree ?? true,
   };
+
+  if (options.agentProfileId) {
+    const runtimeServices = buildRuntimeServicesPayload();
+    if (runtimeServices) {
+      payload.runtime_services = runtimeServices;
+    }
+    if (options.agentProfileKind === "openhands") {
+      payload.client_tools = [CANVAS_UI_CLIENT_TOOL];
+    }
+  }
 
   // A profile launch resolves the ACP server server-side, so don't stamp the
   // tag from current settings (it may not match the launched profile).
@@ -1005,7 +1098,7 @@ export function buildStartConversationRequest(
 
   const toolModuleQualnames: Record<string, string> = {};
   const canvasUiAvailable = isAgentServerToolAvailable(CANVAS_UI_TOOL_NAME);
-  if (canvasUiAvailable) {
+  if (canvasUiAvailable && !options.agentProfileId) {
     toolModuleQualnames[CANVAS_UI_TOOL_NAME] = CANVAS_UI_TOOL_MODULE;
   }
   Object.assign(
@@ -1014,7 +1107,7 @@ export function buildStartConversationRequest(
       | Record<string, string>
       | undefined) ?? {},
   );
-  if (!canvasUiAvailable) {
+  if (!canvasUiAvailable || options.agentProfileId) {
     delete toolModuleQualnames[CANVAS_UI_TOOL_NAME];
   }
   if (Object.keys(toolModuleQualnames).length > 0) {
@@ -1085,6 +1178,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   workingDir?: string;
   worktree?: boolean;
   agentProfileId?: string;
+  agentProfileKind?: "openhands" | "acp";
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ACP_SERVER_TAG_KEY,
+  buildRuntimeServicesPayload,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
   getDefaultConversationTitle,
@@ -1035,6 +1036,40 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     );
   });
 
+  it("maps launcher data to the typed launch payload", () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:automation",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:18000" },
+          automation: {
+            url_from_agent: "http://localhost:18001",
+            api_prefix: "/api/automation",
+            auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+          },
+        },
+      }),
+    );
+
+    expect(buildRuntimeServicesPayload()).toEqual({
+      mode: "dev:automation",
+      services: [
+        {
+          name: "agent_server",
+          url_from_agent: "http://localhost:18000",
+        },
+        {
+          name: "automation",
+          url_from_agent: "http://localhost:18001",
+          api_prefix: "/api/automation",
+          auth_header_name: "X-Session-API-Key",
+          auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+        },
+      ],
+    });
+  });
+
   it("uses the configured agent-server URL in the don't-guess line (not a hardcoded :8000)", () => {
     // dev:safe runs the agent-server on :18000, not :8000. Make sure the
     // rendered block doesn't lie to the agent about its own URL.
@@ -1158,6 +1193,7 @@ describe("agent_settings runtime services suffix", () => {
       query: "hello",
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
+      runtime_services?: unknown;
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
       load_public_skills: false,
@@ -1187,6 +1223,7 @@ describe("agent_settings runtime services suffix", () => {
       query: "hello",
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
+      runtime_services?: unknown;
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
       load_public_skills: false,
@@ -1195,6 +1232,31 @@ describe("agent_settings runtime services suffix", () => {
     expect(
       payload.agent_settings.agent_context.system_message_suffix as string,
     ).toContain("<RUNTIME_SERVICES>");
+    expect(payload.runtime_services).toBeUndefined();
+  });
+
+  it("sends typed runtime services for a profile launch", () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "docker",
+        services: {
+          automation: { url_from_agent: "http://automation:8000" },
+        },
+      }),
+    );
+
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      agentProfileId: "profile-xyz",
+    });
+
+    expect(payload.runtime_services).toEqual({
+      mode: "docker",
+      services: [
+        { name: "automation", url_from_agent: "http://automation:8000" },
+      ],
+    });
   });
 });
 

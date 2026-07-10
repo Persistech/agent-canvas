@@ -378,12 +378,7 @@ describe("useCreateConversation", () => {
     );
   });
 
-  it("launches the seeded `default` profile via agent_settings so canvas enrichments survive", async () => {
-    // The active profile IS the well-known default → it's the enriched baseline
-    // (mirrors agent_settings), not a deliberate profile pick, so the launch
-    // stays on the agent_settings path (no profile tail) even though its
-    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES>/canvas_ui/project
-    // skills, which the profile-resolution path drops.
+  it("launches the seeded `default` profile from its authoritative id", async () => {
     listAgentProfilesMock.mockResolvedValue({
       profiles: [
         {
@@ -420,7 +415,8 @@ describe("useCreateConversation", () => {
     await result.current.mutateAsync({ query: "hello" });
 
     const call = createConversationSpy.mock.lastCall;
-    expect(call?.[9]).toBeUndefined();
+    expect(call?.[9]).toBe("profile-default");
+    expect(call?.[10]).toBe("openhands");
   });
 
   it("keeps the profile path for an ACP `default` profile (agent_settings can't carry ACP config)", async () => {
@@ -461,6 +457,7 @@ describe("useCreateConversation", () => {
 
     const call = createConversationSpy.mock.lastCall;
     expect(call?.[9]).toBe("profile-acp-default");
+    expect(call?.[10]).toBe("acp");
   });
 
   it("launches the seeded `default` profile from its resolved id on cloud (no agent_settings fallback exists there) (#1571)", async () => {

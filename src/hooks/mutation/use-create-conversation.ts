@@ -9,7 +9,6 @@ import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import AgentProfilesService, {
-  WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME,
   type AgentProfileListResponse,
 } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import PluginsManagementService, {
@@ -129,39 +128,8 @@ export const useCreateConversation = () => {
             (profile) => profile.id === requestedAgentProfileId,
           )
         : undefined;
-      // Cloud has no `agent_settings` payload to fall back to — the downgrade
-      // below only makes sense on local, where it exists and carries the
-      // canvas-only enrichments. Gating it here keeps cloud always launching
-      // from the resolved profile id, so the conversation gets
-      // `launched_agent_profile` stamped and the profile's config applied
-      // (#1571 review).
-      const isCloud = backend.kind === "cloud";
       let effectiveAgentProfileId = requestedAgentProfileId;
       if (
-        !isCloud &&
-        resolvedAgentProfile?.name === WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME &&
-        resolvedAgentProfile?.agent_kind === "openhands"
-      ) {
-        // The seeded OpenHands `default` profile is the enriched baseline, not a
-        // deliberate profile pick — it mirrors global agent_settings. Launch it
-        // via agent_settings so the canvas-only enrichments the profile-resolution
-        // path drops survive for the common home-launch: the <RUNTIME_SERVICES>
-        // system-message suffix, the canvas_ui tool, and project-skill loading
-        // (buildAgentContext). Named profiles are deliberate custom configs and
-        // still use the profile path (accepting that enrichment boundary).
-        // Trade-off: per-profile fields set on `default` itself don't apply on
-        // home-launch — custom per-profile config belongs in a named profile.
-        //
-        // Scoped to OpenHands: an ACP `default` must keep the profile path.
-        // Activation is pointer-only, so global agent_settings is stale (often
-        // still OpenHands) when an ACP profile is active — launching it via
-        // agent_settings would start the wrong agent. ACP also carries no
-        // <RUNTIME_SERVICES>/canvas_ui enrichment, so there's nothing to preserve.
-        //
-        // Scoped to local: cloud never writes agent_settings, so it always
-        // resolves `default` server-side via agent_profile_id (validated below).
-        effectiveAgentProfileId = undefined;
-      } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&
         resolvedAgentProfile.llm_profile_ref
       ) {
@@ -198,11 +166,13 @@ export const useCreateConversation = () => {
       // Only extend the call with the [sandboxId, agentProfileId] tail when
       // launching from a profile, so a plain create stays byte-identical to
       // the legacy agent_settings path (#3727). sandboxId is unused here.
-      // TODO(#1587): createConversation has grown to 10 positional params;
+      // TODO(#1587): createConversation has grown to 11 positional params;
       // refactor it to an options object so this position-skipping tail isn't
       // needed.
-      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
-        ? [undefined, effectiveAgentProfileId]
+      const profileArgs:
+        | [undefined, string, "openhands" | "acp" | undefined]
+        | [] = effectiveAgentProfileId
+        ? [undefined, effectiveAgentProfileId, resolvedAgentProfile?.agent_kind]
         : [];
 
       const conversation =

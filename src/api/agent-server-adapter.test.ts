@@ -120,10 +120,29 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     const payload = buildStartConversationRequest({
       settings,
       agentProfileId: "profile-xyz",
+      agentProfileKind: "openhands",
     });
 
     expect(payload.agent_profile_id).toBe("profile-xyz");
     expect(payload.agent_settings).toBeUndefined();
+    expect(payload.tool_module_qualnames).toBeUndefined();
+    expect(payload.client_tools).toEqual([
+      expect.objectContaining({ name: "canvas_ui" }),
+    ]);
+  });
+
+  it("does not send client tools to ACP profiles", () => {
+    const payload = buildStartConversationRequest({
+      settings: makeSettings({
+        agent_kind: "openhands",
+        llm: { model: "stale-settings" },
+      }),
+      agentProfileId: "profile-acp",
+      agentProfileKind: "acp",
+    });
+
+    expect(payload.runtime_services).toBeUndefined();
+    expect(payload.client_tools).toBeUndefined();
   });
 
   it("suppresses the ACP server tag when launching from a profile", () => {
