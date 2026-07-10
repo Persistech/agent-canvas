@@ -304,6 +304,42 @@ describe("MCPPage", () => {
     expect(saveSpy.mock.calls[0][0]).toEqual({ disabled_mcp_servers: [] });
   });
 
+  it("optimistically flips the card enabled state before the save resolves", async () => {
+    const settingsWithSlack = buildSettings({
+      agent_settings: {
+        ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+        mcp_config: {
+          slack: {
+            command: "npx",
+            args: ["-y", "@zencoderai/slack-mcp-server"],
+          },
+        },
+      },
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      settingsWithSlack,
+    );
+    // Never resolve the save so we observe the pre-refetch UI state.
+    vi.spyOn(SettingsService, "saveSettings").mockReturnValue(
+      new Promise<boolean>(() => {}),
+    );
+
+    renderPage();
+
+    const toggle = await screen.findByTestId("mcp-installed-toggle-stdio-0");
+    expect(
+      screen.queryByTestId("mcp-server-disabled-badge-stdio-0"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    // Badge appears immediately from the optimistic cache update, without any
+    // successful refetch (the save promise is still pending).
+    expect(
+      await screen.findByTestId("mcp-server-disabled-badge-stdio-0"),
+    ).toBeInTheDocument();
+  });
+
   it("shows the catalog description and URL on installed server cards", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
@@ -415,10 +451,7 @@ describe("MCPPage", () => {
     };
     // The original Slack stdio entry is preserved and the new stdio
     // install is suffixed rather than overwriting it.
-    expect(Object.keys(sent.mcp_config).sort()).toEqual([
-      "slack",
-      "slack_1",
-    ]);
+    expect(Object.keys(sent.mcp_config).sort()).toEqual(["slack", "slack_1"]);
     expect(sent.mcp_config).toMatchObject({
       slack: { env: { SLACK_BOT_TOKEN: "xoxb-old" } },
       slack_1: { env: { SLACK_BOT_TOKEN: "xoxb-new", SLACK_TEAM_ID: "T02" } },
