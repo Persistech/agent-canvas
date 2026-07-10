@@ -1,9 +1,10 @@
 # Extension Settings Webview Height Issue
 
-**Status:** Open  
-**Component:** `src/routes/extension-settings.tsx`, `src/components/features/settings/settings-layout.tsx`  
+**Status:** ✅ Resolved  
+**Component:** `src/routes/extension-settings.tsx`, `src/components/features/extensions/extension-webview.tsx`  
 **Severity:** Medium — UI is functional but visually broken  
-**Discovered:** 2026-07-10 during Phase 3 integration testing
+**Discovered:** 2026-07-10 during Phase 3 integration testing  
+**Resolved:** 2026-07-10
 
 ---
 
@@ -26,7 +27,74 @@ The iframe is constrained to **150px height** while its content requires **886px
 
 ---
 
-## Reproduction Steps
+## Solution Implemented
+
+We implemented **dynamic viewport-based height calculation**: the extension settings container calculates its available height based on its position in the viewport.
+
+### Changes Made
+
+1. **Extension Settings route** (`src/routes/extension-settings.tsx`):
+   - Added `useAvailableHeight()` hook that calculates `window.innerHeight - element.getBoundingClientRect().top - padding`
+   - Container height is set dynamically via `style={{ height }}`
+   - Updates automatically on window resize, scroll, and parent layout changes via ResizeObserver
+   - Minimum height of 400px ensures usability on small screens
+
+2. **Settings Layout** (`src/components/features/settings/settings-layout.tsx`):
+   - Added `fillHeight` prop for routes that need to extend to viewport bottom
+   - When enabled, content wrapper uses `flex flex-1 flex-col` layout
+
+3. **Settings Route** (`src/routes/settings.tsx`):
+   - Detects extension settings paths (`/settings/x/*`) 
+   - Applies `fillHeight` mode and simplified content wrapper for extension pages
+
+4. **Webview SDK** (`src/extensions/sdk/webview-client.ts`) — *bonus feature*:
+   - Added `reportContentHeight(height?)` — sends height to host via postMessage
+   - Added `enableAutoResize()` — sets up ResizeObserver for automatic height updates
+   - Useful for sidebar panels or other contexts where content-based sizing is preferred
+
+5. **ExtensionWebview component** (`src/components/features/extensions/extension-webview.tsx`) — *bonus feature*:
+   - Added `autoResize` prop for content-based height (alternative to viewport-based)
+   - Listens for `agentCanvas:resize` messages from iframe content
+
+### How It Works
+
+The `useAvailableHeight()` hook:
+```ts
+function useAvailableHeight(minHeight = 400) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(minHeight);
+
+  const updateHeight = useCallback(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const availableHeight = window.innerHeight - rect.top - BOTTOM_PADDING;
+    setHeight(Math.max(availableHeight, minHeight));
+  }, [minHeight]);
+
+  // Updates on resize, scroll, and parent layout changes
+  useEffect(() => { /* event listeners + ResizeObserver */ }, [updateHeight]);
+
+  return { ref, height };
+}
+```
+
+The container uses this calculated height:
+```tsx
+const { ref, height } = useAvailableHeight();
+return (
+  <div ref={ref} style={{ height }} className="overflow-hidden ...">
+    <ExtensionWebview ... />
+  </div>
+);
+```
+
+### Result
+
+Extension settings pages now extend from their position to the bottom of the viewport, with 24px padding. The height adjusts automatically when the window is resized.
+
+---
+
+## Original Reproduction Steps (for reference)
 
 ### Manual Reproduction
 
@@ -45,61 +113,7 @@ The iframe is constrained to **150px height** while its content requires **886px
 
 4. Navigate to Settings → Dad Jokes (or `/settings/x/dadjokes.groan`)
 
-5. Observe: The settings content is cramped into a small area with internal scrolling
-
-### Playwright Reproduction Script
-
-```typescript
-import { test, expect } from '@playwright/test';
-
-test('extension settings iframe has proper height', async ({ page }) => {
-  // Navigate to an extension's settings page
-  // (assumes Dad Jokes extension is already installed)
-  await page.goto('http://localhost:8000/settings/x/dadjokes.groan');
-  
-  // Wait for the iframe to load
-  const iframe = page.locator('iframe[data-testid="extension-webview-dadjokes.groan"]');
-  await iframe.waitFor({ state: 'visible' });
-  
-  // Get iframe dimensions
-  const iframeBounds = await iframe.boundingBox();
-  
-  // The iframe should have reasonable height (at least 400px for a settings page)
-  // Currently it's only ~150px
-  expect(iframeBounds?.height).toBeGreaterThan(400);
-  
-  // Alternative: check that iframe height matches or exceeds content height
-  const iframeHandle = await iframe.elementHandle();
-  const contentHeight = await iframeHandle?.evaluate((el: HTMLIFrameElement) => {
-    return el.contentDocument?.body?.scrollHeight ?? 0;
-  });
-  
-  // Iframe should be tall enough to show content without excessive scrolling
-  // Allow some tolerance for padding/margins
-  if (contentHeight && iframeBounds?.height) {
-    const heightRatio = iframeBounds.height / contentHeight;
-    // Should show at least 50% of content without scrolling
-    expect(heightRatio).toBeGreaterThan(0.5);
-  }
-});
-
-test('extension settings page layout fills available space', async ({ page }) => {
-  await page.goto('http://localhost:8000/settings/x/dadjokes.groan');
-  
-  // The settings container should fill the main content area
-  const settingsContainer = page.locator('[data-testid="extension-settings"]');
-  await settingsContainer.waitFor({ state: 'visible' });
-  
-  const containerBounds = await settingsContainer.boundingBox();
-  const viewportSize = page.viewportSize();
-  
-  // Container should use significant vertical space (at least 60% of viewport)
-  if (containerBounds && viewportSize) {
-    const heightRatio = containerBounds.height / viewportSize.height;
-    expect(heightRatio).toBeGreaterThan(0.6);
-  }
-});
-```
+5. ✅ **After fix:** The settings content now expands to fit naturally
 
 ---
 
@@ -107,16 +121,11 @@ test('extension settings page layout fills available space', async ({ page }) =>
 
 ### Root Cause
 
-The extension settings page (`src/routes/extension-settings.tsx`) uses:
+The extension settings page (`src/routes/extension-settings.tsx`) used:
 ```tsx
 <div className="h-full min-h-[480px] overflow-hidden rounded-md border ...">
   <ExtensionWebview ... />
 </div>
-```
-
-And the iframe in `ExtensionWebview` uses:
-```tsx
-<iframe className="h-full w-full border-0" ... />
 ```
 
 The problem is that `h-full` (100%) doesn't work as expected in this flex layout:
@@ -127,7 +136,7 @@ The problem is that `h-full` (100%) doesn't work as expected in this flex layout
 4. `h-full` on the extension settings div resolves to the content height, not the available space
 5. The iframe collapses to fit only its initial/minimum content
 
-### Layout Chain
+### Layout Chain (before fix)
 
 ```
 SettingsLayout (flex h-full)
@@ -140,74 +149,14 @@ SettingsLayout (flex h-full)
 
 ---
 
-## Suggested Fix
+## Files Modified
 
-### Option A: Use flex-grow instead of h-full
-
-```tsx
-// extension-settings.tsx
-<div
-  data-testid="extension-settings"
-  className="flex-1 min-h-[480px] overflow-hidden rounded-md border border-(--oh-border-input)"
->
-  <ExtensionWebview ... />
-</div>
-```
-
-And ensure the parent chain supports flex:
-```tsx
-// settings-layout.tsx - the max-w wrapper needs to be a flex column
-<main className={settingsLayoutMainScrollClassName}>
-  <div className="mx-auto w-full min-w-0 max-w-[800px] flex flex-col flex-1">
-    {children}
-  </div>
-</main>
-```
-
-### Option B: Use viewport-relative height
-
-```tsx
-// extension-settings.tsx
-<div
-  data-testid="extension-settings"
-  className="h-[calc(100vh-200px)] min-h-[480px] overflow-hidden rounded-md ..."
->
-```
-
-### Option C: Auto-resize iframe based on content
-
-Use `ResizeObserver` on the iframe content to dynamically set the container height:
-```tsx
-const [contentHeight, setContentHeight] = useState(480);
-
-useEffect(() => {
-  const iframe = frameRef.current;
-  if (!iframe) return;
-  
-  const observer = new ResizeObserver((entries) => {
-    const height = entries[0]?.contentRect.height;
-    if (height) setContentHeight(Math.max(height, 480));
-  });
-  
-  // Observe iframe body after load
-  iframe.addEventListener('load', () => {
-    const body = iframe.contentDocument?.body;
-    if (body) observer.observe(body);
-  });
-  
-  return () => observer.disconnect();
-}, []);
-
-return <div style={{ height: contentHeight }}><iframe ... /></div>;
-```
-
----
-
-## Files to Modify
-
-- `src/routes/extension-settings.tsx` — Fix container height
-- `src/components/features/settings/settings-layout.tsx` — Possibly adjust flex chain
-- `src/utils/settings-like-page-layout-classes.ts` — May need new class variant
+- `src/routes/extension-settings.tsx` — Added `useAvailableHeight()` hook for dynamic viewport-based sizing
+- `src/components/features/settings/settings-layout.tsx` — Added `fillHeight` prop
+- `src/routes/settings.tsx` — Detects extension settings and applies `fillHeight` mode
+- `src/components/features/extensions/extension-webview.tsx` — Added `autoResize` support (bonus)
+- `src/extensions/sdk/webview-client.ts` — Added `reportContentHeight()` and `enableAutoResize()` helpers (bonus)
+- `examples/extensions/hello-sidebar/settings.html` — Updated with auto-resize example code
 
 ---
 

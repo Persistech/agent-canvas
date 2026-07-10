@@ -80,7 +80,7 @@
     <script>
       // Self-contained webview client. A real bundle would instead `import` the
       // published SDK:
-      //   import { acquireAgentCanvasApi } from "@agent-canvas/extension-api/webview";
+      //   import { acquireAgentCanvasApi, enableAutoResize } from "@agent-canvas/extension-api/webview";
       // which speaks this exact postMessage RPC protocol to the host. It is inlined
       // here so the sample runs as a static file with no build step.
       (function () {
@@ -109,6 +109,32 @@
             );
           });
         }
+
+        // --- Auto-resize support ---
+        // Reports the current content height to the host so the iframe can grow
+        // to fit the content naturally, like native settings pages.
+        // A real bundle would use: import { enableAutoResize } from "@agent-canvas/extension-api/webview";
+        function reportContentHeight() {
+          var height = document.body.scrollHeight;
+          parentWindow.postMessage({ type: "agentCanvas:resize", height: height }, "*");
+        }
+
+        function enableAutoResize() {
+          // Report initial height
+          reportContentHeight();
+          // Watch for size changes
+          var observer = new ResizeObserver(function () {
+            reportContentHeight();
+          });
+          observer.observe(document.body);
+          return function () {
+            observer.disconnect();
+          };
+        }
+
+        // Enable auto-resize for settings pages
+        enableAutoResize();
+        // --- End auto-resize support ---
 
         var api = {
           storage: {

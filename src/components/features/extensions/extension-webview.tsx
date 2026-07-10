@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getAssetLoader } from "#/extensions/asset-loader";
 import {
   createHostMethods,
@@ -34,6 +34,17 @@ interface ExtensionWebviewProps {
    * Extensions must declare origins they need to access.
    */
   allowedOrigins?: string[];
+  /**
+   * When true, automatically resize the iframe height to fit its content.
+   * Useful for settings pages that should extend naturally like native settings.
+   * @default false
+   */
+  autoResize?: boolean;
+  /**
+   * Minimum height for the iframe when autoResize is enabled.
+   * @default 200
+   */
+  minHeight?: number;
 }
 
 /**
@@ -51,6 +62,9 @@ interface ExtensionWebviewProps {
  * `sdk/webview-client.ts`) to talk to the host, and optionally `requestAsset()` /
  * `relayFetch()` (see `sdk/asset-relay.ts`) to load additional resources.
  */
+/** Message type for iframe content height updates. */
+const RESIZE_MESSAGE_TYPE = "agentCanvas:resize";
+
 export function ExtensionWebview({
   extensionId,
   capabilities,
@@ -59,10 +73,13 @@ export function ExtensionWebview({
   title,
   extensionSource,
   allowedOrigins,
+  autoResize = false,
+  minHeight = 200,
 }: ExtensionWebviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const endpointRef = useRef<RpcEndpoint | null>(null);
   const bridgeRef = useRef<WebviewBridge | null>(null);
+  const [contentHeight, setContentHeight] = useState<number | null>(null);
 
   // Latest host inputs, read at (re)connect time so reconnecting on load never forces
   // the iframe to reload. These are stable in practice (memoized deps, registry-owned
@@ -75,6 +92,29 @@ export function ExtensionWebview({
   depsRef.current = deps;
   extensionSourceRef.current = extensionSource;
   allowedOriginsRef.current = allowedOrigins;
+
+  // Listen for resize messages from the iframe content
+  useEffect(() => {
+    if (!autoResize) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Verify the message is from our iframe
+      if (event.source !== frameRef.current?.contentWindow) return;
+
+      // Handle resize messages
+      if (
+        event.data &&
+        typeof event.data === "object" &&
+        event.data.type === RESIZE_MESSAGE_TYPE &&
+        typeof event.data.height === "number"
+      ) {
+        setContentHeight(Math.max(event.data.height, minHeight));
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [autoResize, minHeight]);
 
   // Establish the RPC endpoint and asset relay bridge against the *loaded* document's
   // window. A sandboxed iframe (no allow-same-origin) gets a fresh window once it
@@ -121,6 +161,14 @@ export function ExtensionWebview({
     [],
   );
 
+  // Compute iframe style based on autoResize mode
+  const iframeStyle: React.CSSProperties | undefined = autoResize
+    ? {
+        height: contentHeight ?? minHeight,
+        minHeight,
+      }
+    : undefined;
+
   return (
     <iframe
       ref={frameRef}
@@ -130,7 +178,8 @@ export function ExtensionWebview({
       onLoad={connect}
       sandbox={WEBVIEW_SANDBOX}
       referrerPolicy="no-referrer"
-      className="h-full w-full border-0"
+      className={autoResize ? "w-full border-0" : "h-full w-full border-0"}
+      style={iframeStyle}
     />
   );
 }

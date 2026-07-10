@@ -18,6 +18,10 @@ import {
 import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import { SettingsSectionHeaderProvider } from "#/contexts/settings-section-header-context";
 
+/** Extension settings pages live at /settings/x/:extensionId */
+const isExtensionSettingsPath = (pathname: string) =>
+  pathname.startsWith("/settings/x/");
+
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
   const { pathname } = url;
@@ -90,28 +94,44 @@ function SettingsScreen() {
   const shouldHideTitle =
     routeHandle?.hideTitle === true || isMobileHub || hideSectionHeader;
 
+  // Extension settings pages need fillHeight so the iframe extends to the bottom
+  const isExtensionSettings = isExtensionSettingsPath(location.pathname);
+
+  // For extension settings, use a simpler wrapper that fills height;
+  // for regular settings, use the standard header + content layout
+  const contentWrapper = isExtensionSettings ? (
+    <div className="flex flex-1 flex-col pb-8">
+      <Outlet />
+    </div>
+  ) : (
+    <div className="flex flex-col gap-6 pb-8">
+      {!shouldHideTitle && (
+        <header className="space-y-1">
+          <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
+          {currentSectionSubtitle ? (
+            <p
+              data-testid="settings-page-subtitle"
+              className="text-sm leading-5 text-tertiary-light"
+            >
+              {t(currentSectionSubtitle)}
+            </p>
+          ) : null}
+        </header>
+      )}
+      <Outlet />
+    </div>
+  );
+
   return (
     <main data-testid="settings-screen" className="min-h-0">
       <SettingsSectionHeaderProvider
         setHideSectionHeader={setHideSectionHeader}
       >
-        <SettingsLayout navigationItems={navItems}>
-          <div className="flex flex-col gap-6 pb-8">
-            {!shouldHideTitle && (
-              <header className="space-y-1">
-                <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
-                {currentSectionSubtitle ? (
-                  <p
-                    data-testid="settings-page-subtitle"
-                    className="text-sm leading-5 text-tertiary-light"
-                  >
-                    {t(currentSectionSubtitle)}
-                  </p>
-                ) : null}
-              </header>
-            )}
-            <Outlet />
-          </div>
+        <SettingsLayout
+          navigationItems={navItems}
+          fillHeight={isExtensionSettings}
+        >
+          {contentWrapper}
         </SettingsLayout>
       </SettingsSectionHeaderProvider>
     </main>
