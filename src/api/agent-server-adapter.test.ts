@@ -141,7 +141,7 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
       agentProfileKind: "acp",
     });
 
-    expect(payload.runtime_services).toBeUndefined();
+    expect(payload.agent_launch_overrides).toBeUndefined();
     expect(payload.client_tools).toBeUndefined();
   });
 

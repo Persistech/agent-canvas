@@ -165,22 +165,6 @@ interface RuntimeServicesInfo {
   };
 }
 
-interface RuntimeServicePayload {
-  name: string;
-  url_from_agent?: string;
-  api_prefix?: string;
-  docs_url?: string;
-  openapi_url?: string;
-  auth_header_name?: string;
-  auth_env_var?: string;
-  available?: boolean;
-}
-
-interface RuntimeServicesPayload {
-  mode?: string;
-  services: RuntimeServicePayload[];
-}
-
 /**
  * Return the raw runtime-services JSON string, consulting two sources in order
  * (mirrors `getBakedSessionApiKey` in agent-server-config.ts):
@@ -221,52 +205,6 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
     // injected value.
     return null;
   }
-}
-
-export function buildRuntimeServicesPayload():
-  | RuntimeServicesPayload
-  | undefined {
-  const info = parseRuntimeServicesInfo();
-  if (!info?.services) return undefined;
-
-  const services: RuntimeServicePayload[] = [];
-  const addService = (
-    name: string,
-    service: { url_from_agent?: string } | undefined,
-  ) => {
-    if (service?.url_from_agent) {
-      services.push({ name, url_from_agent: service.url_from_agent });
-    }
-  };
-
-  addService("agent_server", info.services.agent_server);
-  addService("ingress", info.services.ingress);
-  addService("frontend", info.services.frontend ?? info.services.vite);
-
-  const automation = info.services.automation;
-  services.push(
-    automation?.url_from_agent
-      ? {
-          name: "automation",
-          url_from_agent: automation.url_from_agent,
-          ...(automation.api_prefix
-            ? { api_prefix: automation.api_prefix }
-            : {}),
-          ...(automation.docs_url ? { docs_url: automation.docs_url } : {}),
-          ...(automation.openapi_url
-            ? { openapi_url: automation.openapi_url }
-            : {}),
-          ...(automation.auth_env_var
-            ? {
-                auth_header_name: "X-Session-API-Key",
-                auth_env_var: automation.auth_env_var,
-              }
-            : {}),
-        }
-      : { name: "automation", available: false },
-  );
-
-  return { ...(info.mode ? { mode: info.mode } : {}), services };
 }
 
 /**
@@ -976,7 +914,7 @@ type StartConversationPayload = Record<string, unknown> & {
   tags?: Record<string, string>;
   tool_module_qualnames?: Record<string, string>;
   client_tools?: Array<Record<string, unknown>>;
-  runtime_services?: RuntimeServicesPayload;
+  agent_launch_overrides?: { system_message_suffix_append: string };
 };
 
 export interface StartConversationOptions {
@@ -1045,9 +983,11 @@ export function buildStartConversationRequest(
   };
 
   if (options.agentProfileId) {
-    const runtimeServices = buildRuntimeServicesPayload();
-    if (runtimeServices) {
-      payload.runtime_services = runtimeServices;
+    const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
+    if (runtimeServicesSuffix) {
+      payload.agent_launch_overrides = {
+        system_message_suffix_append: runtimeServicesSuffix,
+      };
     }
     if (options.agentProfileKind === "openhands") {
       payload.client_tools = [CANVAS_UI_CLIENT_TOOL];
