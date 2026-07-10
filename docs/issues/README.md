@@ -82,6 +82,7 @@ The postMessage relay follows VS Code's proven extension model:
 | 1 | [GitHub API Resolver](./github-api-resolver.md) | ✅ Done | High | Replace jsDelivr resolution with GitHub API for `gh:` refs |
 | 2 | [Asset Relay System](./asset-relay-system.md) | ✅ Done | High | Parent-side fetching + postMessage bridge for webviews |
 | 3 | [Source Resolution Updates](./source-resolution-updates.md) | ✅ Done | Medium | Wire resolver and relay into the install flow |
+| 4 | [Phase 4: Polish](./phase-4-polish.md) | 🔜 Next | Low | Permissions, GitHub tokens, error UX, docs |
 
 ### Implementation Order
 
