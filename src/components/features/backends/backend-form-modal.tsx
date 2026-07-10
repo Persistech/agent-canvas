@@ -11,11 +11,14 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { useTracking } from "#/hooks/use-tracking";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import {
   assertAgentServerVersionIsSupported,
   getDisplayAgentServerVersion,
@@ -40,14 +43,22 @@ interface BackendFormModalProps {
   /** Required when `mode === "edit"`. */
   backend?: Backend;
   onClose: () => void;
+  /** Analytics surface for the `backend_added` event (add mode only). */
+  source?: BackendAddedSource;
 }
 
+/**
+ * Seed the default backend kind from the host. Uses proper hostname-suffix
+ * matching (via {@link isOpenHandsCloudHost}) rather than a substring test, so
+ * a look-alike host such as `all-hands-testing.dev` isn't misread as cloud.
+ *
+ * This is only a *default*: a self-hosted OpenHands Cloud/Enterprise instance
+ * on a truly custom domain is indistinguishable from a local agent-server by
+ * host alone, so the manual add form lets the user override the kind
+ * explicitly (see the Type selector in ManualConnectionColumn).
+ */
 function inferKindFromHost(host: string): BackendKind {
-  const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
-  }
-  return "local";
+  return isOpenHandsCloudHost(host) ? "cloud" : "local";
 }
 
 /**
@@ -124,6 +135,10 @@ function isValidHostUrl(host: string): boolean {
 }
 
 const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
+
+export type BackendConnectionMethod = "manual" | "cloud_login";
+
+export type BackendAddedSource = "add_backend_modal" | "manage_backends_modal";
 
 function getConnectionTestFailedTitle(
   t: ReturnType<typeof useTranslation>["t"],
@@ -309,8 +324,15 @@ function useBackendForm({
     null,
   );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [kindOverride, setKindOverride] = React.useState<BackendKind | null>(
+    null,
+  );
 
-  const kind = inferKindFromHost(host);
+  // Kind follows host inference until the user explicitly picks a type, then
+  // respects that choice. A custom-domain OHE can't be distinguished from a
+  // custom-domain local agent-server by host alone, so ManualConnectionColumn
+  // exposes `setKind` (a Type selector) to let the user declare it.
+  const kind = kindOverride ?? inferKindFromHost(host);
   const needsApiKey = requireApiKey || kind !== "local";
   const canSubmit =
     name.trim().length > 0 &&
@@ -378,6 +400,7 @@ function useBackendForm({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind: setKindOverride,
     canSubmit,
     handleSubmit,
   };
@@ -663,7 +686,10 @@ function useRedirectAfterAddBackend() {
 }
 
 interface BackendConnectionOptionsProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot?: string;
   initialManualBackend?: Partial<
     Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
@@ -736,7 +762,10 @@ export function BackendConnectionOptions({
 }
 
 interface ManualConnectionColumnProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot: string;
   initialBackend?: Partial<
     Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
@@ -773,6 +802,7 @@ function ManualConnectionColumn({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind,
     canSubmit,
     handleSubmit,
   } = useBackendForm({
@@ -781,12 +811,15 @@ function ManualConnectionColumn({
     initialApiKey: initialBackend?.apiKey ?? "",
     onTestConnection: testBackendConnection,
     onSuccess: () => {
-      onConnected({
-        name: name.trim(),
-        host: normalizeHost(host),
-        apiKey: apiKey.trim(),
-        kind,
-      });
+      onConnected(
+        {
+          name: name.trim(),
+          host: normalizeHost(host),
+          apiKey: apiKey.trim(),
+          kind,
+        },
+        "manual",
+      );
     },
     requireApiKey,
   });
@@ -840,6 +873,20 @@ function ManualConnectionColumn({
         </p>
       </div>
 
+      <div className="flex flex-col items-start gap-2.5">
+        <span className="text-sm">{t(I18nKey.BACKEND$KIND_LABEL)}</span>
+        <SegmentedToggle<BackendKind>
+          value={kind}
+          options={[
+            { value: "local", label: t(I18nKey.BACKEND$KIND_LOCAL) },
+            { value: "cloud", label: t(I18nKey.BACKEND$KIND_CLOUD) },
+          ]}
+          onChange={(value) => setKind(value)}
+          ariaLabel={t(I18nKey.BACKEND$KIND_LABEL)}
+          testId={`${testIdRoot}-kind`}
+        />
+      </div>
+
       <SettingsInput
         testId={`${testIdRoot}-api-key`}
         name={`${testIdRoot}-api-key`}
@@ -879,7 +926,10 @@ function ManualConnectionColumn({
 }
 
 interface CloudLoginColumnProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot: string;
   lockedHost?: string;
 }
@@ -903,12 +953,15 @@ function CloudLoginColumn({
     lockedHost ?? (customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST);
 
   const handleLoginSuccess = (apiKey: string) => {
-    onConnected({
-      name: "OpenHands Cloud",
-      host: normalizeHost(effectiveHost),
-      apiKey,
-      kind: "cloud",
-    });
+    onConnected(
+      {
+        name: "OpenHands Cloud",
+        host: normalizeHost(effectiveHost),
+        apiKey,
+        kind: "cloud",
+      },
+      "cloud_login",
+    );
   };
 
   return (
@@ -979,17 +1032,37 @@ function CloudLoginColumn({
   );
 }
 
-function AddBackendConnectionOptions({ onClose }: { onClose: () => void }) {
+function AddBackendConnectionOptions({
+  onClose,
+  source,
+}: {
+  onClose: () => void;
+  source: BackendAddedSource;
+}) {
   const { addBackend } = useActiveBackendContext();
   const redirectAfterAdd = useRedirectAfterAddBackend();
+  const { trackBackendAdded } = useTracking();
 
   const handleConnected = React.useCallback(
-    (payload: BackendFormSubmitPayload) => {
+    (
+      payload: BackendFormSubmitPayload,
+      connectionMethod: BackendConnectionMethod,
+    ) => {
       addBackend(payload);
+      // Coarse, non-sensitive host classification — never emit the raw host.
+      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
+      trackBackendAdded({
+        backendKind: payload.kind,
+        connectionMethod,
+        isOpenhandsCloud: isOpenHandsCloud,
+        isCustomHost: !isOpenHandsCloud,
+        hasApiKey: Boolean(payload.apiKey),
+        source,
+      });
       redirectAfterAdd();
       onClose();
     },
-    [addBackend, redirectAfterAdd, onClose],
+    [addBackend, redirectAfterAdd, onClose, trackBackendAdded, source],
   );
 
   return <BackendConnectionOptions onConnected={handleConnected} />;
@@ -1006,6 +1079,7 @@ export function BackendFormModal({
   mode,
   backend,
   onClose,
+  source = "add_backend_modal",
 }: BackendFormModalProps) {
   const { t } = useTranslation("openhands");
 
@@ -1033,7 +1107,7 @@ export function BackendFormModal({
           </div>
 
           <div className="px-6 pb-6 pt-2">
-            <AddBackendConnectionOptions onClose={onClose} />
+            <AddBackendConnectionOptions onClose={onClose} source={source} />
           </div>
         </div>
       </ModalBackdrop>
