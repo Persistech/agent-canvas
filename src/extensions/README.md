@@ -189,11 +189,12 @@ window.addEventListener("message", function(event) {
 | `--oh-color-danger` | Red | `#e76a5e` |
 | `--oh-radius` | Border radius | `8px` |
 
-### Critical: Set Explicit Background Color
+### Recommended: Set Explicit Background Color
 
-Sandboxed iframes have a **white background by default** — `background: transparent` does
-not work because the iframe container itself is not transparent. You **must** explicitly
-set the background color on both `html` and `body`:
+The host sets `background: var(--oh-background)` and `color-scheme: dark` on the iframe
+element itself, which helps during initial load. However, the iframe's **internal document**
+still renders with its own background, so you should explicitly set the background on
+`html` and `body` for a seamless appearance:
 
 ```css
 html, body {
@@ -205,6 +206,9 @@ body {
   /* ... other styles */
 }
 ```
+
+Without this, you may see a brief white flash before the theme variables are applied,
+or inconsistent backgrounds if the browser's `color-scheme` hinting doesn't take effect.
 
 ### Ready Signal: Wait Before Making API Calls
 

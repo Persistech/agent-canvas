@@ -233,9 +233,13 @@ export function ExtensionWebview({
   );
 
   // Compute iframe style based on autoResize mode
-  // Always set background to transparent so iframe content can blend with parent
+  // Set colorScheme to dark so browsers use dark-mode defaults for the iframe content.
+  // Set background to the theme color to reduce white flash during loading.
+  // Note: Extensions should still set explicit background in their CSS, but this helps
+  // with the initial load experience and provides a fallback.
   const iframeStyle: React.CSSProperties = {
-    background: "transparent",
+    background: "var(--oh-background, #0B0E14)",
+    colorScheme: "dark",
     ...(autoResize && {
       height: contentHeight ?? minHeight,
       minHeight,
