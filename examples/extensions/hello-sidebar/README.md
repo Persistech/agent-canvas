@@ -47,7 +47,7 @@ is intentionally tiny — a `&&`-conjunction of `key`, `!key`, `key == value`, a
 ## Publishing this bundle
 
 The bundle directory **is** the publishable unit — see "Publishing a versioned release" in
-[`src/extensions/README.md`](../../../src/extensions/README.md) for the full guide.
+[`docs/extensions/AUTHOR_GUIDE.md`](../../../docs/extensions/AUTHOR_GUIDE.md) for the full guide.
 
 - **npm:** from this folder, `npm publish --access public`, then install
   `npm:@acme/hello-extension@^1`. Keep `package.json` and `extension.json` `version` in
@@ -55,4 +55,4 @@ The bundle directory **is** the publishable unit — see "Publishing a versioned
 - **GitHub:** commit this folder, `git tag v1.0.0 && git push --tags`, then install
   `gh:<owner>/<repo>/examples/extensions/hello-sidebar@^1`.
 
-Both resolve to pinned files served by jsDelivr — no hosting required.
+**npm** resolves via jsDelivr CDN. **GitHub** resolves via GitHub API and loads assets through Agent Canvas's parent-window relay. No self-hosting required for either.

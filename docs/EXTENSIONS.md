@@ -1,5 +1,15 @@
 # UI Extensions
 
+> **📚 New Documentation Available:** This file has been superseded by comprehensive, structured documentation at **[docs/extensions/](./extensions/README.md)**:
+> - **[User Guide](./extensions/USER_GUIDE.md)** — Installing and using extensions
+> - **[Author Guide](./extensions/AUTHOR_GUIDE.md)** — Creating extensions
+> - **[Architecture](./extensions/ARCHITECTURE.md)** — Technical details
+> - **[Security Model](./extensions/SECURITY.md)** — How sandboxing works
+>
+> This file is retained for compatibility but may not be fully up-to-date. Use the new docs for the most current information.
+
+---
+
 Agent Canvas can load **UI extensions**: small, customer-supplied bundles that add UI
 (sidebar buttons, panels, commands) **without modifying Agent Canvas** and **without giving
 third-party code access to your DOM, cookies, or credentials**. Every extension runs
@@ -12,8 +22,7 @@ This page has two parts:
   and share it.
 
 > **Status:** UI extensions are an experimental, opt-in feature. They are off by default
-> and must be enabled with a build-time flag (below). For the full design and the internal
-> module reference, see [`src/extensions/README.md`](../src/extensions/README.md).
+> and must be enabled with a build-time flag (below). For complete documentation, see **[docs/extensions/](./extensions/README.md)**.
 
 ---
 
