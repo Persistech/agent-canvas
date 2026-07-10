@@ -37,7 +37,7 @@ describe("AssetLoader", () => {
       expect(asset.blobUrl).toMatch(/^blob:/);
     });
 
-    it("handles sources with subpaths", async () => {
+    it("handles sources with subpaths (monorepo)", async () => {
       const content = new TextEncoder().encode("test");
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -49,8 +49,10 @@ describe("AssetLoader", () => {
         "panel.html",
       );
 
+      // Monorepo format: /owner/repo/sha/subpath/file
+      // NOT: /owner/repo/subpath/sha/file (which was the bug)
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://raw.githubusercontent.com/owner/repo/packages/ext/abc1234/panel.html",
+        "https://raw.githubusercontent.com/owner/repo/abc1234/packages/ext/panel.html",
         expect.any(Object),
       );
     });
