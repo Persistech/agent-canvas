@@ -13,6 +13,64 @@ import {
   WEBVIEW_SANDBOX,
 } from "#/extensions/webview-security";
 
+/**
+ * CSS custom properties that extensions can use for theming.
+ * These are extracted from the host document and sent to the iframe.
+ */
+const THEME_VARIABLES = [
+  // Cool Grey scale
+  "--cool-grey-50",
+  "--cool-grey-100",
+  "--cool-grey-200",
+  "--cool-grey-300",
+  "--cool-grey-400",
+  "--cool-grey-500",
+  "--cool-grey-600",
+  "--cool-grey-700",
+  "--cool-grey-800",
+  "--cool-grey-900",
+  "--cool-grey-925",
+  "--cool-grey-950",
+  "--cool-grey-975",
+  // Semantic colors
+  "--oh-background",
+  "--oh-foreground",
+  "--oh-surface",
+  "--oh-surface-raised",
+  "--oh-surface-deep",
+  "--oh-border",
+  "--oh-border-input",
+  "--oh-border-subtle",
+  "--oh-text-secondary",
+  "--oh-text-tertiary",
+  "--oh-text-dim",
+  "--oh-text-subtle",
+  "--oh-muted",
+  "--oh-color-primary",
+  "--oh-color-danger",
+  "--oh-color-success",
+  "--oh-radius",
+  "--oh-field-radius",
+] as const;
+
+/** Message type for theme variable injection. */
+const THEME_MESSAGE_TYPE = "agentCanvas:theme";
+
+/**
+ * Extracts current theme CSS variables from the host document.
+ */
+function getThemeVariables(): Record<string, string> {
+  const computed = getComputedStyle(document.documentElement);
+  const vars: Record<string, string> = {};
+  for (const name of THEME_VARIABLES) {
+    const value = computed.getPropertyValue(name).trim();
+    if (value) {
+      vars[name] = value;
+    }
+  }
+  return vars;
+}
+
 interface ExtensionWebviewProps {
   /** Owning extension id (namespaces storage / capability checks). */
   extensionId: string;
@@ -128,6 +186,13 @@ export function ExtensionWebview({
     // Dispose previous connections
     endpointRef.current?.dispose();
     bridgeRef.current?.dispose();
+
+    // Send theme variables to the iframe so extensions can use them
+    // This enables extensions to use var(--oh-background) etc. for theming
+    contentWindow.postMessage(
+      { type: THEME_MESSAGE_TYPE, variables: getThemeVariables() },
+      "*",
+    );
 
     // Set up RPC endpoint for agentCanvas API
     const transport = createWebviewTransport(contentWindow, {

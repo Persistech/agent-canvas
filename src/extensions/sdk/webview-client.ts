@@ -5,6 +5,9 @@ import type { AgentCanvasApi } from "./types";
 /** Message type for iframe content height updates — must match host's RESIZE_MESSAGE_TYPE. */
 const RESIZE_MESSAGE_TYPE = "agentCanvas:resize";
 
+/** Message type for theme variable injection — must match host's THEME_MESSAGE_TYPE. */
+const THEME_MESSAGE_TYPE = "agentCanvas:theme";
+
 /**
  * Client used by webview documents (customer HTML/JS running inside the sandboxed
  * iframe) to obtain the `agentCanvas` API. It speaks the same RPC protocol to its
@@ -94,4 +97,58 @@ export function enableAutoResize(): () => void {
   observer.observe(document.body);
 
   return () => observer.disconnect();
+}
+
+/**
+ * Applies AgentCanvas theme variables to the document.
+ * This listens for theme messages from the host and injects CSS custom properties
+ * into `:root`, allowing extensions to use `var(--oh-background)` etc. for theming.
+ *
+ * Call this early in your extension (before DOM is ready is fine).
+ *
+ * @returns A cleanup function to remove the listener.
+ *
+ * @example
+ * ```html
+ * <style>
+ *   html, body {
+ *     background-color: var(--oh-background);
+ *     color: var(--oh-foreground);
+ *   }
+ *   .card {
+ *     background: var(--oh-surface);
+ *     border: 1px solid var(--oh-border-subtle);
+ *     border-radius: var(--oh-radius);
+ *   }
+ * </style>
+ * <script>
+ *   // Apply theme variables from host
+ *   enableHostTheme();
+ * </script>
+ * ```
+ */
+export function enableHostTheme(): () => void {
+  const handleMessage = (event: MessageEvent) => {
+    // Only accept messages from the parent window (host)
+    if (event.source !== window.parent) return;
+
+    // Handle theme messages
+    if (
+      event.data &&
+      typeof event.data === "object" &&
+      event.data.type === THEME_MESSAGE_TYPE &&
+      typeof event.data.variables === "object"
+    ) {
+      const variables = event.data.variables as Record<string, string>;
+      const root = document.documentElement;
+
+      // Inject each CSS variable into :root
+      for (const [name, value] of Object.entries(variables)) {
+        root.style.setProperty(name, value);
+      }
+    }
+  };
+
+  window.addEventListener("message", handleMessage);
+  return () => window.removeEventListener("message", handleMessage);
 }
