@@ -139,6 +139,16 @@ export function isAgentServerToolAvailable(toolName: string) {
   return availableTools.includes(toolName);
 }
 
+export function isCachedAgentServerVersionAtLeast(requiredVersion: string) {
+  if (!cachedAgentServerInfo) return false;
+
+  const actualVersion = getComparableAgentServerVersion(cachedAgentServerInfo);
+  if (!actualVersion) return false;
+
+  const comparison = compareAgentServerVersions(actualVersion, requiredVersion);
+  return comparison !== null && comparison >= 0;
+}
+
 export function isSdkHttpError(error: unknown) {
   return (
     error instanceof Error &&

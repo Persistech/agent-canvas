@@ -15,6 +15,16 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
+const { isCachedAgentServerVersionAtLeastMock } = vi.hoisted(() => ({
+  isCachedAgentServerVersionAtLeastMock: vi.fn(() => true),
+}));
+vi.mock("#/api/agent-server-compatibility", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/agent-server-compatibility")
+  >()),
+  isCachedAgentServerVersionAtLeast: isCachedAgentServerVersionAtLeastMock,
+}));
+
 // The default→agent_settings downgrade is local-only (#1571 review); default
 // to local so the existing (pre-review) assertions below are unaffected, and
 // override per-test to exercise the cloud path.
@@ -96,6 +106,8 @@ describe("useCreateConversation", () => {
       active_profile: null,
     });
     useLlmProfilesMock.mockReturnValue({ data: { active_profile: null } });
+    isCachedAgentServerVersionAtLeastMock.mockReset();
+    isCachedAgentServerVersionAtLeastMock.mockReturnValue(true);
     removeStoredConversationMetadata("conv-with-plugins");
     removeStoredConversationMetadata("conv-ref-stamp");
   });
@@ -419,6 +431,44 @@ describe("useCreateConversation", () => {
     expect(call?.[10]).toBe("openhands");
   });
 
+  it("uses agent_settings for the local `default` profile on older servers", async () => {
+    isCachedAgentServerVersionAtLeastMock.mockReturnValue(false);
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [
+        {
+          id: "profile-default",
+          name: "default",
+          agent_kind: "openhands",
+          revision: 1,
+          llm_profile_ref: "gpt",
+          mcp_server_refs: null,
+        },
+      ],
+      active_agent_profile_id: "profile-default",
+    });
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBeUndefined();
+    expect(call?.[10]).toBeUndefined();
+  });
+
   it("keeps the profile path for an ACP `default` profile (agent_settings can't carry ACP config)", async () => {
     // The default→agent_settings shortcut is OpenHands-only: activation is
     // pointer-only, so global agent_settings is stale (still OpenHands) for an
@@ -470,6 +520,7 @@ describe("useCreateConversation", () => {
       backend: { id: "cloud-1", kind: "cloud" },
       orgId: null,
     });
+    isCachedAgentServerVersionAtLeastMock.mockReturnValue(false);
     listAgentProfilesMock.mockResolvedValue({
       profiles: [
         {

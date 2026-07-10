@@ -10,6 +10,8 @@ import {
   AgentServerUnavailableError,
   AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
+  clearCachedAgentServerInfo,
+  isCachedAgentServerVersionAtLeast,
   loadAgentServerInfo,
   MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
@@ -50,6 +52,7 @@ const localBackend: Backend = {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  clearCachedAgentServerInfo();
   getServerInfoMock.mockReset();
   vi.mocked(ServerClient).mockClear();
   getServerInfoMock.mockResolvedValue({
@@ -63,6 +66,22 @@ afterEach(() => {
 });
 
 describe("loadAgentServerInfo", () => {
+  it("checks feature version floors against the cached server version", async () => {
+    expect(isCachedAgentServerVersionAtLeast("1.34.0")).toBe(false);
+
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+    getServerInfoMock.mockResolvedValue({ version: "1.33.0" });
+    await loadAgentServerInfo();
+
+    expect(isCachedAgentServerVersionAtLeast("1.34.0")).toBe(false);
+
+    getServerInfoMock.mockResolvedValue({ version: "1.34.0" });
+    await loadAgentServerInfo();
+
+    expect(isCachedAgentServerVersionAtLeast("1.34.0")).toBe(true);
+  });
+
   it("returns server info when the local backend reports the minimum compatible version", async () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
