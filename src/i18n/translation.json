@@ -14789,6 +14789,23 @@
     "uk": "Вимкнено",
     "ca": "Desactivat"
   },
+  "MCP$TOGGLE_NO_SDK_KEY": {
+    "en": "This server cannot be individually disabled.",
+    "ja": "このサーバーは個別に無効にできません。",
+    "zh-CN": "此服务器无法单独禁用。",
+    "zh-TW": "此伺服器無法單獨停用。",
+    "ko-KR": "이 서버는 개별적으로 비활성화할 수 없습니다.",
+    "no": "Denne serveren kan ikke deaktiveres individuelt.",
+    "it": "Questo server non può essere disabilitato individualmente.",
+    "pt": "Este servidor não pode ser desativado individualmente.",
+    "es": "Este servidor no se puede deshabilitar individualmente.",
+    "ar": "لا يمكن تعطيل هذا الخادم بشكل فردي.",
+    "fr": "Ce serveur ne peut pas être désactivé individuellement.",
+    "tr": "Bu sunucu ayrı ayrı devre dışı bırakılamaz.",
+    "de": "Dieser Server kann nicht einzeln deaktiviert werden.",
+    "uk": "Цей сервер не можна вимкнути окремо.",
+    "ca": "Aquest servidor no es pot desactivar individualment."
+  },
   "MCP$INSTALL_BUTTON": {
     "en": "Install",
     "ja": "インストール",

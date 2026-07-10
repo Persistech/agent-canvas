@@ -78,9 +78,12 @@ export default function MCPPage() {
   };
 
   const handleToggleEnabled = (server: MCPServerConfig, enabled: boolean) => {
-    // Servers built from a bare URL string have no stable SDK key to track
-    // in the deny-list, so they can't be individually disabled.
-    if (!server.sdkKey) return;
+    // Servers built from a bare URL string (no sdkKey) can't be individually
+    // disabled — there's no stable key to track in the deny-list.
+    if (!server.sdkKey) {
+      displayErrorToast(t(I18nKey.MCP$TOGGLE_NO_SDK_KEY));
+      return;
+    }
     toggleMcpServer(
       { sdkKey: server.sdkKey, enabled },
       {
