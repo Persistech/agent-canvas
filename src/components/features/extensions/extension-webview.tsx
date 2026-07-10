@@ -206,6 +206,10 @@ export function ExtensionWebview({
       createHostMethods(extensionId, capabilitiesRef.current, depsRef.current),
     );
 
+    // Send a "ready" signal to the webview so it knows the RPC channel is established
+    // Extensions should wait for this before making API calls
+    contentWindow.postMessage({ type: "agentCanvas:ready" }, "*");
+
     // Set up asset relay bridge if extension source is provided
     const source = extensionSourceRef.current;
     if (source) {
