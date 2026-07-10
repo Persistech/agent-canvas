@@ -9,6 +9,8 @@ import { I18nKey } from "#/i18n/declaration";
 const CAPABILITY_LABEL_KEYS: Record<Capability, I18nKey> = {
   "conversation:read": I18nKey.EXTENSIONS$CAP_CONVERSATION_READ,
   storage: I18nKey.EXTENSIONS$CAP_STORAGE,
+  "backend:cloud:read": I18nKey.EXTENSIONS$CAP_BACKEND_CLOUD_READ,
+  "backend:cloud:write": I18nKey.EXTENSIONS$CAP_BACKEND_CLOUD_WRITE,
 };
 
 export function capabilityLabelKey(capability: Capability): I18nKey {

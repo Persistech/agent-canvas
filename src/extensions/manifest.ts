@@ -13,7 +13,12 @@ import type { ActivationEvent } from "./types";
  */
 
 /** Capabilities an extension may request. The host gates RPC by these. */
-export const KNOWN_CAPABILITIES = ["conversation:read", "storage"] as const;
+export const KNOWN_CAPABILITIES = [
+  "conversation:read",
+  "storage",
+  "backend:cloud:read",
+  "backend:cloud:write",
+] as const;
 export type Capability = (typeof KNOWN_CAPABILITIES)[number];
 
 export interface ActivityBarContainerManifest {

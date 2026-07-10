@@ -1,9 +1,15 @@
 import toast from "react-hot-toast";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { callCloudProxy } from "#/api/cloud/proxy";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { contributionRegistry } from "../contribution-registry";
 import type { ConversationSummary } from "../sdk/types";
-import type { HostApiDeps } from "./host-api";
+import type {
+  BackendFetchMethod,
+  BackendFetchResponse,
+  HostApiDeps,
+} from "./host-api";
 
 const STORAGE_PREFIX = "agent-canvas:ext";
 
@@ -61,6 +67,44 @@ export function createAppHostDeps(): HostApiDeps {
         );
       } catch {
         // Ignore quota / serialization errors — extension storage is best-effort.
+      }
+    },
+
+    backendCloudFetch: async (
+      path: string,
+      method: BackendFetchMethod,
+      body?: unknown,
+    ): Promise<BackendFetchResponse | null> => {
+      const { backend } = getActiveBackend();
+
+      // Only available for cloud backends
+      if (backend.kind !== "cloud") {
+        return null;
+      }
+
+      try {
+        const data = await callCloudProxy({
+          backend,
+          method,
+          path,
+          body,
+        });
+
+        return {
+          ok: true,
+          status: 200,
+          data,
+        };
+      } catch (error) {
+        // Extract status from axios error if available
+        const axiosError = error as { response?: { status?: number } };
+        const status = axiosError.response?.status ?? 500;
+
+        return {
+          ok: false,
+          status,
+          data: null,
+        };
       }
     },
   };

@@ -39,6 +39,7 @@ narrow:
    | `commands.execute` | none | dispatch a contributed command |
    | `conversation.getActive` | `conversation:read` | the active conversation summary |
    | `storage.get` / `storage.set` | `storage` | namespaced `localStorage` |
+   | `backend.cloudFetch` | `backend:cloud:read` (GET) or `backend:cloud:write` (POST/PUT/PATCH/DELETE) | proxied call to the active cloud backend via `callCloudProxy` |
 
 Supporting pieces: contributions are collected in `contribution-registry.ts` (keyed by
 `extensionId`, with derived flat lists for stable selectors), consumed by host components

@@ -112,6 +112,41 @@ export function activate(ctx) {
 }
 ```
 
+## Capabilities
+
+Extensions declare capabilities in `extension.json` to request access to privileged APIs.
+Users see these at install time and must consent before the extension is registered.
+
+| Capability | Grants access to |
+|------------|------------------|
+| `conversation:read` | Read the active conversation (`agentCanvas.conversation.getActive()`) |
+| `storage` | Per-extension key/value storage (`agentCanvas.storage.get/set()`) |
+| `backend:cloud:read` | Read from the active cloud backend API (`agentCanvas.backend.cloudFetch()` with GET) |
+| `backend:cloud:write` | Write to the active cloud backend API (`agentCanvas.backend.cloudFetch()` with POST/PUT/PATCH/DELETE) |
+
+**Backend capabilities** grant access to the user's currently configured cloud backend
+(e.g., `app.all-hands.dev` for SaaS, or a custom enterprise URL). The host handles
+authentication automatically - extensions never see bearer tokens. Returns `null` if no
+cloud backend is active.
+
+```js
+// Webview example: fetch sandboxes from the cloud backend
+const response = await agentCanvas.backend.cloudFetch({
+  path: "/api/v1/app-conversations/search?limit=50",
+  method: "GET"
+});
+if (response && response.ok) {
+  const conversations = response.data;
+}
+
+// Pause a sandbox (requires backend:cloud:write)
+await agentCanvas.backend.cloudFetch({
+  path: `/api/v1/sandboxes/${sandboxId}/pause`,
+  method: "POST"
+});
+```
+
+
 ## Publishing a versioned release
 
 Authors **don't host anything** — you publish the bundle directory (the folder containing

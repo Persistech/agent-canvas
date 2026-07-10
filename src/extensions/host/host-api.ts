@@ -2,6 +2,26 @@ import type { Capability } from "../manifest";
 import type { ConversationSummary } from "../sdk/types";
 import type { RpcMethodMap } from "./rpc";
 
+/** HTTP methods for backend fetch calls. */
+export type BackendFetchMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+/** Parameters for the backend.fetch RPC call. */
+export interface BackendFetchParams {
+  /** Path on the backend, e.g. "/api/v1/sandboxes?id=abc". */
+  path: string;
+  /** HTTP method. Defaults to "GET". */
+  method?: BackendFetchMethod;
+  /** JSON body for non-GET requests. */
+  body?: unknown;
+}
+
+/** Response from the backend.fetch RPC call. */
+export interface BackendFetchResponse {
+  ok: boolean;
+  status: number;
+  data: unknown;
+}
+
 /**
  * Host-side dependencies the extension API is implemented against. Injected so the
  * API is decoupled from concrete Agent-Canvas stores/services and trivially testable.
@@ -16,6 +36,15 @@ export interface HostApiDeps {
   /** Per-extension key/value storage. */
   storageGet(extensionId: string, key: string): unknown;
   storageSet(extensionId: string, key: string, value: unknown): void;
+  /**
+   * Fetch from the active cloud backend. Returns null if no cloud backend is active.
+   * The host handles auth (bearer token) automatically.
+   */
+  backendCloudFetch?(
+    path: string,
+    method: BackendFetchMethod,
+    body?: unknown,
+  ): Promise<BackendFetchResponse | null>;
 }
 
 export class CapabilityError extends Error {
@@ -73,6 +102,23 @@ export function createHostMethods(
       requireCapability(granted, "storage");
       const { key, value } = params as { key: string; value: unknown };
       deps.storageSet(extensionId, key, value);
+    },
+
+    "backend.cloudFetch": async (params) => {
+      const { path, method = "GET", body } = params as BackendFetchParams;
+
+      // Gate by read or write capability based on method
+      if (method === "GET") {
+        requireCapability(granted, "backend:cloud:read");
+      } else {
+        requireCapability(granted, "backend:cloud:write");
+      }
+
+      if (!deps.backendCloudFetch) {
+        throw new Error("Cloud backend fetch not available");
+      }
+
+      return deps.backendCloudFetch(path, method, body);
     },
   };
 }
