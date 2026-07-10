@@ -162,12 +162,14 @@ export function ExtensionWebview({
   );
 
   // Compute iframe style based on autoResize mode
-  const iframeStyle: React.CSSProperties | undefined = autoResize
-    ? {
-        height: contentHeight ?? minHeight,
-        minHeight,
-      }
-    : undefined;
+  // Always set background to transparent so iframe content can blend with parent
+  const iframeStyle: React.CSSProperties = {
+    background: "transparent",
+    ...(autoResize && {
+      height: contentHeight ?? minHeight,
+      minHeight,
+    }),
+  };
 
   return (
     <iframe
