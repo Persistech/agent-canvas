@@ -31,7 +31,9 @@ export interface LoadedAsset {
 /** Parsed components of a gh: source ref. */
 interface ParsedGitHubSource {
   owner: string;
-  repoPath: string;
+  repo: string;
+  /** Subpath within the repo (for monorepos), empty string if none. */
+  subpath: string;
   sha: string;
 }
 
@@ -148,20 +150,29 @@ export class AssetLoader {
   }
 
   private parseSource(source: string): ParsedGitHubSource {
-    // Parse gh:owner/repo/path@sha or gh:owner/repo@sha
+    // Parse gh:owner/repo/subpath@sha or gh:owner/repo@sha
     const match = source.match(/^gh:([^/]+)\/([^@]+)@(.+)$/);
     if (!match) throw new Error(`Invalid GitHub source: ${source}`);
 
-    const [, owner, repoPath, sha] = match;
-    return { owner, repoPath, sha };
+    const [, owner, repoPathFull, sha] = match;
+
+    // Split repoPathFull into repo and optional subpath
+    // e.g., "oh-examples/agent-canvas-extensions/dad-jokes" -> repo="oh-examples", subpath="agent-canvas-extensions/dad-jokes"
+    const pathParts = repoPathFull.split("/");
+    const repo = pathParts[0];
+    const subpath = pathParts.slice(1).join("/");
+
+    return { owner, repo, subpath, sha };
   }
 
   private buildGitHubUrl(source: string, file: string): string {
-    const { owner, repoPath, sha } = this.parseSource(source);
+    const { owner, repo, subpath, sha } = this.parseSource(source);
     const cleanFile = file.replace(/^\/+/, "");
 
-    // raw.githubusercontent.com URL format: /owner/repo/sha/path/to/file
-    return `https://raw.githubusercontent.com/${owner}/${repoPath}/${sha}/${cleanFile}`;
+    // raw.githubusercontent.com URL format: /owner/repo/sha/[subpath/]file
+    // For monorepos, subpath is the directory within the repo where the extension lives
+    const fullPath = subpath ? `${subpath}/${cleanFile}` : cleanFile;
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${fullPath}`;
   }
 
   private getMimeType(file: string): string {
