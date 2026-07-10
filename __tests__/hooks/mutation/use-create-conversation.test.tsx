@@ -431,7 +431,7 @@ describe("useCreateConversation", () => {
     expect(call?.[10]).toBe("openhands");
   });
 
-  it("uses agent_settings for the local `default` profile on older servers", async () => {
+  it("uses agent_settings for the local `default` profile on agent-server 1.34.0", async () => {
     isCachedAgentServerVersionAtLeastMock.mockReturnValue(false);
     listAgentProfilesMock.mockResolvedValue({
       profiles: [
@@ -467,6 +467,9 @@ describe("useCreateConversation", () => {
     const call = createConversationSpy.mock.lastCall;
     expect(call?.[9]).toBeUndefined();
     expect(call?.[10]).toBeUndefined();
+    expect(isCachedAgentServerVersionAtLeastMock).toHaveBeenCalledWith(
+      "1.35.0",
+    );
   });
 
   it("keeps the profile path for an ACP `default` profile (agent_settings can't carry ACP config)", async () => {

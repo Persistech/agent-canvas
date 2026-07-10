@@ -12,7 +12,10 @@ import AgentProfilesService, {
   WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME,
   type AgentProfileListResponse,
 } from "#/api/agent-profiles-service/agent-profiles-service.api";
-import { isCachedAgentServerVersionAtLeast } from "#/api/agent-server-compatibility";
+import {
+  AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
+  isCachedAgentServerVersionAtLeast,
+} from "#/api/agent-server-compatibility";
 import PluginsManagementService, {
   type InstalledPluginInfo,
 } from "#/api/plugins-management-service";
@@ -28,8 +31,6 @@ import {
   setStoredConversationMetadata,
   type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
-
-const PROFILE_LAUNCH_AUGMENTATION_MINIMUM_VERSION = "1.34.0";
 
 interface CreateConversationVariables {
   query?: string;
@@ -138,10 +139,10 @@ export const useCreateConversation = () => {
         resolvedAgentProfile?.name === WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME &&
         resolvedAgentProfile.agent_kind === "openhands" &&
         !isCachedAgentServerVersionAtLeast(
-          PROFILE_LAUNCH_AUGMENTATION_MINIMUM_VERSION,
+          AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
         )
       ) {
-        // TODO: Remove when agent-server versions before 1.34.0 are unsupported.
+        // TODO: Remove when agent-server versions before 1.35.0 are unsupported.
         effectiveAgentProfileId = undefined;
       } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&

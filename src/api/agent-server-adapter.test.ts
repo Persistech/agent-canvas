@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import type { Settings } from "#/types/settings";
 import { buildStartConversationRequest } from "./agent-server-adapter";
+
+vi.mock("./agent-server-compatibility", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./agent-server-compatibility")>()),
+  isCachedAgentServerVersionAtLeast: vi.fn(() => true),
+}));
 
 const encryptedValue = "gAAAAAencrypted-mcp-header";
 

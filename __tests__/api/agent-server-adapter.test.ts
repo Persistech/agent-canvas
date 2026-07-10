@@ -21,10 +21,12 @@ import {
 
 const {
   mockGetAgentServerWorkingDir,
+  mockIsCachedAgentServerVersionAtLeast,
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
+  mockIsCachedAgentServerVersionAtLeast: vi.fn(() => true),
   mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
     id: "default-local",
@@ -43,7 +45,11 @@ vi.mock("#/api/agent-server-config", () => ({
   syncBakedSessionApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/agent-server-compatibility", () => ({
+vi.mock("#/api/agent-server-compatibility", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/agent-server-compatibility")
+  >()),
+  isCachedAgentServerVersionAtLeast: mockIsCachedAgentServerVersionAtLeast,
   isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
 }));
 
@@ -52,6 +58,8 @@ vi.mock("#/api/backend-registry/active-store", () => ({
 }));
 
 beforeEach(() => {
+  mockIsCachedAgentServerVersionAtLeast.mockReset();
+  mockIsCachedAgentServerVersionAtLeast.mockReturnValue(true);
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
     id: "default-local",
@@ -596,6 +604,33 @@ describe("buildStartConversationRequest", () => {
   });
 
   describe("canvas_ui tool injection", () => {
+    it("sends canvas_ui as a client tool for supported OpenHands profile launches", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-xyz",
+        agentProfileKind: "openhands",
+      });
+
+      expect(payload.client_tools).toEqual([
+        expect.objectContaining({ name: "canvas_ui" }),
+      ]);
+    });
+
+    it("omits client tools from OpenHands profile launches on agent-server 1.34.0", () => {
+      mockIsCachedAgentServerVersionAtLeast.mockReturnValue(false);
+
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-xyz",
+        agentProfileKind: "openhands",
+      });
+
+      expect(payload.client_tools).toBeUndefined();
+      expect(mockIsCachedAgentServerVersionAtLeast).toHaveBeenCalledWith(
+        "1.35.0",
+      );
+    });
+
     it("registers canvas_ui_tool in tool_module_qualnames when the backend advertises canvas_ui", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,

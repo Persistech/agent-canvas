@@ -9,7 +9,11 @@ import {
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
-import { isAgentServerToolAvailable } from "./agent-server-compatibility";
+import {
+  CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
+  isCachedAgentServerVersionAtLeast,
+  isAgentServerToolAvailable,
+} from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
@@ -989,7 +993,12 @@ export function buildStartConversationRequest(
         system_message_suffix_append: runtimeServicesSuffix,
       };
     }
-    if (options.agentProfileKind === "openhands") {
+    if (
+      options.agentProfileKind === "openhands" &&
+      isCachedAgentServerVersionAtLeast(
+        CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
+      )
+    ) {
       payload.client_tools = [CANVAS_UI_CLIENT_TOOL];
     }
   }
