@@ -1,0 +1,67 @@
+name: Quint Model Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "specs/quint/**"
+      - "specs/backend-management.md"
+      - ".github/workflows/quint.yml"
+  pull_request:
+    paths:
+      - "specs/quint/**"
+      - "specs/backend-management.md"
+      - ".github/workflows/quint.yml"
+
+concurrency:
+  group: quint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quint:
+    name: Quint type-check, tests, and simulation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.15"
+
+      - name: Install pinned Quint
+        run: npm install --global @informalsystems/quint@0.32.0
+
+      - name: Show Quint version
+        run: quint --version
+
+      - name: Type-check every Quint file
+        run: |
+          for spec in specs/quint/*.qnt; do
+            quint typecheck "$spec"
+          done
+
+      - name: Run desired-behavior scenarios
+        run: |
+          quint test specs/quint/backend_management_tests.qnt \
+            --main=backend_management_tests --match='.*Test'
+
+      - name: Run current-code counterexample witnesses
+        run: |
+          quint test specs/quint/backend_management_current_tests.qnt \
+            --main=backend_management_current_tests --match='.*Test'
+
+      # A violation means a desired backend-management guarantee regressed.
+      - name: Simulate backend-management safety properties
+        run: |
+          quint run specs/quint/backend_management.qnt \
+            --main=backend_management \
+            --invariant=allSafetyProperties \
+            --max-steps=30 --max-samples=1000
