@@ -42,6 +42,9 @@ export function SidebarPageLink({
       width={ICON_SIZE}
       height={ICON_SIZE}
       aria-hidden="true"
+      // Apply brightness(0) to make icon black, then invert(1) to make it white
+      // This matches the sidebar icon color scheme
+      className="brightness-0 invert opacity-70"
     />
   ) : (
     <Puzzle width={ICON_SIZE} height={ICON_SIZE} aria-hidden="true" />
