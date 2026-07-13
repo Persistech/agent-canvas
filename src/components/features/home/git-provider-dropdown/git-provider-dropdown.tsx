@@ -1,4 +1,3 @@
-import React, { useState, useMemo, useEffect } from "react";
 import { useCombobox } from "downshift";
 import { useTranslation } from "react-i18next";
 import { Provider } from "#/types/settings";
@@ -26,6 +25,21 @@ export interface GitProviderDropdownProps {
   itemClassName?: string;
 }
 
+function formatProviderName(provider: Provider): string {
+  switch (provider) {
+    case "github":
+      return "GitHub";
+    case "gitlab":
+      return "GitLab";
+    case "bitbucket_data_center":
+      return "Bitbucket Data Center";
+    case "azure_devops":
+      return "Azure DevOps";
+    default:
+      return provider.charAt(0).toUpperCase() + provider.slice(1);
+  }
+}
+
 export function GitProviderDropdown({
   providers,
   value,
@@ -40,55 +54,10 @@ export function GitProviderDropdown({
   itemClassName,
 }: GitProviderDropdownProps) {
   const { t } = useTranslation("openhands");
-  const [inputValue, setInputValue] = useState("");
-  const [localSelectedItem, setLocalSelectedItem] = useState<Provider | null>(
-    value || null,
-  );
-
-  // Format provider names for display
-  const formatProviderName = (provider: Provider): string => {
-    switch (provider) {
-      case "github":
-        return "GitHub";
-      case "gitlab":
-        return "GitLab";
-      case "bitbucket":
-        return "Bitbucket";
-      case "bitbucket_data_center":
-        return "Bitbucket Data Center";
-      case "azure_devops":
-        return "Azure DevOps";
-      default:
-        // Fallback for any future provider types
-        return (
-          (provider as string).charAt(0).toUpperCase() +
-          (provider as string).slice(1)
-        );
-    }
-  };
-
-  // Filter providers based on input value
-  const filteredProviders = useMemo(() => {
-    // If we have a selected provider and the input matches it exactly, show all providers
-    if (
-      localSelectedItem &&
-      inputValue === formatProviderName(localSelectedItem)
-    ) {
-      return providers;
-    }
-
-    // If no input value, show all providers
-    if (!inputValue?.trim()) {
-      return providers;
-    }
-
-    // Filter providers based on input
-    return providers.filter((provider) =>
-      formatProviderName(provider)
-        .toLowerCase()
-        .includes(inputValue.toLowerCase()),
-    );
-  }, [providers, inputValue, localSelectedItem]);
+  const selectedProvider = value ?? null;
+  const inputValue = selectedProvider
+    ? formatProviderName(selectedProvider)
+    : "";
 
   const {
     isOpen,
@@ -99,34 +68,13 @@ export function GitProviderDropdown({
     getItemProps,
     selectedItem,
   } = useCombobox({
-    items: filteredProviders,
-    itemToString: (item) => (item ? formatProviderName(item) : ""),
-    selectedItem: localSelectedItem,
+    items: providers,
+    selectedItem: selectedProvider,
     onSelectedItemChange: ({ selectedItem: newSelectedItem }) => {
-      setLocalSelectedItem(newSelectedItem || null);
-      onChange?.(newSelectedItem || null);
-    },
-    onInputValueChange: ({ inputValue: newInputValue }) => {
-      setInputValue(newInputValue || "");
+      onChange?.(newSelectedItem ?? null);
     },
     inputValue,
   });
-
-  // Sync with external value prop
-  useEffect(() => {
-    if (value !== localSelectedItem) {
-      setLocalSelectedItem(value || null);
-    }
-  }, [value, localSelectedItem]);
-
-  // Update input value when selection changes (but not when user is typing)
-  useEffect(() => {
-    if (selectedItem && !isOpen) {
-      setInputValue(formatProviderName(selectedItem));
-    } else if (!selectedItem) {
-      setInputValue("");
-    }
-  }, [selectedItem, isOpen]);
 
   const renderItem = (
     item: Provider,
@@ -136,13 +84,12 @@ export function GitProviderDropdown({
     currentGetItemProps: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   ) => (
     <DropdownItem
-      key={item}
       item={item}
       index={index}
       isSelected={item === currentSelectedItem}
       getItemProps={currentGetItemProps}
       getDisplayText={formatProviderName}
-      getItemKey={(provider) => provider}
+      getItemKey={String}
       isProviderDropdown
       itemClassName={itemClassName}
     />
@@ -203,7 +150,7 @@ export function GitProviderDropdown({
 
       <GenericDropdownMenu
         isOpen={isOpen}
-        filteredItems={filteredProviders}
+        filteredItems={providers}
         inputValue={inputValue}
         highlightedIndex={highlightedIndex}
         selectedItem={selectedItem}
@@ -211,7 +158,7 @@ export function GitProviderDropdown({
         getItemProps={getItemProps}
         renderItem={renderItem}
         renderEmptyState={renderEmptyState}
-        itemKey={(provider) => provider}
+        itemKey={String}
       />
 
       <ErrorMessage isError={!!errorMessage} message={errorMessage} />
