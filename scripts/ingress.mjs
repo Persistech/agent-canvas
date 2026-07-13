@@ -155,6 +155,17 @@ function parseBackendUrl(backendUrl) {
   };
 }
 
+function writeInvalidBackendUrlResponse(req, res) {
+  const message = "Invalid backend URL";
+  console.error(`Proxy error for ${req.url}: ${message}`);
+  if (!res.headersSent) {
+    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end(`Bad Gateway: ${message}`);
+  } else {
+    res.destroy();
+  }
+}
+
 function isServerInfoRequest(req) {
   const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
   return pathname === SERVER_INFO_PATH;
@@ -165,7 +176,13 @@ function isServerInfoRequest(req) {
 // path that lets the frontend learn runtime services through server_info
 // rather than a baked-in env/window global.
 function proxyServerInfoRequest(req, res, backendUrl, runtimeServicesInfo) {
-  const backend = parseBackendUrl(backendUrl);
+  let backend;
+  try {
+    backend = parseBackendUrl(backendUrl);
+  } catch {
+    writeInvalidBackendUrlResponse(req, res);
+    return;
+  }
 
   const options = {
     hostname: backend.hostname,
