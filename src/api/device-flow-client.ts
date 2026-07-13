@@ -75,25 +75,21 @@ async function makeCloudRequest(
   upstreamHost: string,
   method: "GET" | "POST",
   path: string,
-  body?: unknown,
-  contentType?: string,
+  body: unknown,
+  contentType: string,
   signal?: AbortSignal,
 ): Promise<Response> {
   const requestBody =
-    body === undefined
-      ? undefined
-      : typeof body === "string" ||
-          body instanceof Blob ||
-          body instanceof FormData ||
-          body instanceof URLSearchParams
-        ? body
-        : JSON.stringify(body);
+    typeof body === "string" ||
+    body instanceof Blob ||
+    body instanceof FormData ||
+    body instanceof URLSearchParams
+      ? body
+      : JSON.stringify(body);
 
   const response = await fetch(`${upstreamHost.replace(/\/+$/, "")}${path}`, {
     method,
-    headers: {
-      ...(contentType ? { "Content-Type": contentType } : {}),
-    },
+    headers: { "Content-Type": contentType },
     body: requestBody,
     signal,
   });
@@ -112,11 +108,9 @@ async function makeCloudRequest(
 export async function startDeviceFlow(
   host: string,
 ): Promise<DeviceAuthorizationResponse> {
-  const normalizedHost = host.replace(/\/+$/, "");
-
   try {
     const response = await makeCloudRequest(
-      normalizedHost,
+      host,
       "POST",
       "/oauth/device/authorize",
       {},
@@ -187,7 +181,6 @@ export async function pollForToken(
   deviceCode: string,
   options: PollOptions,
 ): Promise<DeviceTokenResponse> {
-  const normalizedHost = host.replace(/\/+$/, "");
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   let interval = Math.max(1, options.interval) * 1000; // At least 1 second
   const startTime = Date.now();
@@ -206,7 +199,7 @@ export async function pollForToken(
       }).toString();
 
       const response = await makeCloudRequest(
-        normalizedHost,
+        host,
         "POST",
         "/oauth/device/token",
         tokenRequestBody,
