@@ -144,6 +144,39 @@ describe("sending chat messages", () => {
     });
   });
 
+  it("uses the replacement WebSocket after the active conversation changes", async () => {
+    const firstSendMessage = vi.fn().mockResolvedValue({ queued: false });
+    const secondSendMessage = vi.fn().mockResolvedValue({ queued: true });
+    const { result, rerender } = renderSendMessageHook({
+      sendMessage: firstSendMessage,
+    });
+
+    await result.current.send({
+      action: "message",
+      args: { content: "First conversation" },
+    });
+
+    useOptionalConversationIdMock.mockReturnValue({
+      conversationId: "conversation-2",
+    });
+    useConversationWebSocketMock.mockReturnValue({
+      sendMessage: secondSendMessage,
+    });
+    rerender();
+
+    await expect(
+      result.current.send({
+        action: "message",
+        args: { content: "Second conversation" },
+      }),
+    ).resolves.toEqual({ queued: true });
+    expect(firstSendMessage).toHaveBeenCalledOnce();
+    expect(secondSendMessage).toHaveBeenCalledWith({
+      role: "user",
+      content: [{ type: "text", text: "Second conversation" }],
+    });
+  });
+
   it("propagates a WebSocket delivery failure", async () => {
     const deliveryError = new Error("WebSocket closed");
     const sendMessage = vi.fn().mockRejectedValue(deliveryError);
