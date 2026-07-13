@@ -41,6 +41,17 @@ export interface CreateConversationOptions {
   title?: string;
 }
 
+/** Information about a cloud sandbox. */
+export interface SandboxInfo {
+  id: string;
+  created_by_user_id: string | null;
+  sandbox_spec_id: string;
+  status: string;
+  session_api_key: string | null;
+  exposed_urls?: Array<{ url: string; name: string }> | null;
+  created_at?: string;
+}
+
 export interface AgentCanvasApi {
   commands: {
     /** Register a handler for a command declared in the manifest. */
@@ -57,6 +68,10 @@ export interface AgentCanvasApi {
     getActive(): Promise<ConversationSummary | null>;
     /** Create a new conversation and navigate to it. Returns the task/conversation ID. */
     create(options?: CreateConversationOptions): Promise<string>;
+  };
+  sandbox: {
+    /** Create a new cloud sandbox (without a conversation). Returns sandbox info. Requires `backend:cloud:write`. */
+    create(sandboxSpecId?: string): Promise<SandboxInfo>;
   };
   storage: {
     /** Per-extension namespaced storage. Requires the `storage` capability. */

@@ -13,6 +13,7 @@ import type {
   BackendFetchMethod,
   BackendFetchResponse,
   HostApiDeps,
+  SandboxInfo,
 } from "./host-api";
 
 /** Global navigate function set by the app's navigation provider. */
@@ -214,6 +215,31 @@ export function createAppHostDeps(): HostApiDeps {
       }
 
       return taskOrConversationId;
+    },
+
+    createSandbox: async (sandboxSpecId?: string): Promise<SandboxInfo> => {
+      const { backend } = getActiveBackend();
+
+      // Only available for cloud backends
+      if (backend.kind !== "cloud") {
+        throw new Error("Sandbox creation requires a cloud backend");
+      }
+
+      const path = sandboxSpecId
+        ? `/api/v1/sandboxes?sandbox_spec_id=${encodeURIComponent(sandboxSpecId)}`
+        : "/api/v1/sandboxes";
+
+      const data = await withRetry(
+        () =>
+          callCloudProxy({
+            backend,
+            method: "POST",
+            path,
+          }),
+        "createSandbox",
+      );
+
+      return data as SandboxInfo;
     },
   };
 }

@@ -52,6 +52,19 @@ export interface HostApiDeps {
   navigate?(path: string): void;
   /** Create a new conversation and return its ID. */
   createConversation?(options?: CreateConversationOptions): Promise<string>;
+  /** Create a new cloud sandbox (without a conversation). Returns the sandbox info. */
+  createSandbox?(sandboxSpecId?: string): Promise<SandboxInfo>;
+}
+
+/** Information about a cloud sandbox, matching the backend's SandboxInfo schema. */
+export interface SandboxInfo {
+  id: string;
+  created_by_user_id: string | null;
+  sandbox_spec_id: string;
+  status: string;
+  session_api_key: string | null;
+  exposed_urls?: Array<{ url: string; name: string }> | null;
+  created_at?: string;
 }
 
 export class CapabilityError extends Error {
@@ -143,6 +156,15 @@ export function createHostMethods(
         throw new Error("Conversation creation not available");
       }
       return deps.createConversation(options);
+    },
+
+    "sandbox.create": async (params) => {
+      requireCapability(granted, "backend:cloud:write");
+      const { sandboxSpecId } = (params as { sandboxSpecId?: string }) || {};
+      if (!deps.createSandbox) {
+        throw new Error("Sandbox creation not available");
+      }
+      return deps.createSandbox(sandboxSpecId);
     },
   };
 }

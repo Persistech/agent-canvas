@@ -246,6 +246,14 @@ export function resolveEntryInstallSource(
     if (DIRECT_SOURCE_PATTERN.test(entrySource.trim())) {
       return entrySource.trim();
     }
+    // For GitHub marketplace sources with relative paths, generate a gh: ref
+    // so the extension loads through the asset relay (blob URLs) instead of
+    // directly from raw.githubusercontent.com (which blocks iframe embedding).
+    if (source.kind === "github") {
+      const relative = entrySource.replace(/^\.\//, "").replace(/^\/+/, "");
+      const path = relative ? `/${relative}` : "";
+      return `gh:${source.owner}/${source.repo}${path}@${source.ref}`;
+    }
     return resolveEntryBundleUrl(source, catalogUrl, entry);
   }
 

@@ -56,8 +56,8 @@ describe("fetchMarketplace", () => {
         version: "1.0.0",
         author: "Acme",
         homepage: undefined,
-        installSource:
-          "https://raw.githubusercontent.com/acme/repo/main/hello-sidebar",
+        // Relative paths in GitHub catalogs now generate gh: refs for asset relay
+        installSource: "gh:acme/repo/hello-sidebar@main",
       },
       {
         name: "versioned-npm",

@@ -167,13 +167,16 @@ describe("resolveEntryInstallSource", () => {
     ).toBe("gh:acme/hello");
   });
 
-  it("falls back to a resolved raw URL for relative/legacy sources", () => {
+  it("generates gh: refs for relative sources in GitHub catalogs (for asset relay)", () => {
+    // Relative paths in GitHub catalogs now generate gh: refs so extensions
+    // load through the asset relay (blob URLs) instead of raw.githubusercontent.com
+    // which blocks iframe embedding via X-Frame-Options.
     expect(
       resolveEntryInstallSource(github, catalogUrl, {
         name: "x",
         source: "./hello",
       }),
-    ).toBe("https://raw.githubusercontent.com/acme/repo/main/hello");
+    ).toBe("gh:acme/repo/hello@main");
   });
 
   it("accepts npm and gh object sources in catalog validation", () => {
