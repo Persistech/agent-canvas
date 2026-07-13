@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoutesStub, data } from "react-router";
+import { createRoutesStub, data, Link } from "react-router";
 import MainApp, { ErrorBoundary } from "#/routes/root-layout";
 import { I18nKey } from "#/i18n/declaration";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
 const migrateUserConsentMock = vi.fn();
+const useMigrateUserConsentMock = vi.fn();
 const changeLanguageMock = vi.fn();
 const ensureActiveProfileMock = vi.fn();
 const syncPostHogConsentMock = vi.fn();
@@ -22,9 +23,7 @@ vi.mock("#/hooks/query/use-settings", () => ({
 }));
 
 vi.mock("#/hooks/use-migrate-user-consent", () => ({
-  useMigrateUserConsent: () => ({
-    migrateUserConsent: migrateUserConsentMock,
-  }),
+  useMigrateUserConsent: () => useMigrateUserConsentMock(),
 }));
 
 vi.mock("#/hooks/use-sync-posthog-consent", () => ({
@@ -75,7 +74,10 @@ vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {
     ...actual,
-    useTranslation: () => ({ t: (key: string) => key }),
+    useTranslation: (namespace?: string) => ({
+      t: (key: string) =>
+        namespace === "openhands" ? key : `missing-namespace:${key}`,
+    }),
   };
 });
 
@@ -92,7 +94,14 @@ const RouterStub = createRoutesStub([
     children: [
       {
         path: "/",
-        Component: () => <div data-testid="outlet-content" />,
+        Component: () => (
+          <>
+            <div data-testid="outlet-content" />
+            <Link to="/settings" data-testid="rerender-link">
+              Settings
+            </Link>
+          </>
+        ),
       },
       {
         path: "/automations",
@@ -114,13 +123,18 @@ const RouterStub = createRoutesStub([
         path: "/settings",
         Component: () => <div data-testid="outlet-content" />,
       },
+      {
+        path: "*",
+        Component: () => <div data-testid="outlet-content" />,
+      },
     ],
   },
 ]);
 
 function renderMainApp(path = "/") {
+  const queryClient = new QueryClient();
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <RouterStub initialEntries={[path]} />
     </QueryClientProvider>,
   );
@@ -159,6 +173,9 @@ describe("root layout", () => {
         user_consents_to_analytics: true,
       },
     });
+    useMigrateUserConsentMock.mockReturnValue({
+      migrateUserConsent: migrateUserConsentMock,
+    });
   });
 
   it("shows a loading spinner while config is loading", () => {
@@ -173,7 +190,7 @@ describe("root layout", () => {
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("does not render the analytics consent modal when analytics consent is missing", () => {
+  it("does not render the analytics consent modal when analytics consent is missing", async () => {
     useSettingsMock.mockReturnValue({
       data: {
         language: "en",
@@ -181,11 +198,7 @@ describe("root layout", () => {
       },
     });
 
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <RouterStub initialEntries={["/"]} />
-      </QueryClientProvider>,
-    );
+    renderMainApp();
 
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
@@ -195,6 +208,7 @@ describe("root layout", () => {
       screen.queryByTestId("user-capture-consent-form"),
     ).not.toBeInTheDocument();
     expect(migrateUserConsentMock).toHaveBeenCalled();
+    expect(await screen.findByTestId("command-menu")).toBeInTheDocument();
   });
 
   it("renders an identical root-layout className across routes so navigation never shifts the outer container", () => {
@@ -232,6 +246,37 @@ describe("root layout", () => {
       await screen.findByTestId("environment-switch-overlay"),
     ).toBeInTheDocument();
     expect(await screen.findByTestId("command-menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-banner")).not.toBeInTheDocument();
+  });
+
+  it("updates the active language when the setting changes", () => {
+    renderMainApp();
+    expect(changeLanguageMock).toHaveBeenCalledWith("en");
+    changeLanguageMock.mockClear();
+    useSettingsMock.mockReturnValue({
+      data: {
+        language: "fr",
+        user_consents_to_analytics: true,
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("rerender-link"));
+
+    expect(changeLanguageMock).toHaveBeenCalledOnce();
+    expect(changeLanguageMock).toHaveBeenCalledWith("fr");
+  });
+
+  it("runs a replacement consent migration callback", () => {
+    const replacementMigration = vi.fn();
+    renderMainApp();
+    expect(migrateUserConsentMock).toHaveBeenCalledOnce();
+    useMigrateUserConsentMock.mockReturnValue({
+      migrateUserConsent: replacementMigration,
+    });
+
+    fireEvent.click(screen.getByTestId("rerender-link"));
+
+    expect(replacementMigration).toHaveBeenCalledOnce();
   });
 
   it("leaves the current language unchanged when no language is configured", () => {
@@ -257,6 +302,12 @@ describe("root layout", () => {
     renderMainApp("/conversations/abc-123");
 
     expect(screen.queryByTestId("mobile-menu-bar")).not.toBeInTheDocument();
+  });
+
+  it("does not hide the mobile menu for a nested non-conversation route", () => {
+    renderMainApp("/settings/conversations/abc-123");
+
+    expect(screen.getByTestId("mobile-menu-bar")).toBeInTheDocument();
   });
 
   it("renders the onboarding host only when preview mode is requested", () => {
@@ -286,6 +337,45 @@ describe("root layout", () => {
     expect(await screen.findByTestId("alert-banner")).toHaveTextContent(
       "Backend degraded",
     );
+  });
+
+  it.each([
+    {
+      label: "scheduled maintenance",
+      data: {
+        maintenance_start_time: "2030-01-02T03:04:05.000Z",
+        faulty_models: [],
+        error_message: null,
+        updated_at: "2030-01-01T00:00:00.000Z",
+      },
+    },
+    {
+      label: "a faulty model",
+      data: {
+        maintenance_start_time: null,
+        faulty_models: ["broken-model"],
+        error_message: null,
+        updated_at: "2030-01-01T00:00:00.000Z",
+      },
+    },
+  ])("renders the alert banner for $label", async ({ data: configData }) => {
+    useConfigMock.mockReturnValue({
+      isLoading: false,
+      data: configData,
+    });
+
+    renderMainApp();
+
+    expect(await screen.findByTestId("alert-banner")).toBeInTheDocument();
+  });
+
+  it("renders without an alert when config data is unavailable", async () => {
+    useConfigMock.mockReturnValue({ isLoading: false, data: null });
+
+    renderMainApp();
+
+    expect(await screen.findByTestId("command-menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-banner")).not.toBeInTheDocument();
   });
 });
 
