@@ -52,6 +52,7 @@ describe("getPluginDisplayName", () => {
     ["OpenHands/extensions.GIT", "extensions.GIT"],
     ["OpenHands/extensions.git.backup", "extensions.git.backup"],
     ["local-plugin", "local-plugin"],
+    ["local-plugin.git", "local-plugin.git"],
     ["", ""],
   ])("derives %j from source %j", (source, expectedName) => {
     expect(getPluginDisplayName(buildPlugin({ source }))).toBe(expectedName);
@@ -148,6 +149,17 @@ describe("getPluginSourceLabel", () => {
         }),
       ),
     ).toBe("https://github.com/OpenHands/extensions.git @ v1.2.3");
+  });
+
+  it("only removes github: when it prefixes the source coordinate", () => {
+    expect(
+      getPluginSourceLabel(
+        buildPlugin({
+          source: "mirror:github:OpenHands/extensions",
+          ref: "main",
+        }),
+      ),
+    ).toBe("mirror:github:OpenHands/extensions @ main");
   });
 
   it.each([
