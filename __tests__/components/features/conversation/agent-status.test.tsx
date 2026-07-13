@@ -1,5 +1,6 @@
 import type { SVGProps } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { AgentState } from "#/types/agent-state";
@@ -19,8 +20,9 @@ const agentStatusMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
+  useTranslation: (namespace?: string) => ({
+    t: (key: string) =>
+      namespace === "openhands" ? key : `missing-namespace:${key}`,
   }),
 }));
 
@@ -175,18 +177,70 @@ describe("AgentStatus", () => {
     expect(setShouldShownAgentLoading).toHaveBeenCalledWith(false);
   });
 
-  it("stops a running agent from an interactive status control", () => {
-    const { handleStop, setShouldShownAgentLoading } = renderAgentStatus({
-      agentState: AgentState.RUNNING,
-      className: "custom-status-class",
-      executionStatus: ExecutionStatus.RUNNING,
+  it("reports loading changes after the component rerenders", () => {
+    const {
+      handleResumeAgent,
+      handleStop,
+      rerender,
+      setShouldShownAgentLoading,
+    } = renderAgentStatus();
+    expect(setShouldShownAgentLoading).toHaveBeenLastCalledWith(false);
+    setShouldShownAgentLoading.mockClear();
+    agentStatusMocks.useAgentState.mockReturnValue({
+      curAgentState: AgentState.LOADING,
+      executionStatus: null,
     });
+
+    rerender(
+      <AgentStatus
+        handleResumeAgent={handleResumeAgent}
+        handleStop={handleStop}
+      />,
+    );
+
+    expect(setShouldShownAgentLoading).toHaveBeenCalledWith(true);
+  });
+
+  it("forwards the active conversation to sub-conversation polling", () => {
+    const { handleResumeAgent, handleStop, rerender } = renderAgentStatus({
+      conversationId: "conversation-42",
+      subConversationTaskId: "sub-task-42",
+    });
+    expect(
+      agentStatusMocks.useSubConversationTaskPolling,
+    ).toHaveBeenLastCalledWith("sub-task-42", "conversation-42");
+    agentStatusMocks.useActiveConversation.mockReturnValue({ data: undefined });
+
+    rerender(
+      <AgentStatus
+        handleResumeAgent={handleResumeAgent}
+        handleStop={handleStop}
+      />,
+    );
+
+    expect(
+      agentStatusMocks.useSubConversationTaskPolling,
+    ).toHaveBeenLastCalledWith("sub-task-42", null);
+  });
+
+  it("stops a running agent from an interactive status control", () => {
+    const { container, handleStop, setShouldShownAgentLoading } =
+      renderAgentStatus({
+        agentState: AgentState.RUNNING,
+        className: "custom-status-class",
+        executionStatus: ExecutionStatus.RUNNING,
+      });
 
     const label = screen.getByText(I18nKey.AGENT_STATUS$RUNNING_TASK);
     const stopButton = screen.getByTestId("stop-button");
     expect(label).toHaveAttribute("title", I18nKey.AGENT_STATUS$RUNNING_TASK);
     expect(label.parentElement).toHaveClass("custom-status-class");
     expect(stopButton.parentElement).toHaveClass("cursor-pointer");
+    expect(screen.queryByTestId("circle-error-icon")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("clock-icon")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".lucide-circle-check"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(stopButton);
 
@@ -262,10 +316,64 @@ describe("AgentStatus", () => {
     renderAgentStatus();
 
     const clockIcon = screen.getByTestId("clock-icon");
+    const label = screen.getByText(
+      I18nKey.AGENT_STATUS$WAITING_FOR_USER_CONFIRMATION,
+    );
+    expect(label.parentElement).toHaveClass(
+      "flex",
+      "items-center",
+      "gap-1",
+      "min-w-0",
+    );
+    expect(label.parentElement?.className).not.toContain("Stryker");
+    expect(clockIcon.parentElement).toHaveClass(
+      "cursor-default",
+      "rounded-[100px]",
+      "size-6",
+      "transition-all",
+    );
+    expect(screen.queryByTestId("circle-error-icon")).not.toBeInTheDocument();
+  });
+
+  it("keeps persistent statuses rendered without confirmation timers", async () => {
+    vi.useFakeTimers();
+    renderAgentStatus();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(
       screen.getByText(I18nKey.AGENT_STATUS$WAITING_FOR_USER_CONFIRMATION),
     ).toBeInTheDocument();
-    expect(clockIcon.parentElement).toHaveClass("cursor-default");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("renders a finished confirmation on the initial server pass", () => {
+    const setShouldShownAgentLoading = vi.fn();
+    agentStatusMocks.useActiveConversation.mockReturnValue({
+      data: { id: "conversation-1" },
+    });
+    agentStatusMocks.useAgentState.mockReturnValue({
+      curAgentState: AgentState.FINISHED,
+      executionStatus: ExecutionStatus.FINISHED,
+    });
+    agentStatusMocks.useConversationStore.mockReturnValue({
+      setShouldShownAgentLoading,
+      subConversationTaskId: null,
+    });
+    agentStatusMocks.useSubConversationTaskPolling.mockReturnValue({
+      taskStatus: undefined,
+    });
+    agentStatusMocks.useTaskPolling.mockReturnValue({ taskStatus: undefined });
+    agentStatusMocks.useUnifiedWebSocketStatus.mockReturnValue("OPEN");
+
+    const markup = renderToStaticMarkup(
+      <AgentStatus handleResumeAgent={vi.fn()} handleStop={vi.fn()} />,
+    );
+
+    expect(markup).toContain(I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE);
+    expect(markup).not.toContain("opacity-0");
   });
 
   it("fades and hides a finished status after its brief confirmation", () => {
@@ -312,5 +420,61 @@ describe("AgentStatus", () => {
     unmount();
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps a non-transient status visible after a finished status expires", () => {
+    vi.useFakeTimers();
+    const { container, handleResumeAgent, handleStop, rerender } =
+      renderAgentStatus({
+        agentState: AgentState.FINISHED,
+        executionStatus: ExecutionStatus.FINISHED,
+      });
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(
+      screen.queryByText(I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE),
+    ).not.toBeInTheDocument();
+
+    agentStatusMocks.useAgentState.mockReturnValue({
+      curAgentState: AgentState.AWAITING_USER_CONFIRMATION,
+      executionStatus: ExecutionStatus.WAITING_FOR_CONFIRMATION,
+    });
+    rerender(
+      <AgentStatus
+        handleResumeAgent={handleResumeAgent}
+        handleStop={handleStop}
+      />,
+    );
+
+    const waitingLabel = screen.getByText(
+      I18nKey.AGENT_STATUS$WAITING_FOR_USER_CONFIRMATION,
+    );
+    expect(waitingLabel.parentElement).not.toHaveClass("opacity-0");
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(
+      screen.getByText(I18nKey.AGENT_STATUS$WAITING_FOR_USER_CONFIRMATION),
+    ).toBeInTheDocument();
+
+    const persistentStatusNode = container.firstElementChild;
+    agentStatusMocks.useAgentState.mockReturnValue({
+      curAgentState: AgentState.FINISHED,
+      executionStatus: ExecutionStatus.FINISHED,
+    });
+    rerender(
+      <AgentStatus
+        handleResumeAgent={handleResumeAgent}
+        handleStop={handleStop}
+      />,
+    );
+
+    expect(
+      screen.getByText(I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE),
+    ).toBeInTheDocument();
+    expect(container.firstElementChild).toBe(persistentStatusNode);
   });
 });
