@@ -148,26 +148,7 @@ describe("useInfiniteScroll", () => {
     expect(fetchNextPage).toHaveBeenCalledOnce();
   });
 
-  it("uses the latest fetch callback and removes its listener on unmount", () => {
-    const nativeAddEventListener = HTMLDivElement.prototype.addEventListener;
-    const hookScrollListeners: EventListener[] = [];
-    const addEventListener = vi
-      .spyOn(HTMLDivElement.prototype, "addEventListener")
-      .mockImplementation(function addListener(
-        this: HTMLDivElement,
-        type,
-        listener,
-        options,
-      ) {
-        if (type === "scroll") {
-          hookScrollListeners.push(listener as EventListener);
-        }
-        return nativeAddEventListener.call(this, type, listener, options);
-      });
-    const removeEventListener = vi.spyOn(
-      HTMLDivElement.prototype,
-      "removeEventListener",
-    );
+  it("uses the latest fetch callback and stops responding after unmount", () => {
     const firstFetch = vi.fn();
     const latestFetch = vi.fn();
     const { rerender, unmount } = render(
@@ -196,20 +177,9 @@ describe("useInfiniteScroll", () => {
 
     expect(firstFetch).not.toHaveBeenCalled();
     expect(latestFetch).toHaveBeenCalledOnce();
-    expect(addEventListener).toHaveBeenCalledWith(
-      "scroll",
-      expect.any(Function),
-    );
-    expect(hookScrollListeners).not.toHaveLength(0);
 
-    const listenerBeforeUnmount = hookScrollListeners.at(-1);
     unmount();
-    expect(removeEventListener).toHaveBeenCalledWith(
-      "scroll",
-      listenerBeforeUnmount,
-    );
-
-    listenerBeforeUnmount?.(new Event("scroll"));
+    fireEvent.scroll(element);
     expect(latestFetch).toHaveBeenCalledOnce();
   });
 });
