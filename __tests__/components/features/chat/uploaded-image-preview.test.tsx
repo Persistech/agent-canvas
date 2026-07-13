@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UploadedImage } from "#/components/features/chat/uploaded-image";
 
@@ -73,7 +74,11 @@ describe("uploaded image preview", () => {
     const image = createImage();
     const onRemove = vi.fn();
     const { unmount } = render(
-      <UploadedImage image={image} onRemove={onRemove} />,
+      <UploadedImage
+        image={image}
+        onRemove={onRemove}
+        onToggleUploadAsFile={vi.fn()}
+      />,
     );
 
     const preview = screen.getByRole("img", { name: "diagram.png" });
@@ -89,6 +94,32 @@ describe("uploaded image preview", () => {
 
     unmount();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:preview/diagram.png");
+  });
+
+  it("renders no image before an object URL is available", () => {
+    const initialMarkup = renderToString(
+      <UploadedImage image={createImage()} onRemove={vi.fn()} />,
+    );
+
+    expect(initialMarkup).not.toContain("<img");
+  });
+
+  it("starts the upload-as-file control inactive when it is enabled", () => {
+    installObjectUrlMocks();
+
+    render(
+      <UploadedImage
+        image={createImage()}
+        onRemove={vi.fn()}
+        showUploadAsFileToggle
+        onToggleUploadAsFile={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("upload-image-as-file")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("shows a loader and forwards an active upload-as-file toggle", async () => {
