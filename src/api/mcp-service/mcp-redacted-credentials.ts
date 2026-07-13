@@ -31,20 +31,14 @@ const hasRedactedValue = (values: Record<string, string> | undefined) =>
   !!values &&
   Object.values(values).some((value) => value === REDACTED_MCP_SECRET_VALUE);
 
-const remoteTransportMatches = (
-  type: MCPServerConfig["type"],
-  transport: unknown,
-) => {
+const remoteTransportMatches = (type: "sse" | "shttp", transport: unknown) => {
   if (type === "sse") return transport === "sse";
-  if (type === "shttp") {
-    return (
-      transport === undefined ||
-      transport === "http" ||
-      transport === "shttp" ||
-      transport === "streamable-http"
-    );
-  }
-  return false;
+  return (
+    transport === undefined ||
+    transport === "http" ||
+    transport === "shttp" ||
+    transport === "streamable-http"
+  );
 };
 
 // The editor assigns each stdio server an id of the form ``stdio-<i>`` matching
@@ -91,10 +85,11 @@ const findStoredServer = (
     return storedServers[server.name];
   }
 
+  const remoteType = server.type;
   return Object.values(storedServers).find(
     (stored) =>
       stored.url === server.url &&
-      remoteTransportMatches(server.type, stored.transport),
+      remoteTransportMatches(remoteType, stored.transport),
   );
 };
 
@@ -119,7 +114,9 @@ export async function substituteRedactedMcpCredentials(
   server: MCPServerConfig,
 ): Promise<MCPServerConfig> {
   const redactedStdioEnv =
-    server.type === "stdio" && hasRedactedValue(server.env);
+    server.type === "stdio" && hasRedactedValue(server.env)
+      ? server.env
+      : undefined;
   const redactedRemoteAuth =
     (server.type === "sse" || server.type === "shttp") &&
     hasRedactedMcpSecretLeaf(server.auth);
@@ -135,7 +132,7 @@ export async function substituteRedactedMcpCredentials(
     if (redactedStdioEnv) {
       const storedEnv = stringRecord(stored.env) ?? {};
       const env = Object.fromEntries(
-        Object.entries(server.env ?? {}).map(([key, value]) => [
+        Object.entries(redactedStdioEnv).map(([key, value]) => [
           key,
           value === REDACTED_MCP_SECRET_VALUE &&
           typeof storedEnv[key] === "string"
@@ -146,7 +143,6 @@ export async function substituteRedactedMcpCredentials(
       return { ...server, env };
     }
 
-    if (!redactedRemoteAuth) return server;
     if (isMcpAuthCredential(stored.auth)) {
       return { ...server, auth: stored.auth };
     }
