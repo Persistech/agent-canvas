@@ -270,6 +270,21 @@ describe("useDraftPersistence", () => {
       // Assert - should not save since content is the same
       expect(mockSetDraftMessage).not.toHaveBeenCalled();
     });
+
+    it("saves new draft text when no persisted draft exists", () => {
+      const chatInputRef = createMockChatInputRef("Stryker was here!");
+      const { result } = renderHook(() =>
+        useDraftPersistence("conv-new-draft", chatInputRef),
+      );
+      chatInputRef.current!.textContent = "Stryker was here!";
+
+      act(() => {
+        result.current.saveDraft();
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(mockSetDraftMessage).toHaveBeenCalledWith("Stryker was here!");
+    });
   });
 
   describe("clearDraft", () => {
@@ -725,12 +740,16 @@ describe("useDraftPersistence", () => {
       vi.spyOn(window, "getSelection").mockReturnValue(null);
       const chatInputRef = createMockChatInputRef();
 
-      const { result } = renderHook(() =>
+      const { result, unmount } = renderHook(() =>
         useDraftPersistence(undefined, chatInputRef),
       );
 
       expect(chatInputRef.current.textContent).toBe("saved prompt");
       expect(result.current.isRestored).toBe(true);
+      unmount();
+      expect(sessionStorage.getItem(HOME_PROMPT_DRAFT_KEY)).toBe(
+        "saved prompt",
+      );
     });
 
     it("restores over whitespace-only home input and places the caret at the end", () => {
@@ -1014,5 +1033,12 @@ describe("useDraftPersistence", () => {
       // Assert - save should not have been called after unmount
       expect(mockSetDraftMessage).not.toHaveBeenCalled();
     });
+  });
+
+  it("keeps the home prompt storage key stable across module reloads", async () => {
+    vi.resetModules();
+    const freshModule = await import("#/hooks/chat/use-draft-persistence");
+
+    expect(freshModule.HOME_PROMPT_DRAFT_KEY).toBe("oh:home-prompt-draft");
   });
 });
