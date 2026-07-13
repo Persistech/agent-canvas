@@ -15,6 +15,11 @@ import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import type { ResolvedActiveBackend } from "#/api/backend-registry/types";
 import type { V1SandboxInfo } from "#/api/cloud/sandbox-service.types";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { I18nKey } from "#/i18n/declaration";
+
+const { mockUseConversationId } = vi.hoisted(() => ({
+  mockUseConversationId: vi.fn(),
+}));
 
 vi.mock("#/api/cloud/sandbox-service.api");
 vi.mock("#/api/conversation-service/agent-server-conversation-service.api");
@@ -23,8 +28,8 @@ vi.mock("#/contexts/active-backend-context");
 vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/hooks/use-runtime-is-ready");
 vi.mock("#/hooks/use-conversation-id", () => ({
-  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
-  useConversationId: () => ({ conversationId: "conv-123" }),
+  useOptionalConversationId: () => mockUseConversationId(),
+  useConversationId: () => mockUseConversationId(),
 }));
 
 if (!i18n.isInitialized) {
@@ -86,9 +91,7 @@ function makeConversation(
   } as AppConversation;
 }
 
-function makeSandbox(
-  overrides: Partial<V1SandboxInfo> = {},
-): V1SandboxInfo {
+function makeSandbox(overrides: Partial<V1SandboxInfo> = {}): V1SandboxInfo {
   return {
     id: "sandbox-9",
     created_by_user_id: null,
@@ -108,7 +111,7 @@ function makeSandbox(
 
 function createWrapper() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false, retryDelay: 0 } },
   });
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
@@ -118,7 +121,8 @@ function createWrapper() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  mockUseConversationId.mockReturnValue({ conversationId: "conv-123" });
   vi.mocked(useRuntimeIsReady).mockReturnValue(true);
   vi.mocked(useActiveConversation).mockReturnValue({
     data: makeConversation(),
@@ -149,9 +153,7 @@ describe("useUnifiedVSCodeUrl", () => {
     expect(result.current.data?.url).toBe(
       "https://vscode-abc.staging-runtime.all-hands.dev/?tkn=sek&folder=%2Fworkspace%2Fproject",
     );
-    expect(
-      AgentServerConversationService.getVSCodeUrl,
-    ).not.toHaveBeenCalled();
+    expect(AgentServerConversationService.getVSCodeUrl).not.toHaveBeenCalled();
   });
 
   it("returns null url in cloud mode when the sandbox has no VSCODE exposed_url", async () => {
@@ -172,6 +174,9 @@ describe("useUnifiedVSCodeUrl", () => {
     // Assert
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.url).toBeNull();
+    expect(result.current.data?.error).toBe(
+      i18n.t(I18nKey.VSCODE$URL_NOT_AVAILABLE),
+    );
   });
 
   it("falls through to AgentServerConversationService.getVSCodeUrl in local mode", async () => {
@@ -190,14 +195,200 @@ describe("useUnifiedVSCodeUrl", () => {
 
     // Assert
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(
-      AgentServerConversationService.getVSCodeUrl,
-    ).toHaveBeenCalledWith(
+    expect(AgentServerConversationService.getVSCodeUrl).toHaveBeenCalledWith(
       "conv-123",
       "http://abc.staging-runtime.all-hands.dev/api/conv/1",
       "sek",
     );
     expect(batchGetCloudSandboxes).not.toHaveBeenCalled();
     expect(ConversationService.getVSCodeUrl).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the legacy conversation service when the agent-server request fails", async () => {
+    const agentServerFailure = new Error("runtime endpoint unavailable");
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl).mockRejectedValue(
+      agentServerFailure,
+    );
+    vi.mocked(ConversationService.getVSCodeUrl).mockResolvedValue({
+      vscode_url: "https://fallback.example.dev/?folder=workspace",
+    });
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(ConversationService.getVSCodeUrl).toHaveBeenCalledWith("conv-123");
+    expect(result.current.data).toEqual({
+      url: "https://fallback.example.dev/?folder=workspace",
+      error: null,
+    });
+  });
+
+  it("returns local query failures after both URL services reject", async () => {
+    const fallbackFailure = new Error("no VS Code endpoint");
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl).mockRejectedValue(
+      new Error("runtime unavailable"),
+    );
+    vi.mocked(ConversationService.getVSCodeUrl).mockRejectedValue(
+      fallbackFailure,
+    );
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.status).toBe("error");
+    expect(result.current.error).toBe(fallbackFailure);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("passes null runtime metadata when active conversation details are unavailable", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(useActiveConversation).mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useActiveConversation>);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl).mockResolvedValue({
+      vscode_url: null,
+    });
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(AgentServerConversationService.getVSCodeUrl).toHaveBeenCalledWith(
+      "conv-123",
+      null,
+      null,
+    );
+    expect(result.current.data).toEqual({
+      url: null,
+      error: i18n.t(I18nKey.VSCODE$URL_NOT_AVAILABLE),
+    });
+  });
+
+  it("returns the refreshed local URL", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl)
+      .mockResolvedValueOnce({
+        vscode_url: "https://initial.example.dev/?folder=workspace",
+      })
+      .mockResolvedValueOnce({
+        vscode_url: "https://refreshed.example.dev/?folder=workspace",
+      });
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const refreshed = await result.current.refetch();
+
+    expect(refreshed.data).toEqual({
+      url: "https://refreshed.example.dev/?folder=workspace",
+    });
+    await waitFor(() =>
+      expect(result.current.data?.url).toBe(
+        "https://refreshed.example.dev/?folder=workspace",
+      ),
+    );
+  });
+
+  it("maps cloud refetches to refreshed, unavailable, and missing sandbox results", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
+    vi.mocked(batchGetCloudSandboxes)
+      .mockResolvedValueOnce([makeSandbox()])
+      .mockResolvedValueOnce([
+        makeSandbox({
+          exposed_urls: [
+            { name: "APP", url: "https://app.example.dev" },
+            { name: "VSCODE", url: "https://refreshed.example.dev" },
+          ],
+        }),
+      ])
+      .mockResolvedValueOnce([makeSandbox({ exposed_urls: null })])
+      .mockResolvedValueOnce([]);
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const refreshed = await result.current.refetch();
+    expect(refreshed.data).toEqual({ url: "https://refreshed.example.dev" });
+
+    const unavailable = await result.current.refetch();
+    expect(unavailable.data).toEqual({ url: null });
+
+    const missing = await result.current.refetch();
+    expect(missing.data).toBeUndefined();
+    await waitFor(() => expect(result.current.data?.url).toBeNull());
+  });
+
+  it("surfaces cloud sandbox lookup failures", async () => {
+    const failure = new Error("sandbox lookup failed");
+    vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
+    vi.mocked(batchGetCloudSandboxes).mockRejectedValue(failure);
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.status).toBe("error");
+    expect(result.current.error).toBe(failure);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("does not request a cloud sandbox until the conversation has a sandbox id", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
+    vi.mocked(useActiveConversation).mockReturnValue({
+      data: makeConversation({ sandbox_id: null }),
+    } as unknown as ReturnType<typeof useActiveConversation>);
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    expect(batchGetCloudSandboxes).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("does not request a local URL before the runtime is ready", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(useRuntimeIsReady).mockReturnValue(false);
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    expect(AgentServerConversationService.getVSCodeUrl).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("reports the missing conversation id when a disabled query is manually refreshed", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    mockUseConversationId.mockReturnValue({ conversationId: "" });
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    expect(AgentServerConversationService.getVSCodeUrl).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data).toBeUndefined();
+
+    const refreshed = await result.current.refetch();
+
+    expect(refreshed.data).toBeUndefined();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toEqual(new Error("No conversation ID"));
+    expect(AgentServerConversationService.getVSCodeUrl).not.toHaveBeenCalled();
   });
 });
