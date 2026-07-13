@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { useHomeStore } from "#/stores/home-store";
+import { describe, expect, it, vi } from "vitest";
 import type { GitRepository } from "#/types/git";
 
 const STORAGE_KEY = "home-store";
@@ -15,16 +14,22 @@ const repository = (
   ...overrides,
 });
 
+async function loadFreshHomeStore() {
+  window.localStorage.clear();
+  vi.resetModules();
+  return (await import("#/stores/home-store")).useHomeStore;
+}
+
 describe("home store", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    useHomeStore.setState({
-      recentRepositories: [],
-      lastSelectedProvider: null,
-    });
+  it("starts with no recent repositories or selected provider", async () => {
+    const useHomeStore = await loadFreshHomeStore();
+
+    expect(useHomeStore.getState().getRecentRepositories()).toEqual([]);
+    expect(useHomeStore.getState().getLastSelectedProvider()).toBeNull();
   });
 
-  it("adds a repository to the front and persists it", () => {
+  it("adds a repository to the front and persists it", async () => {
+    const useHomeStore = await loadFreshHomeStore();
     const first = repository("first");
 
     useHomeStore.getState().addRecentRepository(first);
@@ -41,7 +46,8 @@ describe("home store", () => {
     });
   });
 
-  it("moves an existing repository to the front without duplicating it", () => {
+  it("moves an existing repository to the front without duplicating it", async () => {
+    const useHomeStore = await loadFreshHomeStore();
     const first = repository("first");
     const second = repository("second");
     const updatedFirst = repository("first", {
@@ -59,7 +65,8 @@ describe("home store", () => {
     ]);
   });
 
-  it("keeps only the three most recently selected repositories", () => {
+  it("keeps only the three most recently selected repositories", async () => {
+    const useHomeStore = await loadFreshHomeStore();
     const repositories = ["first", "second", "third", "fourth"].map((id) =>
       repository(id),
     );
@@ -75,7 +82,8 @@ describe("home store", () => {
     ]);
   });
 
-  it("clears all recent repositories", () => {
+  it("clears all recent repositories", async () => {
+    const useHomeStore = await loadFreshHomeStore();
     useHomeStore.getState().addRecentRepository(repository("first"));
 
     useHomeStore.getState().clearRecentRepositories();
@@ -86,7 +94,8 @@ describe("home store", () => {
     ).toMatchObject({ state: { recentRepositories: [] } });
   });
 
-  it("sets, reads, persists, and clears the last selected provider", () => {
+  it("sets, reads, persists, and clears the last selected provider", async () => {
+    const useHomeStore = await loadFreshHomeStore();
     useHomeStore.getState().setLastSelectedProvider("gitlab");
 
     expect(useHomeStore.getState().getLastSelectedProvider()).toBe("gitlab");
