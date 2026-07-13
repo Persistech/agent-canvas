@@ -104,30 +104,33 @@ export function enableAutoResize(): () => void {
  * This listens for theme messages from the host and injects CSS custom properties
  * into `:root`, allowing extensions to use `var(--oh-background)` etc. for theming.
  *
+ * Also injects base styles for `html` and `body` so the extension automatically
+ * has the correct background color and text color without any additional CSS.
+ *
  * Call this early in your extension (before DOM is ready is fine).
  *
  * @returns A cleanup function to remove the listener.
  *
  * @example
  * ```html
+ * <script>
+ *   // Apply theme from host - this sets up background/text colors automatically
+ *   enableHostTheme();
+ * </script>
  * <style>
- *   html, body {
- *     background-color: var(--oh-background);
- *     color: var(--oh-foreground);
- *   }
  *   .card {
  *     background: var(--oh-surface);
  *     border: 1px solid var(--oh-border-subtle);
  *     border-radius: var(--oh-radius);
  *   }
  * </style>
- * <script>
- *   // Apply theme variables from host
- *   enableHostTheme();
- * </script>
  * ```
  */
 export function enableHostTheme(): () => void {
+  // Inject base theme styles that use the CSS variables
+  // This ensures the document has correct background/text colors automatically
+  injectBaseThemeStyles();
+
   const handleMessage = (event: MessageEvent) => {
     // Only accept messages from the parent window (host)
     if (event.source !== window.parent) return;
@@ -151,4 +154,56 @@ export function enableHostTheme(): () => void {
 
   window.addEventListener("message", handleMessage);
   return () => window.removeEventListener("message", handleMessage);
+}
+
+/** ID for the injected base theme stylesheet */
+const BASE_THEME_STYLE_ID = "agent-canvas-base-theme";
+
+/**
+ * Injects a base stylesheet that sets up essential theme styles.
+ * This is called automatically by `enableHostTheme()` but can be called
+ * separately if you only want the base styles without the dynamic theme listener.
+ */
+export function injectBaseThemeStyles(): void {
+  // Don't inject twice
+  if (document.getElementById(BASE_THEME_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = BASE_THEME_STYLE_ID;
+  style.textContent = `
+    /* Base theme styles injected by Agent Canvas */
+    :root {
+      color-scheme: dark;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--oh-background, #0b0e14);
+      color: var(--oh-foreground, #e5e7eb);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    /* Ensure links are visible */
+    a {
+      color: var(--oh-color-primary, #60a5fa);
+    }
+    /* Button defaults */
+    button {
+      font-family: inherit;
+      cursor: pointer;
+    }
+  `;
+
+  // Insert at the beginning of <head> so extension styles can override
+  if (document.head) {
+    document.head.insertBefore(style, document.head.firstChild);
+  } else {
+    // If head doesn't exist yet, wait for DOMContentLoaded
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        document.head.insertBefore(style, document.head.firstChild);
+      },
+      { once: true },
+    );
+  }
 }

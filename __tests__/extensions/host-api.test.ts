@@ -11,6 +11,12 @@ function makeDeps(overrides: Partial<HostApiDeps> = {}): HostApiDeps {
       id: "c1",
       title: "Active",
       status: "running",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: null,
+      workingDir: "/workspace",
     }),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(async () => "executed"),
@@ -43,6 +49,12 @@ describe("createHostMethods (capability gating)", () => {
       id: "c1",
       title: "Active",
       status: "running",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: null,
+      workingDir: "/workspace",
     });
   });
 

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   ActivityBarItem,
   CommandItem,
+  ConversationPanelTabItem,
   ExtensionContributions,
   MenuItem,
   PageItem,
@@ -45,6 +46,8 @@ interface ContributionRegistryState {
   settingsPages: SettingsPageItem[];
   /** Derived flat list of all contributed full-width pages. */
   pages: PageItem[];
+  /** Derived flat list of all contributed conversation panel tabs. */
+  conversationPanelTabs: ConversationPanelTabItem[];
 
   /** Register (or replace) all contributions for an extension. */
   register: (
@@ -83,6 +86,7 @@ function derive(byExtension: Record<string, ExtensionContributions>) {
     menuItemsBySlot: groupBySlot(menuItems),
     settingsPages: flatten(byExtension, (c) => c.settingsPages),
     pages: flatten(byExtension, (c) => c.pages),
+    conversationPanelTabs: flatten(byExtension, (c) => c.conversationPanelTabs),
   };
 }
 
@@ -96,6 +100,7 @@ export const useContributionRegistry = create<ContributionRegistryState>(
     menuItemsBySlot: {},
     settingsPages: [],
     pages: [],
+    conversationPanelTabs: [],
 
     register: (extensionId, contributions) =>
       set((state) =>
@@ -142,6 +147,12 @@ export function selectPages(state: ContributionRegistryState): PageItem[] {
   return state.pages;
 }
 
+export function selectConversationPanelTabs(
+  state: ContributionRegistryState,
+): ConversationPanelTabItem[] {
+  return state.conversationPanelTabs;
+}
+
 export function selectMenuItems(state: ContributionRegistryState): MenuItem[] {
   return state.menuItems;
 }
@@ -171,6 +182,8 @@ export const contributionRegistry = {
   getViews: () => useContributionRegistry.getState().views,
   getSettingsPages: () => useContributionRegistry.getState().settingsPages,
   getPages: () => useContributionRegistry.getState().pages,
+  getConversationPanelTabs: () =>
+    useContributionRegistry.getState().conversationPanelTabs,
   getMenuItems: () => useContributionRegistry.getState().menuItems,
   /** All menu items targeting a given slot, in extension insertion order. */
   getMenuItemsForSlot: (slot: string): MenuItem[] =>
@@ -183,4 +196,14 @@ export const contributionRegistry = {
     useContributionRegistry
       .getState()
       .pages.find((p) => p.extensionId === extensionId && p.id === pageId),
+  /** Resolve a single contributed conversation panel tab by extensionId and tabId. */
+  getConversationPanelTab: (
+    extensionId: string,
+    tabId: string,
+  ): ConversationPanelTabItem | undefined =>
+    useContributionRegistry
+      .getState()
+      .conversationPanelTabs.find(
+        (t) => t.extensionId === extensionId && t.id === tabId,
+      ),
 };

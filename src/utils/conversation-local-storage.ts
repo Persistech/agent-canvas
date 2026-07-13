@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import type {
-  ConversationTab,
-  ConversationMode,
+import {
+  type ConversationTab,
+  type ConversationMode,
+  isBuiltinTab,
 } from "#/stores/conversation-store";
 import type { ViewMode } from "#/components/features/files-tab/view-mode";
 
@@ -55,13 +56,13 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   filesTabContentViewMode: "rich",
 };
 
-const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
-  "files",
-  "browser",
-  "terminal",
-  "planner",
-  "tasklist",
-]);
+/**
+ * Check if a tab id is valid for persistence.
+ * Accepts built-in tabs and extension tabs (format: ext:<extensionId>:<tabId>).
+ */
+function isValidTab(tabId: string): boolean {
+  return isBuiltinTab(tabId) || tabId.startsWith("ext:");
+}
 
 // Tab keys that *used to* exist and were removed during the Files tab
 // refactor. We strip these out of any persisted state on read so that
@@ -97,7 +98,7 @@ function sanitizeStoredState(
   if (
     result.selectedTab != null &&
     (REMOVED_CONVERSATION_TABS.has(result.selectedTab) ||
-      !VALID_CONVERSATION_TABS.has(result.selectedTab as ConversationTab))
+      !isValidTab(result.selectedTab))
   ) {
     result = { ...result };
     delete result.selectedTab;

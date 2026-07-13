@@ -56,6 +56,9 @@ const THEME_VARIABLES = [
 /** Message type for theme variable injection. */
 const THEME_MESSAGE_TYPE = "agentCanvas:theme";
 
+/** Message type for conversation data updates. */
+const CONVERSATION_MESSAGE_TYPE = "agentCanvas:conversation";
+
 /**
  * Extracts current theme CSS variables from the host document.
  * Note: CSS variables are scoped to [data-agent-server-ui] (on body), not :root,
@@ -71,6 +74,50 @@ function getThemeVariables(): Record<string, string> {
     }
   }
   return vars;
+}
+
+/** Conversation data pushed to webviews. Matches the ConversationSummary SDK type. */
+interface ConversationUpdate {
+  id: string;
+  title: string | null;
+  status: string | null;
+  model: string | null;
+  agentKind: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  selectedRepository: string | null;
+  workingDir: string | null;
+}
+
+/** Raw conversation object from the query (AppConversation). */
+interface RawConversation {
+  id: string;
+  title?: string | null;
+  execution_status?: string | null;
+  llm_model?: string | null;
+  agent_kind?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  selected_repository?: string | null;
+  workspace?: { working_dir?: string | null } | null;
+}
+
+/** Transform raw conversation to the update format. */
+function toConversationUpdate(
+  conversation: RawConversation | null | undefined,
+): ConversationUpdate | null {
+  if (!conversation) return null;
+  return {
+    id: conversation.id,
+    title: conversation.title ?? null,
+    status: conversation.execution_status ?? null,
+    model: conversation.llm_model ?? null,
+    agentKind: conversation.agent_kind ?? null,
+    createdAt: conversation.created_at ?? null,
+    updatedAt: conversation.updated_at ?? null,
+    selectedRepository: conversation.selected_repository ?? null,
+    workingDir: conversation.workspace?.working_dir ?? null,
+  };
 }
 
 interface ExtensionWebviewProps {
@@ -105,6 +152,12 @@ interface ExtensionWebviewProps {
    * @default 200
    */
   minHeight?: number;
+  /**
+   * Current conversation data to push to the webview.
+   * When this changes, the host sends an update to the iframe so extensions
+   * can display conversation context that updates as the user navigates.
+   */
+  conversation?: RawConversation | null;
 }
 
 /**
@@ -135,11 +188,14 @@ export function ExtensionWebview({
   allowedOrigins,
   autoResize = false,
   minHeight = 200,
+  conversation,
 }: ExtensionWebviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const endpointRef = useRef<RpcEndpoint | null>(null);
   const bridgeRef = useRef<WebviewBridge | null>(null);
   const [contentHeight, setContentHeight] = useState<number | null>(null);
+  // Track whether the webview is connected (ready signal sent)
+  const isConnectedRef = useRef(false);
 
   // Latest host inputs, read at (re)connect time so reconnecting on load never forces
   // the iframe to reload. These are stable in practice (memoized deps, registry-owned
@@ -148,10 +204,27 @@ export function ExtensionWebview({
   const depsRef = useRef(deps);
   const extensionSourceRef = useRef(extensionSource);
   const allowedOriginsRef = useRef(allowedOrigins);
+  const conversationRef = useRef(conversation);
   capabilitiesRef.current = capabilities;
   depsRef.current = deps;
   extensionSourceRef.current = extensionSource;
   allowedOriginsRef.current = allowedOrigins;
+  conversationRef.current = conversation;
+
+  // Push conversation updates to the iframe whenever the conversation changes.
+  // This allows extensions to display conversation context that updates as the
+  // user navigates between conversations or as the conversation state changes.
+  useEffect(() => {
+    const iframe = frameRef.current;
+    const contentWindow = iframe?.contentWindow;
+    if (!contentWindow || !isConnectedRef.current) return;
+
+    const update = toConversationUpdate(conversation);
+    contentWindow.postMessage(
+      { type: CONVERSATION_MESSAGE_TYPE, conversation: update },
+      "*",
+    );
+  }, [conversation]);
 
   // Listen for resize messages from the iframe content
   useEffect(() => {
@@ -188,6 +261,7 @@ export function ExtensionWebview({
     // Dispose previous connections
     endpointRef.current?.dispose();
     bridgeRef.current?.dispose();
+    isConnectedRef.current = false;
 
     // Send theme variables to the iframe so extensions can use them
     // This enables extensions to use var(--oh-background) etc. for theming
@@ -206,9 +280,17 @@ export function ExtensionWebview({
       createHostMethods(extensionId, capabilitiesRef.current, depsRef.current),
     );
 
-    // Send a "ready" signal to the webview so it knows the RPC channel is established
-    // Extensions should wait for this before making API calls
+    // Mark as connected and send a "ready" signal to the webview
+    isConnectedRef.current = true;
     contentWindow.postMessage({ type: "agentCanvas:ready" }, "*");
+
+    // Send the current conversation data immediately so the webview doesn't
+    // have to wait or poll. Extensions can render available data right away.
+    const currentConversation = toConversationUpdate(conversationRef.current);
+    contentWindow.postMessage(
+      { type: CONVERSATION_MESSAGE_TYPE, conversation: currentConversation },
+      "*",
+    );
 
     // Set up asset relay bridge if extension source is provided
     const source = extensionSourceRef.current;

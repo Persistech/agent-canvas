@@ -55,7 +55,17 @@ function makeSource(): BundleSource {
 
 function makeDeps(overrides: Partial<HostApiDeps> = {}): HostApiDeps {
   return {
-    getActiveConversation: () => ({ id: "c1", title: "T", status: "idle" }),
+    getActiveConversation: () => ({
+      id: "c1",
+      title: "T",
+      status: "idle",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: null,
+      workingDir: "/workspace",
+    }),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(),
     storageGet: vi.fn(),

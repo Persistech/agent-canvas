@@ -39,7 +39,17 @@ function createFakeWorker(
 
 function makeDeps(overrides: Partial<HostApiDeps> = {}): HostApiDeps {
   return {
-    getActiveConversation: () => ({ id: "c1", title: "T", status: "idle" }),
+    getActiveConversation: () => ({
+      id: "c1",
+      title: "T",
+      status: "idle",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: null,
+      workingDir: "/workspace",
+    }),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(),
     storageGet: vi.fn(),
@@ -144,6 +154,12 @@ describe("ExtensionHost", () => {
           id: "abc",
           title: "Hi",
           status: "idle",
+          model: "gpt-4",
+          agentKind: "openhands",
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+          selectedRepository: null,
+          workingDir: "/workspace",
         }),
       }),
     );
@@ -156,7 +172,17 @@ describe("ExtensionHost", () => {
     await host.activate(manifest(), "onCommand:acme.read");
     await host.runCommand("acme.ext", "acme.read");
 
-    expect(seen).toEqual({ id: "abc", title: "Hi", status: "idle" });
+    expect(seen).toEqual({
+      id: "abc",
+      title: "Hi",
+      status: "idle",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: null,
+      workingDir: "/workspace",
+    });
   });
 
   it("rejects a capability-violating API call inside the extension", async () => {

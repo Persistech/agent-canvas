@@ -10,7 +10,20 @@
 export interface ConversationSummary {
   id: string;
   title: string | null;
+  /** Execution status: 'idle', 'running', 'finished', 'error', etc. */
   status: string | null;
+  /** The LLM model ID used for this conversation. */
+  model: string | null;
+  /** The agent kind: 'openhands' or 'acp'. */
+  agentKind: string | null;
+  /** When the conversation was created (ISO timestamp). */
+  createdAt: string | null;
+  /** When the conversation was last updated (ISO timestamp). */
+  updatedAt: string | null;
+  /** Selected repository (if any). */
+  selectedRepository: string | null;
+  /** Working directory path (if available). */
+  workingDir: string | null;
 }
 
 /** Returned by registrations/subscriptions so callers can clean up. */

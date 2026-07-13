@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import {
   selectActivityBarItems,
   selectCommands,
+  selectConversationPanelTabs,
   selectMenuItemsForSlot,
   selectPages,
   selectSettingsPages,
@@ -11,6 +12,7 @@ import {
 import type {
   ActivityBarItem,
   CommandItem,
+  ConversationPanelTabItem,
   MenuItem,
   PageItem,
   SettingsPageItem,
@@ -82,5 +84,20 @@ export function useExtensionPages(): PageItem[] {
   return useMemo(
     () => pages.filter((page) => evaluateWhen(page.when, context)),
     [pages, context],
+  );
+}
+
+/**
+ * Contributed conversation panel tabs (right-side drawer tabs), filtered by each tab's
+ * optional `when` clause against the host UI-context. Filtering reads host facts only
+ * — it runs no extension code, so a hidden tab is simply never rendered in the tab
+ * bar. Memoised on the (stable) registry slice + UI-context.
+ */
+export function useConversationPanelTabs(): ConversationPanelTabItem[] {
+  const tabs = useContributionRegistry(selectConversationPanelTabs);
+  const context = useUiContext();
+  return useMemo(
+    () => tabs.filter((tab) => evaluateWhen(tab.when, context)),
+    [tabs, context],
   );
 }

@@ -4,6 +4,7 @@ import type {
   ActivationEvent,
   ActivityBarItem,
   CommandItem,
+  ConversationPanelTabItem,
   ExtensionContributions,
   MenuItem,
   PageItem,
@@ -226,6 +227,35 @@ async function buildPages(
 }
 
 /**
+ * Build resolved {@link ConversationPanelTabItem}s from `contributes.conversationPanelTabs`,
+ * resolving each tab's bundle-relative HTML/icon to sandboxed URLs. Each tab is shown in
+ * the conversation drawer tab bar alongside Files, Terminal, Browser. The owning extension's
+ * capabilities are carried through so the tab's webview gets the same capability-gated host
+ * API (e.g. `conversation:read` for context access). No extension code runs here — only the
+ * declarative tab surface is resolved.
+ */
+async function buildConversationPanelTabs(
+  manifest: ExtensionManifest,
+  source: BundleSource,
+  extensionSource?: string,
+): Promise<ConversationPanelTabItem[]> {
+  const tabs = manifest.contributes?.conversationPanelTabs ?? [];
+  const capabilities = manifest.capabilities ?? [];
+  return Promise.all(
+    tabs.map(async (tab) => ({
+      extensionId: manifest.id,
+      id: tab.id,
+      title: tab.title,
+      iconUrl: tab.icon ? await source.assetUrl(tab.icon) : undefined,
+      pageUrl: tab.page ? await source.assetUrl(tab.page) : undefined,
+      when: tab.when,
+      capabilities,
+      extensionSource,
+    })),
+  );
+}
+
+/**
  * Load an extension from a {@link BundleSource}: read + validate its manifest, resolve
  * its declared contributions (icons, view wiring) and register them so they appear in
  * the host UI. Returns a discriminated result; never throws on a malformed bundle.
@@ -262,6 +292,11 @@ export async function loadExtension(
     menus: buildMenuItems(manifest, host),
     settingsPages: await buildSettingsPages(manifest, source, extensionSource),
     pages: await buildPages(manifest, source, extensionSource),
+    conversationPanelTabs: await buildConversationPanelTabs(
+      manifest,
+      source,
+      extensionSource,
+    ),
   };
 
   contributionRegistry.register(manifest.id, contributions);

@@ -91,7 +91,13 @@ export function createAppHostDeps(): HostApiDeps {
       return {
         id: conversation.id,
         title: conversation.title,
-        status: conversation.execution_status,
+        status: conversation.execution_status ?? null,
+        model: conversation.llm_model ?? null,
+        agentKind: conversation.agent_kind ?? null,
+        createdAt: conversation.created_at ?? null,
+        updatedAt: conversation.updated_at ?? null,
+        selectedRepository: conversation.selected_repository ?? null,
+        workingDir: conversation.workspace?.working_dir ?? null,
       };
     },
 

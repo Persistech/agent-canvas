@@ -1,4 +1,9 @@
-import React, { useLayoutEffect, useState } from "react";
+import React, {
+  ComponentType,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "#/ui/context-menu";
@@ -7,10 +12,11 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import {
   useConversationStore,
+  makeExtensionTabId,
   type ConversationTab,
 } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
-import { Globe, ListTodo, SquareChevronRight } from "lucide-react";
+import { Globe, ListTodo, Puzzle, SquareChevronRight } from "lucide-react";
 import DocumentIcon from "#/icons/document.svg?react";
 import PillIcon from "#/icons/pill.svg?react";
 import PillFillIcon from "#/icons/pill-fill.svg?react";
@@ -27,6 +33,8 @@ import {
   dropdownInstantColorClassName,
   dropdownMenuRowIconWrapperClassName,
 } from "#/utils/dropdown-classes";
+import { useConversationPanelTabs } from "#/extensions/use-contributions";
+import { EXTENSIONS_ENABLED } from "#/extensions/feature-flag";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -91,28 +99,56 @@ export function ConversationTabsContextMenu({
   const { backend } = useActiveBackend();
   const isArchivedConversation = useIsArchivedConversation();
 
-  const tabConfig = [
-    {
-      tab: "planner",
-      icon: ListTodo,
-      i18nKey: I18nKey.COMMON$PLANNER,
-    },
-    { tab: "files", icon: DocumentIcon, i18nKey: I18nKey.COMMON$FILES },
-    {
-      tab: "terminal",
-      icon: SquareChevronRight,
-      i18nKey: I18nKey.COMMON$TERMINAL,
-    },
-    { tab: "browser", icon: Globe, i18nKey: I18nKey.COMMON$BROWSER },
-  ];
+  // Load extension-contributed conversation panel tabs
+  const extensionTabs = useConversationPanelTabs();
 
-  if (hasTaskList) {
-    tabConfig.unshift({
-      tab: "tasklist",
-      icon: DoubleCheckIcon,
-      i18nKey: I18nKey.COMMON$TASK_LIST,
-    });
-  }
+  // Tab config item type for unified handling
+  type TabConfigItem = {
+    tab: string;
+    icon: ComponentType<{ className?: string }>;
+    iconUrl?: string;
+    label: string;
+    isExtension?: boolean;
+  };
+
+  const tabConfig = useMemo(() => {
+    const builtinTabs: TabConfigItem[] = [
+      {
+        tab: "planner",
+        icon: ListTodo,
+        label: t(I18nKey.COMMON$PLANNER),
+      },
+      { tab: "files", icon: DocumentIcon, label: t(I18nKey.COMMON$FILES) },
+      {
+        tab: "terminal",
+        icon: SquareChevronRight,
+        label: t(I18nKey.COMMON$TERMINAL),
+      },
+      { tab: "browser", icon: Globe, label: t(I18nKey.COMMON$BROWSER) },
+    ];
+
+    if (hasTaskList) {
+      builtinTabs.unshift({
+        tab: "tasklist",
+        icon: DoubleCheckIcon,
+        label: t(I18nKey.COMMON$TASK_LIST),
+      });
+    }
+
+    // Add extension-contributed tabs if extensions are enabled
+    if (EXTENSIONS_ENABLED && extensionTabs.length > 0) {
+      const extTabs: TabConfigItem[] = extensionTabs.map((extTab) => ({
+        tab: makeExtensionTabId(extTab.extensionId, extTab.id),
+        icon: Puzzle,
+        iconUrl: extTab.iconUrl,
+        label: extTab.title,
+        isExtension: true,
+      }));
+      builtinTabs.push(...extTabs);
+    }
+
+    return builtinTabs;
+  }, [hasTaskList, extensionTabs, t]);
 
   const visibleTabConfig = tabConfig.filter(
     ({ tab }) => tab !== "planner" || backend.kind === "cloud",
@@ -167,7 +203,7 @@ export function ConversationTabsContextMenu({
       spacing={isPortaled ? "none" : "default"}
       className={cn("z-[9999] w-fit", isPortaled ? "mt-0" : "mt-2")}
     >
-      {visibleTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
+      {visibleTabConfig.map(({ tab, icon: Icon, iconUrl, label }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
           <li key={tab} className="list-none">
@@ -197,9 +233,26 @@ export function ConversationTabsContextMenu({
                     className={dropdownMenuRowIconWrapperClassName}
                     aria-hidden
                   >
-                    <Icon className="h-4 w-4" />
+                    {iconUrl ? (
+                      <span
+                        className="h-4 w-4 bg-current"
+                        style={{
+                          WebkitMaskImage: `url(${iconUrl})`,
+                          maskImage: `url(${iconUrl})`,
+                          WebkitMaskSize: "contain",
+                          maskSize: "contain",
+                          WebkitMaskRepeat: "no-repeat",
+                          maskRepeat: "no-repeat",
+                          WebkitMaskPosition: "center",
+                          maskPosition: "center",
+                        }}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Icon className="h-4 w-4" />
+                    )}
                   </span>
-                  <span className="text-sm">{t(i18nKey)}</span>
+                  <span className="text-sm">{label}</span>
                 </button>
                 <button
                   type="button"
@@ -247,6 +300,7 @@ export function ConversationTabsContextMenu({
           </li>
         );
       })}
+      {/* Extension command menu items (non-tab commands) */}
       <ExtensionMenuItems
         slot={MENU_SLOTS.conversationTabsContext}
         onAfterSelect={onClose}

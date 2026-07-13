@@ -80,10 +80,22 @@ webview assets. See `examples/extensions/hello-sidebar/` for a minimal working s
     },
     "settingsPages": [
       { "id": "general", "title": "Hello", "page": "settings.html", "when": "backend == cloud" }
+    ],
+    "conversationPanelTabs": [
+      { "id": "details", "title": "Hello", "icon": "icon.svg", "page": "panel.html" }
     ]
   }
 }
 ```
+
+A **`contributes.conversationPanelTabs`** entry (`{ id, title, icon?, page, when? }`)
+adds a tab to the conversation panel (the right-side drawer alongside Files, Terminal,
+Browser). The tab appears in both the tab bar and the kebab menu with the same pin/unpin
+behavior as built-in tabs. The tab's webview receives the extension's granted capabilities
+(e.g. `conversation:read` to access conversation context) and theme CSS variables for
+consistent styling. Icons use CSS `mask-image` so extension SVG icons inherit the current
+text color, matching built-in tabs. See `docs/EXTENSION_POINTS.md` section 6 for full
+implementation details.
 
 A **`contributes.settingsPages`** entry (`{ id, title, page, when? }`) merges one nav
 item per extension into the Settings sidebar (`useSettingsNavItems()`) and mounts its

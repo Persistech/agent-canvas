@@ -5,12 +5,59 @@ import {
   setConversationState,
 } from "#/utils/conversation-local-storage";
 
-export type ConversationTab =
+/**
+ * Built-in conversation panel tabs.
+ */
+export type BuiltinConversationTab =
   | "files"
   | "browser"
   | "terminal"
   | "planner"
   | "tasklist";
+
+/**
+ * Extension-contributed tab id format: `ext:<extensionId>:<tabId>`
+ */
+export type ExtensionTabId = `ext:${string}:${string}`;
+
+/**
+ * All possible conversation tab ids - either a built-in tab or an extension tab.
+ */
+export type ConversationTab = BuiltinConversationTab | ExtensionTabId;
+
+/**
+ * Utility to parse an extension tab id into its components.
+ * Returns null if not a valid extension tab id.
+ */
+export function parseExtensionTabId(
+  tabId: string,
+): { extensionId: string; tabId: string } | null {
+  if (!tabId.startsWith("ext:")) return null;
+  const parts = tabId.slice(4).split(":");
+  if (parts.length < 2) return null;
+  const extensionId = parts[0];
+  const id = parts.slice(1).join(":");
+  return { extensionId, tabId: id };
+}
+
+/**
+ * Utility to create an extension tab id from its components.
+ */
+export function makeExtensionTabId(
+  extensionId: string,
+  tabId: string,
+): ExtensionTabId {
+  return `ext:${extensionId}:${tabId}`;
+}
+
+/**
+ * Check if a tab id is a built-in tab.
+ */
+export function isBuiltinTab(tabId: string): tabId is BuiltinConversationTab {
+  return ["files", "browser", "terminal", "planner", "tasklist"].includes(
+    tabId,
+  );
+}
 
 export type ConversationMode = "code" | "plan";
 

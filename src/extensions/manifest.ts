@@ -89,6 +89,27 @@ export interface PageManifest {
   when?: string;
 }
 
+/**
+ * A tab contributed to the conversation panel (the right-side drawer with Files,
+ * Terminal, Browser tabs). The tab appears in the tab bar and renders a sandboxed
+ * webview that has access to conversation context via the `conversation:read` capability.
+ */
+export interface ConversationPanelTabManifest {
+  /** Tab id, namespaces the tab within its extension (e.g. `"sandbox-details"`). */
+  id: string;
+  /** Tab label shown in the tab bar. */
+  title: string;
+  /** Relative path within the bundle to an icon asset (e.g. `"icon.svg"`). */
+  icon?: string;
+  /** Relative path within the bundle to the tab's webview HTML document. */
+  page?: string;
+  /**
+   * Optional visibility clause evaluated against the host UI-context (see `when.ts`).
+   * Hiding the tab runs no extension code — it reads host facts only.
+   */
+  when?: string;
+}
+
 export interface ContributesManifest {
   viewsContainers?: { activitybar?: ActivityBarContainerManifest[] };
   /** Map of container id → views contributed into it. */
@@ -103,6 +124,12 @@ export interface ContributesManifest {
    * navigates to `/x/:extensionId/:pageId` and renders the webview in the main area.
    */
   pages?: PageManifest[];
+  /**
+   * Tabs contributed to the conversation panel (the right-side drawer). Each tab
+   * appears alongside Files, Terminal, Browser and renders a sandboxed webview with
+   * access to conversation context.
+   */
+  conversationPanelTabs?: ConversationPanelTabManifest[];
 }
 
 export interface ExtensionManifest {
@@ -316,6 +343,36 @@ function validateContributes(
               : v.requireString(obj.when, `${path}.when`),
         };
       });
+    }
+  }
+
+  if (raw.conversationPanelTabs !== undefined) {
+    if (!Array.isArray(raw.conversationPanelTabs)) {
+      v.fail("contributes.conversationPanelTabs", "expected an array");
+    } else {
+      contributes.conversationPanelTabs = raw.conversationPanelTabs.map(
+        (entry, i) => {
+          const path = `contributes.conversationPanelTabs[${i}]`;
+          const obj = isObject(entry) ? entry : {};
+          if (!isObject(entry)) v.fail(path, "expected an object");
+          return {
+            id: v.requireString(obj.id, `${path}.id`) ?? "",
+            title: v.requireString(obj.title, `${path}.title`) ?? "",
+            icon:
+              obj.icon === undefined
+                ? undefined
+                : v.requireString(obj.icon, `${path}.icon`),
+            page:
+              obj.page === undefined
+                ? undefined
+                : v.requireString(obj.page, `${path}.page`),
+            when:
+              obj.when === undefined
+                ? undefined
+                : v.requireString(obj.when, `${path}.when`),
+          };
+        },
+      );
     }
   }
 

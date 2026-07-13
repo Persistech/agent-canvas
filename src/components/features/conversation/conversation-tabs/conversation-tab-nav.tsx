@@ -12,6 +12,8 @@ const tabLabelTransition = {
 type ConversationTabNavProps = {
   tabValue: string;
   icon: ComponentType<{ className: string }>;
+  /** URL for a custom icon image (e.g., from an extension). Takes precedence over `icon`. */
+  iconUrl?: string;
   onClick(): void;
   isActive?: boolean;
   label?: string;
@@ -25,6 +27,7 @@ type ConversationTabNavProps = {
 export function ConversationTabNav({
   tabValue,
   icon: Icon,
+  iconUrl,
   onClick,
   isActive,
   label,
@@ -51,7 +54,27 @@ export function ConversationTabNav({
     className,
   );
 
-  const iconElement = <Icon className={cn("h-4 w-4 shrink-0 text-inherit")} />;
+  // Render custom icon URL if provided (from extensions), otherwise use the component icon.
+  // For extension icons (typically SVGs), we use CSS mask-image so they inherit
+  // the text color just like built-in SVG icons do.
+  const iconElement = iconUrl ? (
+    <span
+      className={cn("h-4 w-4 shrink-0 bg-current")}
+      style={{
+        WebkitMaskImage: `url(${iconUrl})`,
+        maskImage: `url(${iconUrl})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+      aria-hidden="true"
+    />
+  ) : (
+    <Icon className={cn("h-4 w-4 shrink-0 text-inherit")} />
+  );
 
   const labelElement =
     label && isActive ? (

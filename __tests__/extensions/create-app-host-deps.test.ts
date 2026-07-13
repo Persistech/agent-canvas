@@ -29,12 +29,24 @@ describe("createAppHostDeps", () => {
       id: "c1",
       title: "My chat",
       execution_status: "RUNNING",
+      llm_model: "gpt-4",
+      agent_kind: "openhands",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      selected_repository: "owner/repo",
+      workspace: { working_dir: "/workspace/project" },
     } as unknown as AppConversation);
 
     expect(deps.getActiveConversation()).toEqual({
       id: "c1",
       title: "My chat",
       status: "RUNNING",
+      model: "gpt-4",
+      agentKind: "openhands",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      selectedRepository: "owner/repo",
+      workingDir: "/workspace/project",
     });
   });
 

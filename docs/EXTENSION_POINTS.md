@@ -29,6 +29,9 @@ narrow:
    | View / panel (webview) | `contributes.views` | the panel host + `extension-webview.tsx` |
    | Command | `contributes.commands` | the Command-K menu (`src/components/features/command-menu/`) |
    | Menu item | `contributes.menus` | named menu slots, e.g. `conversation-tabs-context-menu.tsx` (`src/extensions/menu-slots.ts` + `extension-menu-items.tsx`) |
+   | Settings page | `contributes.settingsPages` | `routes/extension-settings.tsx` + `use-settings-nav-items.ts` |
+   | Full-width page | `contributes.pages` | `routes/extension-page.tsx` + sidebar nav |
+   | Conversation panel tab | `contributes.conversationPanelTabs` | `conversation-tabs.tsx` + `extension-panel-tab-content.tsx` |
 
 2. **A capability-gated host API** - the imperative surface an extension's **Web Worker**
    (and sandboxed webview) calls over RPC. Today (`src/extensions/host/host-api.ts`):
@@ -143,10 +146,10 @@ Grounded surface map:
 | Right-panel tabs' context menu | `conversation-tabs/conversation-tabs-context-menu.tsx` | `ContextMenu` | **done** (menus slot) |
 | Conversation header menu (rename, show skills) | `conversation-name-context-menu.tsx` | `ContextMenu` | + a slot |
 | Left-sidebar conversation menu (rename/export/delete) | `conversation-card/conversation-card-context-menu.tsx` | `ContextMenu` | + a slot (curate destructive items) |
-| Chat "add" menu (next to code/plan) | `chat/components/chat-input-actions.tsx` | `ContextMenu` | + a slot |
+| Chat "add" menu (next to code/plan) | `chat/components/chat-input-actions.tsx` | `ContextMenu` | **done** (menus slot) |
 | Left rail nav (customize/automate/settings + activity bar) | `sidebar/sidebar-rail-body.tsx` | item list | activity-bar items **done** |
-| Settings pages (gear → `/settings`) | `settings-navigation.tsx`, `use-settings-nav-items.ts`, `OSS_NAV_ITEMS`, `routes/settings.tsx` | data-driven nav + routed webview body | nav-merge + one catch-all route |
-| Right-panel tab/panel | `conversation-tabs/` | webview panel | new tab-slot (reuses `views`) |
+| Settings pages (gear → `/settings`) | `settings-navigation.tsx`, `use-settings-nav-items.ts`, `OSS_NAV_ITEMS`, `routes/settings.tsx` | data-driven nav + routed webview body | **done** |
+| Right-panel tab/panel | `conversation-tabs/` | webview panel | **done** (`conversationPanelTabs`) |
 
 **Revised order (grounded):**
 1. **`when` / whitelisted UI-context primitive** — ✅ implemented (shared dependency of
@@ -157,7 +160,8 @@ Grounded surface map:
 3. **Settings page contribution** — ✅ implemented (webview body + merge into
    `use-settings-nav-items` + one catch-all `/settings/x/:extensionId` route; **no new
    capability** — persists via the extension's existing `storage`). See § "5. Settings pages".
-4. **Right-panel tab/panel** — webview + a tab-slot.
+4. **Conversation panel tabs** — ✅ implemented (webview in the right drawer tab bar). See
+   § "6. Conversation panel tabs".
 5. **Conversation / card context-menu slots** — add on demand (card menu has destructive
    items → keep contributed items in their own group below built-ins).
 
@@ -294,7 +298,68 @@ Manifest an author writes:
 }
 ```
 
-### 6. Custom event / message renderers
+### 6. Conversation panel tabs (`contributes.conversationPanelTabs`) — ✅ implemented
+- **Surface:** the conversation panel (right-side drawer). This is a **unified extension point**
+  that adds:
+  1. A **tab** in the tab bar (alongside Files, Terminal, Browser)
+  2. A **menu entry** in the kebab menu (with pin/unpin behavior, same as built-in tabs)
+  3. A **webview pane** rendered in the tab content area with theme styling
+- **Analog:** VS Code editor tabs / panel tabs.
+- **Shape:** a `contributes.conversationPanelTabs` array, each entry:
+  `{ "id": "<tabId>", "title": "Label", "icon"?: "icon.svg", "page"?: "panel.html", "when"?: "..." }`.
+  The tab id is namespaced as `ext:<extensionId>:<tabId>` internally. The tab's webview receives
+  the extension's granted capabilities (e.g. `conversation:read` to access conversation context)
+  and theme CSS variables for consistent styling.
+- **Trust:** **no new capability**. The tab is a sandboxed webview using the existing isolation
+  model. Access to conversation context uses the same `conversation:read` capability an extension
+  already declares. The `when` clause gates visibility against the host UI-context (no extension
+  code runs to hide a tab).
+
+**Unified behavior:**
+- The tab appears in both the **tab bar** and the **kebab menu** automatically — no separate menu
+  contribution is needed.
+- The menu entry has **pin/unpin functionality** matching built-in tabs.
+- The webview receives **theme CSS variables** (e.g. `--oh-background`, `--oh-foreground`) so
+  extensions can style their UI to match the host app.
+- **Icon rendering** uses CSS `mask-image` so extension SVG icons inherit the current text color
+  (muted when inactive, white when active), matching built-in tab icons.
+
+**Implementation notes (as shipped):**
+- Schema/types: `ConversationPanelTabManifest` (`manifest.ts`) + validator; resolved
+  `ConversationPanelTabItem` (`types.ts`); `ExtensionContributions.conversationPanelTabs`.
+- Registry/loader/hook: `selectConversationPanelTabs` + `getConversationPanelTabs()` + 
+  `getConversationPanelTab(extensionId, tabId)` (`contribution-registry.ts`);
+  `buildConversationPanelTabs()` resolves `page`/`icon` to sandboxed URLs and carries the
+  extension's capabilities (`loader.ts`); `useConversationPanelTabs()` filters by the `when`
+  clause against the UI-context (`use-contributions.ts`).
+- Host rendering:
+  - `ConversationTabs` subscribes to `useConversationPanelTabs()` and appends contributed tabs
+    after the built-in tabs in the tab bar.
+  - `ConversationTabsContextMenu` also subscribes and includes extension tabs in the kebab menu
+    with the same pin/unpin behavior as built-in tabs.
+  - `ConversationTabContent` detects extension tab IDs (format `ext:<extensionId>:<tabId>`) and
+    renders `ExtensionPanelTabContent` (lazy-loaded), which mounts `ExtensionWebview` with the
+    tab's page URL and capabilities.
+- Tab ID format: `conversation-store.ts` exports `parseExtensionTabId()` and `makeExtensionTabId()`
+  utilities, plus `isBuiltinTab()` for validation. The `ConversationTab` union type accepts both
+  built-in tabs and extension tab IDs.
+- **Declarative-first:** showing/hiding the tab or mounting the webview runs **no extension
+  code** — `when` reads host facts only and the body is an isolated iframe.
+
+Manifest an author writes:
+
+```jsonc
+{
+  "capabilities": ["conversation:read", "storage"],
+  "contributes": {
+    "conversationPanelTabs": [
+      { "id": "details", "title": "Details", "icon": "icon.svg", "page": "panel.html" }
+    ]
+  }
+}
+```
+
+### 7. Custom event / message renderers
 - **Surface:** the conversation event renderers in `src/components/conversation-events/`.
 - **Analog:** VS Code custom editors / notebook renderers.
 - **Shape:** let an extension register a **webview renderer for a custom event/message type**,
@@ -303,14 +368,14 @@ Manifest an author writes:
   surface is a render-data API (read-only) gated by `conversation:read` or a narrower
   capability. Performance/throughput of the relay needs care (proposal open question #4).
 
-### 7. Theming and keybindings
+### 8. Theming and keybindings
 - **Surface:** the app theme tokens and the keybinding layer behind the command menu.
 - **Analog:** `contributes.themes` / `contributes.keybindings`.
 - **Shape:** declarative theme/keybinding contribution points. Proposal lists these as a
   natural Phase 2 "once commands land."
 - **Trust:** declarative; the main risk is collision/precedence rules, not security.
 
-### 8. Imperative API growth (the `agentCanvas` surface)
+### 9. Imperative API growth (the `agentCanvas` surface)
 The worker/webview API is intentionally minimal today (`conversation.getActive`, `storage.*`,
 `window.showInformationMessage`, `commands.execute`). Likely additions, each behind its own
 capability + consent label:

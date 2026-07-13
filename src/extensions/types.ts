@@ -165,6 +165,36 @@ export interface PageItem {
 }
 
 /**
+ * A resolved conversation panel tab contributed by an extension. Appears in the
+ * right-side drawer tab bar alongside Files, Terminal, Browser, and renders a
+ * sandboxed webview with access to conversation context.
+ */
+export interface ConversationPanelTabItem {
+  extensionId: string;
+  /** Tab id from `contributes.conversationPanelTabs[].id`. */
+  id: string;
+  /** Tab label shown in the tab bar. */
+  title: string;
+  /** Resolved icon URL (typically a `blob:` URL minted from the bundle). */
+  iconUrl?: string;
+  /** Resolved URL of the tab's webview HTML document (from the bundle). */
+  pageUrl?: string;
+  /**
+   * Optional visibility clause evaluated against the host UI-context (see `when.ts`).
+   * The host filters tabs by this before rendering; hiding one runs no extension
+   * code. Absent means always visible.
+   */
+  when?: string;
+  /** Capabilities granted to the owning extension (gates the webview's host API). */
+  capabilities?: Capability[];
+  /**
+   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Enables webviews to request additional assets via postMessage.
+   */
+  extensionSource?: string;
+}
+
+/**
  * The full set of resolved contributions for a single extension, handed to the
  * `ContributionRegistry` as one unit so registration/unregistration is atomic.
  */
@@ -175,4 +205,5 @@ export interface ExtensionContributions {
   menus?: MenuItem[];
   settingsPages?: SettingsPageItem[];
   pages?: PageItem[];
+  conversationPanelTabs?: ConversationPanelTabItem[];
 }
