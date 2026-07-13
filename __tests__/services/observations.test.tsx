@@ -94,44 +94,45 @@ describe("observation state updates", () => {
     },
   );
 
-  it("leaves browser state unchanged for empty, absent, or non-string fields", () => {
-    useBrowserStore.getState().setScreenshotSrc("existing-screenshot");
-    useBrowserStore.getState().setUrl("https://existing.example");
+  it.each([ObservationType.BROWSE, ObservationType.BROWSE_INTERACTIVE])(
+    "leaves browser state unchanged for empty, absent, or non-string fields in %s observations",
+    (observation) => {
+      useBrowserStore.getState().setScreenshotSrc("existing-screenshot");
+      useBrowserStore.getState().setUrl("https://existing.example");
 
-    handleObservationMessage(
-      createObservationMessage(ObservationType.BROWSE, {
-        extras: {
-          metadata: {},
-          error_id: "",
-          screenshot: "",
-          url: "",
-        },
-      }),
-    );
-    handleObservationMessage(
-      createObservationMessage(ObservationType.BROWSE_INTERACTIVE),
-    );
-    handleObservationMessage(
-      createObservationMessage(ObservationType.BROWSE, {
-        extras: {
-          metadata: {},
-          error_id: "",
-          screenshot: { invalid: true },
-          url: { invalid: true },
-        },
-      }),
-    );
-    handleObservationMessage(
-      createObservationMessage(ObservationType.BROWSE, {
-        extras: undefined as never,
-      }),
-    );
+      handleObservationMessage(
+        createObservationMessage(observation, {
+          extras: {
+            metadata: {},
+            error_id: "",
+            screenshot: "",
+            url: "",
+          },
+        }),
+      );
+      handleObservationMessage(createObservationMessage(observation));
+      handleObservationMessage(
+        createObservationMessage(observation, {
+          extras: {
+            metadata: {},
+            error_id: "",
+            screenshot: { invalid: true },
+            url: { invalid: true },
+          },
+        }),
+      );
+      handleObservationMessage(
+        createObservationMessage(observation, {
+          extras: undefined as never,
+        }),
+      );
 
-    expect(useBrowserStore.getState()).toMatchObject({
-      screenshotSrc: "existing-screenshot",
-      url: "https://existing.example",
-    });
-  });
+      expect(useBrowserStore.getState()).toMatchObject({
+        screenshotSrc: "existing-screenshot",
+        url: "https://existing.example",
+      });
+    },
+  );
 
   it("updates agent state only when the supplied state is a string", () => {
     handleObservationMessage(
