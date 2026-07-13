@@ -1,22 +1,38 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseManifest } from "#/extensions/manifest";
 import { loadExtension, type BundleSource } from "#/extensions/loader";
 import { contributionRegistry } from "#/extensions/contribution-registry";
 
 /**
- * Guards the shipped sample extension (`examples/extensions/hello-sidebar`) against
- * schema/loader drift: the documented authoring format must keep validating and
- * loading.
+ * Guards the extension manifest schema and loader against drift.
+ * Uses an inline fixture that mirrors the hello-sidebar example extension
+ * (now hosted at https://github.com/jpshackelford/agent-canvas-experimental-extensions).
  */
-const manifestPath = resolve(
-  process.cwd(),
-  "examples/extensions/hello-sidebar/extension.json",
-);
-const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const rawManifest = {
+  id: "test.hello",
+  name: "Hello Page",
+  version: "1.0.0",
+  publisher: "test",
+  engines: { agentCanvas: "^1.0.0" },
+  main: "main.js",
+  activationEvents: ["onCommand:hello.say"],
+  capabilities: ["conversation:read", "storage"],
+  contributes: {
+    pages: [
+      { id: "main", title: "Hello", icon: "icon.svg", page: "panel.html" },
+    ],
+    commands: [{ command: "hello.say", title: "Hello: Say hi" }],
+    menus: {
+      "chatInput/actions": [{ command: "hello.say", when: "emailVerified" }],
+    },
+    settingsPages: [{ id: "general", title: "Hello", page: "settings.html" }],
+    conversationPanelTabs: [
+      { id: "details", title: "Hello", icon: "icon.svg", page: "panel.html" },
+    ],
+  },
+};
 
-describe("examples/extensions/hello-sidebar", () => {
+describe("extension manifest and loader", () => {
   afterEach(() => contributionRegistry.clear());
 
   it("validates against the manifest schema", () => {
@@ -48,19 +64,20 @@ describe("examples/extensions/hello-sidebar", () => {
     const commands = contributionRegistry.getCommands();
     expect(commands.map((c) => c.command)).toEqual(["hello.say"]);
 
-    // The menu item binds to the contributed command and inherits its title.
-    const menuItems = contributionRegistry.getMenuItemsForSlot(
-      "conversationTabs/context",
-    );
-    expect(menuItems.map((m) => m.command)).toEqual(["hello.say"]);
-    expect(menuItems[0].title).toBe("Hello: Say hi");
-
-    // The second menu item targets the chat-input actions slot and carries a `when`
+    // The menu item targets the chat-input actions slot and carries a `when`
     // clause (host-fact gated; carried through the loader untouched).
     const chatItems =
       contributionRegistry.getMenuItemsForSlot("chatInput/actions");
     expect(chatItems.map((m) => m.command)).toEqual(["hello.say"]);
     expect(chatItems[0].when).toBe("emailVerified");
+
+    // The conversationPanelTabs contribution adds a tab to the right panel.
+    const panelTabs = contributionRegistry.getConversationPanelTabs();
+    expect(panelTabs.map((t) => t.id)).toEqual(["details"]);
+    expect(panelTabs[0].title).toBe("Hello");
+    expect(panelTabs[0].iconUrl).toBe("blob:icon.svg");
+    expect(panelTabs[0].pageUrl).toBe("blob:panel.html");
+    expect(panelTabs[0].capabilities).toEqual(["conversation:read", "storage"]);
 
     // The settings page is resolved with its webview URL and inherits the
     // extension's capabilities (so its webview can persist via `storage`).
