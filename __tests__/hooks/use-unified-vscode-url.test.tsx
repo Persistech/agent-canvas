@@ -21,6 +21,14 @@ const { mockUseConversationId } = vi.hoisted(() => ({
   mockUseConversationId: vi.fn(),
 }));
 
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: (namespace?: string) => ({
+    t: (key: string) =>
+      namespace === "openhands" ? key : `missing-namespace:${key}`,
+  }),
+}));
+
 vi.mock("#/api/cloud/sandbox-service.api");
 vi.mock("#/api/conversation-service/agent-server-conversation-service.api");
 vi.mock("#/api/conversation-service/conversation-service.api");
@@ -109,15 +117,21 @@ function makeSandbox(overrides: Partial<V1SandboxInfo> = {}): V1SandboxInfo {
   };
 }
 
-function createWrapper() {
+function createQueryHarness() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, retryDelay: 0 } },
   });
-  return ({ children }: { children: React.ReactNode }) => (
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
     </QueryClientProvider>
   );
+
+  return { queryClient, wrapper };
+}
+
+function createWrapper() {
+  return createQueryHarness().wrapper;
 }
 
 beforeEach(() => {
@@ -141,7 +155,17 @@ describe("useUnifiedVSCodeUrl", () => {
     // instead of asking the runtime for /api/vscode/url (which only
     // knows its own localhost:8001).
     vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
-    vi.mocked(batchGetCloudSandboxes).mockResolvedValue([makeSandbox()]);
+    vi.mocked(batchGetCloudSandboxes).mockResolvedValue([
+      makeSandbox({
+        exposed_urls: [
+          { name: "APP", url: "https://app.example.dev" },
+          {
+            name: "VSCODE",
+            url: "https://vscode-abc.staging-runtime.all-hands.dev/?tkn=sek&folder=%2Fworkspace%2Fproject",
+          },
+        ],
+      }),
+    ]);
 
     // Act
     const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
@@ -163,7 +187,10 @@ describe("useUnifiedVSCodeUrl", () => {
     // copy instead of crashing or serving a localhost fallback.
     vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
     vi.mocked(batchGetCloudSandboxes).mockResolvedValue([
-      makeSandbox({ status: "STARTING", exposed_urls: null }),
+      makeSandbox({
+        status: "STARTING",
+        exposed_urls: null,
+      }),
     ]);
 
     // Act
@@ -177,6 +204,25 @@ describe("useUnifiedVSCodeUrl", () => {
     expect(result.current.data?.error).toBe(
       i18n.t(I18nKey.VSCODE$URL_NOT_AVAILABLE),
     );
+  });
+
+  it("ignores unrelated cloud exposed URLs", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(cloudBackend);
+    vi.mocked(batchGetCloudSandboxes).mockResolvedValue([
+      makeSandbox({
+        exposed_urls: [{ name: "APP", url: "https://app.example.dev" }],
+      }),
+    ]);
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({
+      url: null,
+      error: i18n.t(I18nKey.VSCODE$URL_NOT_AVAILABLE),
+    });
   });
 
   it("falls through to AgentServerConversationService.getVSCodeUrl in local mode", async () => {
@@ -202,6 +248,76 @@ describe("useUnifiedVSCodeUrl", () => {
     );
     expect(batchGetCloudSandboxes).not.toHaveBeenCalled();
     expect(ConversationService.getVSCodeUrl).not.toHaveBeenCalled();
+  });
+
+  it("allows the VSCode query while the runtime reports an agent error", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(useRuntimeIsReady).mockImplementation(
+      (options) => options?.allowAgentError === true,
+    );
+    vi.mocked(AgentServerConversationService.getVSCodeUrl).mockResolvedValue({
+      vscode_url: "https://vscode.example.dev/?folder=workspace",
+    });
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(useRuntimeIsReady).toHaveBeenCalledWith({ allowAgentError: true });
+    expect(AgentServerConversationService.getVSCodeUrl).toHaveBeenCalledOnce();
+  });
+
+  it("stores local results under the conversation-specific cache key", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl).mockResolvedValue({
+      vscode_url: "https://vscode.example.dev/?folder=workspace",
+    });
+    const { queryClient, wrapper } = createQueryHarness();
+
+    const { result } = renderHook(() => useUnifiedVSCodeUrl(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const cachedQuery = queryClient.getQueryCache().find({
+      exact: true,
+      queryKey: [
+        "unified",
+        "vscode_url",
+        "local",
+        "conv-123",
+        "http://abc.staging-runtime.all-hands.dev/api/conv/1",
+        "sek",
+      ],
+    });
+    expect(cachedQuery?.state.data).toEqual({
+      url: "https://vscode.example.dev/?folder=workspace",
+    });
+  });
+
+  it("refreshes stale local URL data when the hook remounts", async () => {
+    vi.mocked(useActiveBackend).mockReturnValue(localBackend);
+    vi.mocked(AgentServerConversationService.getVSCodeUrl)
+      .mockResolvedValueOnce({
+        vscode_url: "https://initial.example.dev/?folder=workspace",
+      })
+      .mockResolvedValueOnce({
+        vscode_url: "https://remounted.example.dev/?folder=workspace",
+      });
+    const { wrapper } = createQueryHarness();
+
+    const initial = renderHook(() => useUnifiedVSCodeUrl(), { wrapper });
+    await waitFor(() => expect(initial.result.current.isSuccess).toBe(true));
+    initial.unmount();
+
+    const remounted = renderHook(() => useUnifiedVSCodeUrl(), { wrapper });
+    await waitFor(() =>
+      expect(remounted.result.current.data?.url).toBe(
+        "https://remounted.example.dev/?folder=workspace",
+      ),
+    );
+    expect(AgentServerConversationService.getVSCodeUrl).toHaveBeenCalledTimes(
+      2,
+    );
   });
 
   it("falls back to the legacy conversation service when the agent-server request fails", async () => {
@@ -310,7 +426,16 @@ describe("useUnifiedVSCodeUrl", () => {
           ],
         }),
       ])
-      .mockResolvedValueOnce([makeSandbox({ exposed_urls: null })])
+      .mockResolvedValueOnce([
+        makeSandbox({
+          exposed_urls: [{ name: "APP", url: "https://app.example.dev" }],
+        }),
+      ])
+      .mockResolvedValueOnce([
+        makeSandbox({
+          exposed_urls: null,
+        }),
+      ])
       .mockResolvedValueOnce([]);
 
     const { result } = renderHook(() => useUnifiedVSCodeUrl(), {
@@ -320,6 +445,9 @@ describe("useUnifiedVSCodeUrl", () => {
 
     const refreshed = await result.current.refetch();
     expect(refreshed.data).toEqual({ url: "https://refreshed.example.dev" });
+
+    const unrelated = await result.current.refetch();
+    expect(unrelated.data).toEqual({ url: null });
 
     const unavailable = await result.current.refetch();
     expect(unavailable.data).toEqual({ url: null });
