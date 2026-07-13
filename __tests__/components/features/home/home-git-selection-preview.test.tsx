@@ -133,7 +133,7 @@ describe("home git selection preview", () => {
     );
     expect(screen.getByTestId("repo-provider")).toHaveTextContent("github");
     expect(screen.getByTestId("workspace-name")).toHaveTextContent(
-      "review-target",
+      /^review-target$/,
     );
     expect(screen.getByTestId("workspace-mode-preview")).toHaveAttribute(
       "data-value",
