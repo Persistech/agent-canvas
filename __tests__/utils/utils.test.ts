@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getStatusText } from "#/utils/utils";
+import { getStatusColor, getStatusText } from "#/utils/utils";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
+import {
+  OH_STATUS_ERROR_COLOR,
+  OH_STATUS_SUCCESS_COLOR,
+} from "#/constants/status-colors";
 
 const t = (key: string) => {
   const translations: { [key: string]: string } = {
@@ -153,6 +157,51 @@ describe("getStatusText", () => {
     expect(result).toBe("Something broke");
   });
 
+  it("returns the translated error when the agent has no error message", () => {
+    const result = getStatusText({
+      isPausing: false,
+      isTask: false,
+      taskStatus: null,
+      taskDetail: null,
+      isStartingStatus: false,
+      isStopStatus: false,
+      curAgentState: AgentState.ERROR,
+      errorMessage: null,
+      t,
+    });
+
+    expect(result).toBe(t(I18nKey.COMMON$ERROR));
+  });
+
+  it("continues to agent status when task polling has no task status", () => {
+    const result = getStatusText({
+      isPausing: false,
+      isTask: true,
+      taskStatus: null,
+      taskDetail: "Not applicable without a task status",
+      isStartingStatus: false,
+      isStopStatus: false,
+      curAgentState: AgentState.RUNNING,
+      t,
+    });
+
+    expect(result).toBe(t(I18nKey.COMMON$RUNNING));
+  });
+
+  it("defaults an omitted pausing flag to false", () => {
+    const result = getStatusText({
+      isTask: false,
+      taskStatus: null,
+      taskDetail: null,
+      isStartingStatus: false,
+      isStopStatus: false,
+      curAgentState: AgentState.RUNNING,
+      t,
+    } as Parameters<typeof getStatusText>[0]);
+
+    expect(result).toBe(t(I18nKey.COMMON$RUNNING));
+  });
+
   it("returns default RUNNING status", () => {
     const result = getStatusText({
       isPausing: false,
@@ -166,5 +215,76 @@ describe("getStatusText", () => {
     });
 
     expect(result).toBe(t(I18nKey.COMMON$RUNNING));
+  });
+});
+
+describe("getStatusColor", () => {
+  const getOptions = (
+    overrides: Partial<Parameters<typeof getStatusColor>[0]> = {},
+  ): Parameters<typeof getStatusColor>[0] => ({
+    isPausing: false,
+    isTask: false,
+    taskStatus: null,
+    isStartingStatus: false,
+    isStopStatus: false,
+    curAgentState: AgentState.RUNNING,
+    ...overrides,
+  });
+
+  it("shows yellow while a pause is being requested", () => {
+    expect(getStatusColor(getOptions({ isPausing: true }))).toBe("#FFD600");
+  });
+
+  it("shows the error color for a failed polled task", () => {
+    expect(
+      getStatusColor(
+        getOptions({
+          isTask: true,
+          taskStatus: "ERROR",
+        }),
+      ),
+    ).toBe(OH_STATUS_ERROR_COLOR);
+  });
+
+  it("shows yellow for any non-error polled task", () => {
+    expect(
+      getStatusColor(
+        getOptions({
+          isTask: true,
+          taskStatus: "WORKING",
+        }),
+      ),
+    ).toBe("#FFD600");
+  });
+
+  it("ignores task coloring when no task status is present", () => {
+    expect(
+      getStatusColor(
+        getOptions({
+          isTask: true,
+          taskStatus: null,
+        }),
+      ),
+    ).toBe(OH_STATUS_SUCCESS_COLOR);
+  });
+
+  it("shows yellow while the conversation starts", () => {
+    expect(getStatusColor(getOptions({ isStartingStatus: true }))).toBe(
+      "#FFD600",
+    );
+  });
+
+  it("shows white for a stopped conversation", () => {
+    expect(getStatusColor(getOptions({ isStopStatus: true }))).toBe("#ffffff");
+  });
+
+  it("shows the error color for an agent error", () => {
+    expect(
+      getStatusColor(getOptions({ curAgentState: AgentState.ERROR })),
+    ).toBe(OH_STATUS_ERROR_COLOR);
+  });
+
+  it("shows the success color for a running agent", () => {
+    expect(getStatusColor(getOptions())).toBe(OH_STATUS_SUCCESS_COLOR);
   });
 });
