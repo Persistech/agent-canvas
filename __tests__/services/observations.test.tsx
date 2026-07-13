@@ -95,6 +95,28 @@ describe("observation state updates", () => {
   );
 
   it.each([ObservationType.BROWSE, ObservationType.BROWSE_INTERACTIVE])(
+    "updates browser state from a hidden %s observation",
+    (observation) => {
+      handleObservationMessage(
+        createObservationMessage(observation, {
+          extras: {
+            metadata: {},
+            error_id: "",
+            hidden: "true",
+            screenshot: "hidden-screenshot",
+            url: "https://hidden.example",
+          },
+        }),
+      );
+
+      expect(useBrowserStore.getState()).toMatchObject({
+        screenshotSrc: "hidden-screenshot",
+        url: "https://hidden.example",
+      });
+    },
+  );
+
+  it.each([ObservationType.BROWSE, ObservationType.BROWSE_INTERACTIVE])(
     "leaves browser state unchanged for empty, absent, or non-string fields in %s observations",
     (observation) => {
       useBrowserStore.getState().setScreenshotSrc("existing-screenshot");
