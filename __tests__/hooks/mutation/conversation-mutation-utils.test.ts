@@ -12,8 +12,6 @@ import {
   resumeGoal,
   startGoal,
   stopGoal,
-  updateConversationExecutionStatusInCache,
-  updateConversationLlmModelInCache,
 } from "#/hooks/mutation/conversation-mutation-utils";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
@@ -99,6 +97,11 @@ const makeQueryClient = () =>
   new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+
+const loadFreshConversationMutationUtils = async () => {
+  vi.resetModules();
+  return import("#/hooks/mutation/conversation-mutation-utils");
+};
 
 const prepareRuntimeConversation = (
   overrides: Partial<AppConversation> = {},
@@ -359,7 +362,9 @@ describe("conversation cache synchronization", () => {
     expect(queryClient.getQueryState(conversationsKey)?.data).toBeUndefined();
   });
 
-  it("updates execution status without disturbing other cached fields", () => {
+  it("updates execution status without disturbing other cached fields", async () => {
+    const { updateConversationExecutionStatusInCache: updateExecutionStatus } =
+      await loadFreshConversationMutationUtils();
     const queryClient = makeQueryClient();
     const queryKey = ["user", "conversation", CONV_ID];
     const conversation = makeConversation({
@@ -368,11 +373,7 @@ describe("conversation cache synchronization", () => {
     });
     queryClient.setQueryData(queryKey, conversation);
 
-    updateConversationExecutionStatusInCache(
-      queryClient,
-      CONV_ID,
-      ExecutionStatus.PAUSED,
-    );
+    updateExecutionStatus(queryClient, CONV_ID, ExecutionStatus.PAUSED);
 
     expect(queryClient.getQueryData(queryKey)).toEqual({
       ...conversation,
@@ -380,7 +381,9 @@ describe("conversation cache synchronization", () => {
     });
   });
 
-  it("updates the LLM model without disturbing other cached fields", () => {
+  it("updates the LLM model without disturbing other cached fields", async () => {
+    const { updateConversationLlmModelInCache: updateLlmModel } =
+      await loadFreshConversationMutationUtils();
     const queryClient = makeQueryClient();
     const queryKey = ["user", "conversation", CONV_ID];
     const conversation = makeConversation({
@@ -389,11 +392,7 @@ describe("conversation cache synchronization", () => {
     });
     queryClient.setQueryData(queryKey, conversation);
 
-    updateConversationLlmModelInCache(
-      queryClient,
-      CONV_ID,
-      "provider/new-model",
-    );
+    updateLlmModel(queryClient, CONV_ID, "provider/new-model");
 
     expect(queryClient.getQueryData(queryKey)).toEqual({
       ...conversation,
