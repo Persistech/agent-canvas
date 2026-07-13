@@ -422,7 +422,8 @@ describe("MCP config normalization", () => {
     expect(stringRecord({ valid: "yes", count: 1 })).toEqual({ valid: "yes" });
 
     expect(hasRedactedMcpSecretLeaf("plain")).toBe(false);
-    expect(hasRedactedMcpSecretLeaf(REDACTED_MCP_SECRET_VALUE)).toBe(true);
+    expect(REDACTED_MCP_SECRET_VALUE).toBe("**********");
+    expect(hasRedactedMcpSecretLeaf("**********")).toBe(true);
     expect(
       hasRedactedMcpSecretLeaf([
         "plain",
@@ -471,7 +472,7 @@ describe("MCP config normalization", () => {
         type: "shttp",
         url: "https://http.example",
       }),
-    ).toEqual({
+    ).toStrictEqual({
       url: "https://http.example",
     });
     expect(
@@ -497,6 +498,35 @@ describe("MCP config normalization", () => {
         command: "npx",
       }),
     ).toEqual({ name: "local", command: "npx" });
+  });
+
+  it("omits missing optional fields when parsing SDK servers", () => {
+    expect(
+      parseMcpConfig({
+        sse: { url: "https://events.example", transport: "sse" },
+        shttp: { url: "https://http.example" },
+      }),
+    ).toStrictEqual({
+      sse_servers: [{ url: "https://events.example" }],
+      shttp_servers: [{ url: "https://http.example" }],
+      stdio_servers: [],
+    });
+  });
+
+  it("omits missing optional fields when serializing frontend servers", () => {
+    expect(
+      toSdkMcpConfig({
+        sse_servers: [],
+        shttp_servers: [{ name: "minimal-http", url: "https://http.example" }],
+        stdio_servers: [{ name: "minimal-stdio", command: "uvx" }],
+      }),
+    ).toStrictEqual({
+      "minimal-http": {
+        transport: "http",
+        url: "https://http.example",
+      },
+      "minimal-stdio": { command: "uvx" },
+    });
   });
 
   it("parses all tagged authentication strategies and rejects malformed ones", () => {
