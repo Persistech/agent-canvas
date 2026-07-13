@@ -1,9 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { server } from "#/mocks/node";
 
 const SECRETS_URL = "http://localhost:3000/api/settings/secrets";
+const UNEXPECTED_REQUEST_HANDLER = http.all(
+  "*",
+  () => new HttpResponse(null, { status: 599 }),
+);
 
 const secretUrl = (name: string) =>
   `${SECRETS_URL}/${encodeURIComponent(name)}`;
+
+beforeEach(async () => {
+  vi.resetModules();
+  const { SECRETS_HANDLERS } = await import("#/mocks/secrets-handlers");
+  server.resetHandlers(...SECRETS_HANDLERS, UNEXPECTED_REQUEST_HANDLER);
+});
 
 describe("mock secrets API", () => {
   it("lists secret metadata without exposing stored values", async () => {
@@ -29,8 +41,13 @@ describe("mock secrets API", () => {
     const found = await fetch(secretUrl("OpenAI_API_Key"));
 
     expect(found.status).toBe(200);
-    expect(found.headers.get("content-type")).toContain("text/plain");
+    expect(found.headers.get("content-type")).toBe("text/plain");
     await expect(found.text()).resolves.toBe("test-123");
+
+    const secondSeed = await fetch(secretUrl("Google_Maps_API_Key"));
+
+    expect(secondSeed.status).toBe(200);
+    await expect(secondSeed.text()).resolves.toBe("test-123");
 
     const missing = await fetch(secretUrl("unknown-secret"));
 
