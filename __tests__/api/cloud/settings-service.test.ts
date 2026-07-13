@@ -7,7 +7,9 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import {
+  fetchCloudConversationSettingsSchema,
   fetchCloudSettings,
+  fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "#/api/cloud/settings-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
@@ -20,6 +22,14 @@ const cloudBackend: Backend = {
   host: "https://app.all-hands.dev",
   apiKey: "bearer-token",
   kind: "cloud",
+};
+
+const localBackend: Backend = {
+  id: "local",
+  name: "Local",
+  host: "http://localhost:3000",
+  apiKey: "local-key",
+  kind: "local",
 };
 
 beforeEach(() => {
@@ -53,10 +63,11 @@ describe("cloud settings", () => {
     const result = await fetchCloudSettings();
 
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
+    expect(config).toEqual({
       url: `${cloudBackend.host}/api/v1/settings`,
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
+      timeout: 30_000,
     });
 
     // provider_tokens_set must round-trip — it's what drives
@@ -79,6 +90,109 @@ describe("cloud settings", () => {
     expect(result.conversation_settings?.max_iterations).toBe(30);
   });
 
+  it("derives every supported nested field while preserving cloud defaults", async () => {
+    const flat = {
+      llm_model: "openai/gpt-4o",
+      llm_base_url: "https://api.openai.com",
+      llm_api_key: "encrypted-api-key",
+      llm_api_key_set: false,
+      search_api_key_set: true,
+      enable_default_condenser: false,
+      condenser_max_size: 0,
+      agent: "CodeActAgent",
+      mcp_config: {
+        calendar: { url: "https://calendar.example.com/mcp" },
+      },
+      confirmation_mode: false,
+      security_analyzer: null,
+      max_iterations: 0,
+      extra_cloud_field: "preserved",
+    };
+    vi.mocked(axios.request).mockResolvedValue({ data: flat });
+
+    const result = await fetchCloudSettings();
+
+    expect(result).toStrictEqual({
+      ...flat,
+      agent_settings: {
+        llm: {
+          model: "openai/gpt-4o",
+          base_url: "https://api.openai.com",
+          api_key: "encrypted-api-key",
+        },
+        condenser: { enabled: false, max_size: 0 },
+        agent: "CodeActAgent",
+        mcp_config: flat.mcp_config,
+      },
+      conversation_settings: {
+        confirmation_mode: false,
+        security_analyzer: null,
+        max_iterations: 0,
+      },
+      llm_api_key_set: false,
+      search_api_key_set: true,
+      provider_tokens_set: undefined,
+    });
+  });
+
+  it("preserves non-empty nested settings instead of replacing them from flat fields", async () => {
+    const flat = {
+      llm_model: "flat-model",
+      confirmation_mode: false,
+      agent_settings: {
+        llm: { model: "nested-model" },
+        custom_agent_value: "kept",
+      },
+      conversation_settings: {
+        confirmation_mode: true,
+        custom_conversation_value: "kept",
+      },
+    };
+    vi.mocked(axios.request).mockResolvedValue({ data: flat });
+
+    const result = await fetchCloudSettings();
+
+    expect(result.agent_settings).toBe(flat.agent_settings);
+    expect(result.conversation_settings).toBe(flat.conversation_settings);
+  });
+
+  it("derives empty nested settings and false key flags from a sparse response", async () => {
+    const flat = {
+      agent_settings: {},
+      conversation_settings: {},
+      mcp_config: {},
+    };
+    vi.mocked(axios.request).mockResolvedValue({ data: flat });
+
+    const result = await fetchCloudSettings();
+
+    expect(result).toStrictEqual({
+      ...flat,
+      agent_settings: {},
+      conversation_settings: {},
+      llm_api_key_set: false,
+      search_api_key_set: false,
+      provider_tokens_set: undefined,
+    });
+  });
+
+  it("rejects before proxying when the active backend is local", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    await expect(fetchCloudSettings()).rejects.toThrow(
+      "Cloud settings call requires a cloud backend.",
+    );
+    expect(axios.request).not.toHaveBeenCalled();
+  });
+
+  it("propagates cloud proxy failures unchanged", async () => {
+    const error = new Error("cloud unavailable");
+    vi.mocked(axios.request).mockRejectedValue(error);
+
+    await expect(fetchCloudSettings()).rejects.toBe(error);
+  });
+
   it("saveCloudSettings forwards diffs verbatim and omits the legacy keys the cloud rejects", async () => {
     vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
@@ -94,10 +208,15 @@ describe("cloud settings", () => {
     });
 
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
+    expect(config).toEqual({
       url: `${cloudBackend.host}/api/v1/settings`,
       method: "POST",
       headers: { Authorization: "Bearer bearer-token" },
+      data: {
+        agent_settings_diff: agentDiff,
+        conversation_settings_diff: conversationDiff,
+      },
+      timeout: 30_000,
     });
     const requestBody = (config as { data: Record<string, unknown> }).data;
     expect(requestBody).toEqual({
@@ -150,6 +269,75 @@ describe("cloud settings", () => {
       },
     });
   });
+
+  it("sends explicit preference clears while omitting undefined preferences", async () => {
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
+
+    await saveCloudSettings({
+      app_preferences: {
+        language: undefined,
+        user_consents_to_analytics: null,
+        enable_sound_notifications: false,
+        git_user_name: "",
+        disabled_skills: [],
+      },
+    });
+
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toEqual({
+      url: `${cloudBackend.host}/api/v1/settings`,
+      method: "POST",
+      headers: { Authorization: "Bearer bearer-token" },
+      data: {
+        user_consents_to_analytics: null,
+        enable_sound_notifications: false,
+        git_user_name: "",
+        disabled_skills: [],
+      },
+      timeout: 30_000,
+    });
+  });
+
+  it("sends an empty payload when no settings changed", async () => {
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
+
+    await saveCloudSettings({});
+
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toEqual({
+      url: `${cloudBackend.host}/api/v1/settings`,
+      method: "POST",
+      headers: { Authorization: "Bearer bearer-token" },
+      data: {},
+      timeout: 30_000,
+    });
+  });
+
+  it.each([
+    ["agent", fetchCloudSettingsSchema, "/api/v1/settings/agent-schema"],
+    [
+      "conversation",
+      fetchCloudConversationSettingsSchema,
+      "/api/v1/settings/conversation-schema",
+    ],
+  ] as const)(
+    "fetches the %s settings schema from the exact cloud route",
+    async (_label, fetchSchema, path) => {
+      const schema = { model_name: `${_label}-settings`, sections: [] };
+      vi.mocked(axios.request).mockResolvedValue({ data: schema });
+
+      const result = await fetchSchema();
+
+      expect(result).toBe(schema);
+      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(config).toEqual({
+        url: `${cloudBackend.host}${path}`,
+        method: "GET",
+        headers: { Authorization: "Bearer bearer-token" },
+        timeout: 30_000,
+      });
+    },
+  );
 });
 
 describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () => {
