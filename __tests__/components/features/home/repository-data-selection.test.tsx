@@ -226,6 +226,16 @@ describe("repository data selection", () => {
     expect(result.current.selectedRepository).toBeNull();
   });
 
+  it("treats an empty selected value as no repository", () => {
+    const repositoryWithEmptyId = createRepository("", "owner/empty-id");
+    const { result } = renderRepositoryData({
+      props: { value: "" },
+      git: { data: { pages: [{ items: [repositoryWithEmptyId] }] } },
+    });
+
+    expect(result.current.selectedRepository).toBeNull();
+  });
+
   it.each([
     {
       source: "paginated repositories",
