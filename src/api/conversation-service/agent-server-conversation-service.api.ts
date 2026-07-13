@@ -74,9 +74,8 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
-function invalidConversationResponse(): Error {
-  return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
-}
+const invalidConversationResponse = () =>
+  new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -284,9 +283,8 @@ const RUNTIME_STATUSES = new Set<string>([
 function toRuntimeStatus(
   status: DirectConversationInfo["execution_status"],
 ): RuntimeConversationInfo["status"] {
-  const nextStatus = status ?? "idle";
   return (
-    RUNTIME_STATUSES.has(nextStatus) ? nextStatus : "idle"
+    status && RUNTIME_STATUSES.has(status) ? status : "idle"
   ) as RuntimeConversationInfo["status"];
 }
 
@@ -315,7 +313,7 @@ class AgentServerConversationService {
         const [conversation] = await batchGetCloudConversations([
           conversationId,
         ]);
-        conversationUrl = conversation?.conversation_url?.trim() ?? null;
+        conversationUrl = conversation?.conversation_url ?? null;
         sessionApiKey = conversation?.session_api_key?.trim() ?? null;
       }
 
@@ -503,7 +501,7 @@ class AgentServerConversationService {
     const [conversation] = await this.batchGetAppConversations([
       conversationId,
     ]);
-    return conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
+    return conversation?.workspace!.working_dir ?? getAgentServerWorkingDir();
   }
 
   static async batchGetAppConversations(
@@ -590,10 +588,7 @@ class AgentServerConversationService {
     );
   }
 
-  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
-    if (!conversationId) {
-      return emptyHooksResponse();
-    }
+  static async getHooks(_conversationId: string): Promise<GetHooksResponse> {
     return emptyHooksResponse();
   }
 
@@ -629,7 +624,7 @@ class AgentServerConversationService {
             }),
           ).getConversation<RawRuntime>(conversationId);
     const data = requireDirectConversationInfo(response);
-    const stats = isRecord(response) ? response.stats : null;
+    const stats = response.stats;
 
     return {
       id: data.id,
