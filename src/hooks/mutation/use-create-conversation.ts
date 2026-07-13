@@ -142,7 +142,7 @@ export const useCreateConversation = () => {
           AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
         )
       ) {
-        // TODO: Remove when agent-server versions before 1.35.0 are unsupported.
+        // TODO: Remove when agent-server versions before 1.36.0 are unsupported.
         effectiveAgentProfileId = undefined;
       } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&

@@ -7,10 +7,12 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import {
+  AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
   AgentServerUnavailableError,
   AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
+  CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
   isCachedAgentServerVersionAtLeast,
   loadAgentServerInfo,
   MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
@@ -80,6 +82,34 @@ describe("loadAgentServerInfo", () => {
     await loadAgentServerInfo();
 
     expect(isCachedAgentServerVersionAtLeast("1.34.0")).toBe(true);
+  });
+
+  it("keeps unreleased profile launch features disabled on agent-server 1.35.0", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+    getServerInfoMock.mockResolvedValue({ version: "1.35.0" });
+    await loadAgentServerInfo();
+
+    expect(
+      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION),
+    ).toBe(false);
+    expect(
+      isCachedAgentServerVersionAtLeast(
+        CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
+      ),
+    ).toBe(false);
+
+    getServerInfoMock.mockResolvedValue({ version: "1.36.0" });
+    await loadAgentServerInfo();
+
+    expect(
+      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION),
+    ).toBe(true);
+    expect(
+      isCachedAgentServerVersionAtLeast(
+        CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
+      ),
+    ).toBe(true);
   });
 
   it("returns server info when the local backend reports the minimum compatible version", async () => {

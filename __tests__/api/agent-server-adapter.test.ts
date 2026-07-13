@@ -612,11 +612,16 @@ describe("buildStartConversationRequest", () => {
       });
 
       expect(payload.client_tools).toEqual([
-        expect.objectContaining({ name: "canvas_ui" }),
+        expect.objectContaining({
+          name: "canvas_ui",
+          description: expect.stringContaining(
+            "browser_get_state(include_screenshot=true)",
+          ),
+        }),
       ]);
     });
 
-    it("omits client tools from OpenHands profile launches on agent-server 1.34.0", () => {
+    it("omits client tools from OpenHands profile launches before agent-server 1.36.0", () => {
       mockIsCachedAgentServerVersionAtLeast.mockReturnValue(false);
 
       const payload = buildStartConversationRequest({
@@ -627,7 +632,7 @@ describe("buildStartConversationRequest", () => {
 
       expect(payload.client_tools).toBeUndefined();
       expect(mockIsCachedAgentServerVersionAtLeast).toHaveBeenCalledWith(
-        "1.35.0",
+        "1.36.0",
       );
     });
 

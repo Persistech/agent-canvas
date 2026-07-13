@@ -468,7 +468,7 @@ describe("useCreateConversation", () => {
     expect(call?.[9]).toBeUndefined();
     expect(call?.[10]).toBeUndefined();
     expect(isCachedAgentServerVersionAtLeastMock).toHaveBeenCalledWith(
-      "1.35.0",
+      "1.36.0",
     );
   });
 
