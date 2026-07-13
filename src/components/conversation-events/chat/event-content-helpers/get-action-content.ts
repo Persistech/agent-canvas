@@ -27,19 +27,12 @@ import {
   InvokeSkillAction,
 } from "#/types/agent-server/core/base/action";
 
-const getRiskText = (risk: SecurityRisk) => {
-  switch (risk) {
-    case SecurityRisk.LOW:
-      return i18n.t(I18nKey.SECURITY$LOW_RISK);
-    case SecurityRisk.MEDIUM:
-      return i18n.t(I18nKey.SECURITY$MEDIUM_RISK);
-    case SecurityRisk.HIGH:
-      return i18n.t(I18nKey.SECURITY$HIGH_RISK);
-    case SecurityRisk.UNKNOWN:
-    default:
-      return i18n.t(I18nKey.SECURITY$UNKNOWN_RISK);
-  }
-};
+const getRiskText = (risk: SecurityRisk.MEDIUM | SecurityRisk.HIGH) =>
+  i18n.t(
+    risk === SecurityRisk.HIGH
+      ? I18nKey.SECURITY$HIGH_RISK
+      : I18nKey.SECURITY$MEDIUM_RISK,
+  );
 
 const getNoContentActionContent = (): string => "";
 
@@ -62,7 +55,7 @@ const getSearchActionContent = (
   if ("include" in action && action.include) {
     parts.push(`**Include:** \`${action.include}\``);
   }
-  return parts.length > 0 ? parts.join("\n") : getNoContentActionContent();
+  return parts.join("\n");
 };
 
 // File Editor Actions
@@ -193,25 +186,19 @@ const getBrowserActionContent = (action: BrowserAction): string => {
       if (action.start_from_char > 0) {
         parts.push(`**Start From Character:** ${action.start_from_char}`);
       }
-      return parts.length > 0 ? parts.join("\n") : getNoContentActionContent();
+      return parts.join("\n");
     }
     case "BrowserScrollAction": {
       return `**Direction:** ${action.direction}`;
     }
-    case "BrowserGoBackAction": {
-      return getNoContentActionContent();
-    }
+    case "BrowserGoBackAction":
     case "BrowserListTabsAction": {
       return getNoContentActionContent();
     }
-    case "BrowserSwitchTabAction": {
-      return `**Tab ID:** ${action.tab_id}`;
-    }
+    case "BrowserSwitchTabAction":
     case "BrowserCloseTabAction": {
       return `**Tab ID:** ${action.tab_id}`;
     }
-    default:
-      return getNoContentActionContent();
   }
 };
 
