@@ -13,7 +13,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function getSafeUploadFileName(fileName: string): string {
-  const parts = fileName.split(/[\\/]+/).filter(Boolean);
+  const parts = fileName.split(/[\\/]/).filter(Boolean);
   const safeName = parts[parts.length - 1];
 
   if (!safeName || safeName === "." || safeName === "..") {
@@ -46,7 +46,7 @@ export async function buildWorkspaceUploadPath(
 ): Promise<string> {
   const safeName = getSafeUploadFileName(fileName);
   const absoluteDir = await resolveAbsoluteWorkspacePath(workingDir, overrides);
-  return `${absoluteDir.replace(/[/\\]+$/, "")}/${safeName}`;
+  return `${absoluteDir}/${safeName}`;
 }
 
 /**
