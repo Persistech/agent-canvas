@@ -30,16 +30,6 @@ function isAbsolutePath(path: string): boolean {
 }
 
 /**
- * Join a parent directory and a relative child segment with a forward slash,
- * collapsing any duplicate separators that result from the join.
- */
-function joinPath(parent: string, child: string): string {
-  const left = parent.replace(/[/\\]+$/, "");
-  const right = child.replace(/^[/\\]+/, "");
-  return `${left}/${right}`;
-}
-
-/**
  * Fetch and cache the agent-server's home directory via `GET /api/file/home`.
  *
  * The result is the absolute path returned by `Path.home()` on the
@@ -110,5 +100,5 @@ export async function resolveAbsoluteAgentServerPath(
   if (isAbsolutePath(trimmed)) return trimmed;
 
   const home = await getAgentServerHomeDir(overrides);
-  return joinPath(home, trimmed);
+  return `${home}/${trimmed}`;
 }
