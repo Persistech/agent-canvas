@@ -1,18 +1,24 @@
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GitProviderDropdown } from "#/components/features/home/git-provider-dropdown/git-provider-dropdown";
 import type { Provider } from "#/types/settings";
 
+const useTranslationMock = vi.hoisted(() => vi.fn());
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        COMMON$SELECT_PROVIDER_PLACEHOLDER: "Select provider",
-        COMMON$TOGGLE_MENU: "Toggle menu",
-      })[key] ?? key,
-  }),
+  useTranslation: (namespace?: unknown) => {
+    useTranslationMock(namespace);
+    return {
+      t: (key: string) =>
+        ({
+          COMMON$SELECT_PROVIDER_PLACEHOLDER: "Select provider",
+          COMMON$TOGGLE_MENU: "Toggle menu",
+        })[key] ?? key,
+    };
+  },
 }));
 
 const ALL_PROVIDERS: Provider[] = [
@@ -51,8 +57,22 @@ function ControlledDropdown({ onChange, value, ...props }: DropdownProps) {
 }
 
 describe("git provider selection", () => {
+  it("includes the controlled provider in the initial markup", () => {
+    const emptyMarkup = renderToStaticMarkup(
+      <GitProviderDropdown providers={ALL_PROVIDERS} />,
+    );
+    const selectedMarkup = renderToStaticMarkup(
+      <GitProviderDropdown providers={ALL_PROVIDERS} value="gitlab" />,
+    );
+
+    expect(emptyMarkup).toContain('value=""');
+    expect(selectedMarkup).toContain("pl-6");
+    expect(selectedMarkup).toContain("min-w-[14px]");
+  });
+
   it("lists every provider with its user-facing name and selects one", async () => {
     const user = userEvent.setup();
+    useTranslationMock.mockClear();
     const props = createProps({
       className: "provider-root",
       inputClassName: "provider-input",
@@ -63,10 +83,35 @@ describe("git provider selection", () => {
     render(<ControlledDropdown {...props} />);
 
     const input = screen.getByTestId("git-provider-dropdown");
+    expect(useTranslationMock).toHaveBeenNthCalledWith(1, "openhands");
     expect(input).toHaveAttribute("placeholder", "Select provider");
     expect(input).toHaveAttribute("readonly");
-    expect(input.parentElement?.parentElement).toHaveClass("provider-root");
-    expect(input).toHaveClass("provider-input");
+    expect(input.parentElement?.parentElement).toHaveClass(
+      "relative",
+      "provider-root",
+    );
+    expect(input).toHaveClass(
+      "provider-input",
+      "w-29.5",
+      "border",
+      "rounded",
+      "text-inherit",
+      "bg-tertiary",
+      "placeholder:text-[var(--oh-muted)]",
+      "focus:outline-none",
+      "focus:ring-0",
+      "focus:border-[var(--oh-border-input)]",
+      "disabled:bg-tertiary",
+      "disabled:cursor-not-allowed",
+      "disabled:opacity-60",
+      "pl-1.5",
+      "pr-[1px]",
+      "cursor-pointer",
+      "text-xs",
+      "font-normal",
+      "leading-5",
+    );
+    expect(screen.queryByTestId("dropdown-loading")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Toggle menu" }).querySelector("svg"),
     ).toHaveClass("provider-toggle-icon");
@@ -93,7 +138,63 @@ describe("git provider selection", () => {
     expect(props.onChange).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(input).toHaveValue("GitLab"));
     expect(input).toHaveClass("pl-6");
+    expect(input.previousElementSibling).toHaveClass(
+      "absolute",
+      "left-2",
+      "z-10",
+    );
+    expect(input.previousElementSibling?.querySelector("svg")).toHaveClass(
+      "min-w-[14px]",
+      "h-[14px]",
+    );
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
+  it("updates the available options when the providers prop changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <GitProviderDropdown {...createProps({ providers: ["github"] })} />,
+    );
+    const input = screen.getByTestId("git-provider-dropdown");
+
+    await user.click(input);
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "GitHub" })).toBeVisible();
+    await user.keyboard("{Escape}");
+
+    rerender(
+      <GitProviderDropdown
+        {...createProps({ providers: ["gitlab", "azure_devops"] })}
+      />,
+    );
+    await user.click(input);
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["GitLab", "Azure DevOps"]);
+  });
+
+  it("allows a different provider to be selected without a callback", async () => {
+    const user = userEvent.setup();
+    render(<GitProviderDropdown providers={["github", "gitlab"]} />);
+    const input = screen.getByTestId("git-provider-dropdown");
+
+    await user.click(input);
+    const runtimeErrors: unknown[] = [];
+    const preventRuntimeError = (event: ErrorEvent) => {
+      event.preventDefault();
+      runtimeErrors.push(event.error);
+    };
+    window.addEventListener("error", preventRuntimeError);
+    try {
+      await user.click(screen.getByRole("option", { name: "GitLab" }));
+    } finally {
+      window.removeEventListener("error", preventRuntimeError);
+    }
+
+    expect(runtimeErrors).toEqual([]);
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    await waitFor(() => expect(input).toHaveValue(""));
   });
 
   it("reopens a selected provider with the complete provider list", async () => {
@@ -251,11 +352,23 @@ describe("git provider selection", () => {
     await user.click(input);
 
     const listbox = screen.getByRole("listbox");
-    expect(
-      within(listbox).getByRole("option", { name: "Bitbucket" }),
-    ).toHaveAttribute("aria-selected", "true");
-    expect(
-      within(listbox).getByRole("option", { name: "GitHub" }),
-    ).toHaveAttribute("aria-selected", "false");
+    const selectedOption = within(listbox).getByRole("option", {
+      name: "Bitbucket",
+    });
+    const unselectedOption = within(listbox).getByRole("option", {
+      name: "GitHub",
+    });
+    expect(selectedOption).toHaveAttribute("aria-selected", "true");
+    expect(selectedOption).toHaveClass("bg-[var(--oh-interactive-selected)]");
+    expect(selectedOption).not.toHaveClass(
+      "hover:bg-[var(--oh-interactive-hover)]",
+    );
+    expect(unselectedOption).toHaveAttribute("aria-selected", "false");
+    expect(unselectedOption).toHaveClass(
+      "hover:bg-[var(--oh-interactive-hover)]",
+    );
+    expect(unselectedOption).not.toHaveClass(
+      "bg-[var(--oh-interactive-selected)]",
+    );
   });
 });
