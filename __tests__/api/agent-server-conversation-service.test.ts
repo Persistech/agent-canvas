@@ -12,8 +12,17 @@ import {
   setActiveSelection,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 import type { Backend } from "#/api/backend-registry/types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import LLMSubscriptionService from "#/api/llm-subscription-service";
+import {
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  OPENAI_SUBSCRIPTION_VENDOR,
+} from "#/constants/llm-subscription";
 
 vi.mock("axios");
 
@@ -2038,6 +2047,490 @@ describe("AgentServerConversationService", () => {
           data: { model: "claude-opus-4-7" },
         }),
       );
+    });
+  });
+
+  describe("mutation-strengthened conversation contracts", () => {
+    const metadataStorageKey = "openhands-agent-server-conversation-metadata";
+    const invalidResponseMessage =
+      "Unable to load conversations because the selected agent server returned " +
+      "data this UI does not understand. Check the backend URL/session key and " +
+      "update the agent server if needed.";
+
+    const arrangeLocalCreate = (conversationId: string) => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: makeDirectConversation({
+          id: conversationId,
+          created_at: "2026-07-02T10:00:00.000Z",
+          updated_at: "2026-07-02T10:01:00.000Z",
+        }),
+      });
+    };
+
+    beforeEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+      setRegisteredBackends([localBackend]);
+      setActiveSelection({ backendId: localBackend.id });
+      vi.mocked(axios.request).mockReset();
+      vi.mocked(axios.post).mockReset();
+    });
+
+    afterEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    it("preserves snake-case timestamps and the OpenHands model from the wire response", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          makeDirectConversation({
+            created_at: "2026-06-01T09:00:00.000Z",
+            updated_at: "2026-06-01T09:15:00.000Z",
+            agent: {
+              kind: "Agent",
+              llm: { model: "openhands/custom-model" },
+            },
+          }),
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-1",
+        ]);
+
+      expect(conversation).toMatchObject({
+        created_at: "2026-06-01T09:00:00.000Z",
+        updated_at: "2026-06-01T09:15:00.000Z",
+        llm_model: "openhands/custom-model",
+      });
+    });
+
+    it("uses the camel-case updated timestamp when the snake-case field is absent", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          makeDirectConversation({
+            updated_at: undefined,
+            updatedAt: "2026-06-01T09:30:00.000Z",
+          }),
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-1",
+        ]);
+
+      expect(conversation?.updated_at).toBe("2026-06-01T09:30:00.000Z");
+    });
+
+    it("does not surface a malformed non-string ACP server tag", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          makeDirectConversation({
+            agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+            tags: { acpserver: 42 },
+          }),
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-1",
+        ]);
+
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.acp_server).toBeNull();
+    });
+
+    it("returns the complete validation error for a null search response", async () => {
+      mockSearchConversations.mockResolvedValue(null);
+
+      await expect(
+        AgentServerConversationService.searchConversations(),
+      ).rejects.toThrow(invalidResponseMessage);
+    });
+
+    it("drops a non-string pagination cursor", async () => {
+      mockSearchConversations.mockResolvedValue({
+        items: [],
+        next_page_id: 17,
+      });
+
+      await expect(
+        AgentServerConversationService.searchConversations(),
+      ).resolves.toEqual({ items: [], next_page_id: null });
+    });
+
+    it.each([
+      "idle",
+      "running",
+      "paused",
+      "waiting_for_confirmation",
+      "finished",
+      "error",
+      "stuck",
+    ] as const)("preserves the supported runtime status %s", async (status) => {
+      mockGetConversation.mockResolvedValue(
+        makeDirectConversation({ execution_status: status }),
+      );
+
+      const result =
+        await AgentServerConversationService.getRuntimeConversation(
+          "conv-1",
+          undefined,
+        );
+
+      expect(result.status).toBe(status);
+    });
+
+    it("uses a fallback title and the supplied runtime coordinates for a local runtime read", async () => {
+      mockGetConversation.mockResolvedValue(
+        makeDirectConversation({ title: null }),
+      );
+
+      const result =
+        await AgentServerConversationService.getRuntimeConversation(
+          "conv-1",
+          "http://runtime.internal:9000/api/conversations/conv-1",
+          "runtime-key",
+        );
+
+      expect(result.title).toBe("Conversation conv-");
+      expect(ConversationClient).toHaveBeenLastCalledWith({
+        host: "http://runtime.internal:9000",
+        apiKey: "runtime-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
+    });
+
+    it("constructs the VS Code client with the supplied runtime coordinates", async () => {
+      mockHttpGet.mockResolvedValue({ data: [makeDirectConversation()] });
+      mockVSCodeGetUrl.mockResolvedValue("http://localhost:3000/vscode");
+
+      await AgentServerConversationService.getVSCodeUrl(
+        "conv-1",
+        "http://runtime.internal:9000/api/conversations/conv-1",
+        "runtime-key",
+      );
+
+      expect(VSCodeClient).toHaveBeenCalledWith({
+        host: "http://runtime.internal:9000",
+        apiKey: "runtime-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
+    });
+
+    it.each([
+      [
+        "session key",
+        {
+          conversationUrl:
+            "http://caller-runtime.example/api/conversations/conv-cloud",
+          sessionApiKey: null,
+        },
+      ],
+      [
+        "conversation URL",
+        { conversationUrl: null, sessionApiKey: "caller-key" },
+      ],
+    ] as const)(
+      "refreshes cloud runtime credentials when only the %s is missing",
+      async (_missingField, runtime) => {
+        setRegisteredBackends([cloudBackend]);
+        setActiveSelection({ backendId: cloudBackend.id });
+        vi.mocked(axios.request).mockResolvedValue({
+          data: [
+            {
+              id: "conv-cloud",
+              conversation_url:
+                "http://fetched-runtime.example/api/conversations/conv-cloud",
+              session_api_key: "fetched-key",
+            },
+          ],
+        });
+        vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+        await AgentServerConversationService.sendMessage(
+          "conv-cloud",
+          message,
+          runtime,
+        );
+
+        expect(axios.request).toHaveBeenCalledOnce();
+        expect(axios.post).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            host: "http://fetched-runtime.example",
+            headers: { "X-Session-API-Key": "fetched-key" },
+          }),
+          expect.any(Object),
+        );
+      },
+    );
+
+    it.each([
+      ["conversation URL", { session_api_key: "fetched-key" }],
+      [
+        "session key",
+        {
+          conversation_url:
+            "http://runtime.example/api/conversations/conv-cloud",
+        },
+      ],
+    ])(
+      "returns the startup error when the fetched cloud conversation lacks its %s",
+      async (_missingField, cloudConversation) => {
+        setRegisteredBackends([cloudBackend]);
+        setActiveSelection({ backendId: cloudBackend.id });
+        vi.mocked(axios.request).mockResolvedValue({
+          data: [{ id: "conv-cloud", ...cloudConversation }],
+        });
+
+        await expect(
+          AgentServerConversationService.sendMessage("conv-cloud", message),
+        ).rejects.toThrow(
+          "Conversation sandbox is still starting. Wait for it to finish, then try again.",
+        );
+        expect(axios.post).not.toHaveBeenCalled();
+      },
+    );
+
+    it("authenticates a cloud runtime state read with its session key", async () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+      vi.mocked(axios.post).mockResolvedValue({
+        data: makeDirectConversation({ execution_status: "running" }),
+      });
+
+      await AgentServerConversationService.getRuntimeConversation(
+        "conv-cloud",
+        "http://runtime.example/api/conversations/conv-cloud",
+        "runtime-key",
+      );
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          host: "http://runtime.example",
+          method: "GET",
+          headers: { "X-Session-API-Key": "runtime-key" },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it("rejects traversal above root even when the remaining cloud path points into the workspace", async () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      await expect(
+        AgentServerConversationService.readConversationFile(
+          "conv-cloud",
+          "/../workspace/project/PLAN.md",
+        ),
+      ).rejects.toThrow(
+        "Conversation file path must stay inside the workspace",
+      );
+      expect(axios.request).not.toHaveBeenCalled();
+    });
+
+    it("allows an explicit path equal to the local workspace root", async () => {
+      const encoded = new TextEncoder().encode("workspace root").buffer;
+      mockHttpGet.mockImplementation((url: string) =>
+        Promise.resolve({
+          data:
+            url === "/api/conversations" ? [makeDirectConversation()] : encoded,
+        }),
+      );
+
+      await expect(
+        AgentServerConversationService.readConversationFile(
+          "conv-1",
+          "/workspace/project/agent-canvas",
+        ),
+      ).resolves.toBe("workspace root");
+      expect(mockHttpGet).toHaveBeenLastCalledWith(
+        "/api/file/download",
+        expect.objectContaining({
+          params: { path: "/workspace/project/agent-canvas" },
+        }),
+      );
+    });
+
+    it("returns the complete local start task and persists an attached workspace", async () => {
+      arrangeLocalCreate("conv-created");
+      const plugins = [
+        { source: "github:OpenHands/example-plugin", ref: "v1" },
+      ];
+
+      const result = await AgentServerConversationService.createConversation(
+        "Inspect the repository",
+        undefined,
+        plugins,
+        undefined,
+        "/Users/jane/projects/canvas",
+      );
+
+      expect(result).toEqual({
+        id: "conv-created",
+        created_by_user_id: null,
+        status: "READY",
+        detail: null,
+        app_conversation_id: "conv-created",
+        agent_server_url: "http://localhost:54928",
+        request: {
+          initial_message: {
+            role: "user",
+            content: [{ type: "text", text: "Inspect the repository" }],
+            run: true,
+          },
+          plugins,
+        },
+        created_at: "2026-07-02T10:00:00.000Z",
+        updated_at: "2026-07-02T10:01:00.000Z",
+      });
+      expect(getStoredConversationMetadata("conv-created")).toEqual({
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+        selected_workspace: "/Users/jane/projects/canvas",
+        workspace_mode: "local_repo",
+      });
+    });
+
+    it("does not persist empty metadata for a conversation without a selected source", async () => {
+      arrangeLocalCreate("conv-unselected");
+
+      await AgentServerConversationService.createConversation();
+
+      expect(getStoredConversationMetadata("conv-unselected")).toBeNull();
+      expect(window.localStorage.getItem(metadataStorageKey)).toBeNull();
+    });
+
+    it("preserves attached-workspace metadata while selecting a repository", async () => {
+      setStoredConversationMetadata("conv-repo", {
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+        selected_workspace: "/Users/jane/projects/canvas",
+        workspace_mode: "local_repo",
+      });
+      mockHttpGet.mockResolvedValue({
+        data: [makeDirectConversation({ id: "conv-repo" })],
+      });
+
+      const result =
+        await AgentServerConversationService.updateConversationRepository(
+          "conv-repo",
+          "OpenHands/agent-canvas",
+          "main",
+          "github",
+        );
+
+      expect(result.selected_workspace).toBe("/Users/jane/projects/canvas");
+      expect(getStoredConversationMetadata("conv-repo")).toEqual({
+        selected_repository: "OpenHands/agent-canvas",
+        selected_branch: "main",
+        git_provider: "github",
+        selected_workspace: "/Users/jane/projects/canvas",
+        workspace_mode: "local_repo",
+      });
+    });
+
+    it("removes all source metadata when the selected repository is cleared", async () => {
+      setStoredConversationMetadata("conv-repo", {
+        selected_repository: "OpenHands/agent-canvas",
+        selected_branch: "main",
+        git_provider: "github",
+        selected_workspace: "/Users/jane/projects/canvas",
+        workspace_mode: "local_repo",
+      });
+      mockHttpGet.mockResolvedValue({
+        data: [makeDirectConversation({ id: "conv-repo" })],
+      });
+
+      const result =
+        await AgentServerConversationService.updateConversationRepository(
+          "conv-repo",
+          null,
+        );
+
+      expect(result.selected_repository).toBeNull();
+      expect(result.selected_workspace).toBeNull();
+      expect(getStoredConversationMetadata("conv-repo")).toBeNull();
+    });
+
+    it("does not persist an empty metadata record when forking a conversation without source metadata", async () => {
+      mockForkConversation.mockResolvedValue(
+        makeDirectConversation({ id: "fork-without-metadata" }),
+      );
+
+      await AgentServerConversationService.forkConversation(
+        "source-without-metadata",
+        "event-root",
+      );
+
+      expect(getStoredConversationMetadata("fork-without-metadata")).toBeNull();
+      expect(window.localStorage.getItem(metadataStorageKey)).toBeNull();
+    });
+
+    it("rejects a profile whose model is a non-string value", async () => {
+      mockGetProfile.mockResolvedValue({
+        name: "numeric-model",
+        config: { model: 7 },
+        api_key_set: false,
+      });
+
+      await expect(
+        AgentServerConversationService.switchProfile("conv-1", "numeric-model"),
+      ).rejects.toThrow("Profile 'numeric-model' has no model");
+      expect(mockSwitchLLM).not.toHaveBeenCalled();
+    });
+
+    it("checks subscription authentication against the selected profile config", async () => {
+      const status = vi
+        .spyOn(LLMSubscriptionService, "getOpenAIStatus")
+        .mockResolvedValue({
+          vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          connected: false,
+          accountEmail: null,
+          expiresAt: null,
+        });
+      mockGetProfile.mockResolvedValue({
+        name: "subscription-profile",
+        config: {
+          model: "openai/gpt-5.1-codex",
+          auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+          subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+        },
+        api_key_set: false,
+      });
+
+      try {
+        await expect(
+          AgentServerConversationService.switchProfile(
+            "conv-1",
+            "subscription-profile",
+          ),
+        ).rejects.toThrow(
+          "Connect your ChatGPT subscription before starting a conversation with this LLM profile.",
+        );
+        expect(status).toHaveBeenCalledOnce();
+        expect(mockSwitchLLM).not.toHaveBeenCalled();
+      } finally {
+        status.mockRestore();
+      }
     });
   });
 });
