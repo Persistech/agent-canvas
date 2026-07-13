@@ -242,6 +242,9 @@ describe("installedServerMatchesQuery", () => {
     expect(
       installedServerMatchesQuery(slackServer, undefined, "zzzz-no-match"),
     ).toBe(false);
+    expect(
+      installedServerMatchesQuery(slackServer, undefined, "Stryker was here"),
+    ).toBe(false);
   });
 
   it("searches HTTP server fields without gaps from missing fields", () => {
@@ -536,6 +539,8 @@ describe("URL and entry matching", () => {
   it.each([
     [1, "not-a-url"],
     ["not-a-url", 1],
+    [null, "Stryker was here!"],
+    ["Stryker was here!", null],
     [undefined, undefined],
     [undefined, "/"],
     ["/", undefined],
@@ -659,5 +664,6 @@ describe("marketplace catalog ordering and lookup", () => {
   it("matches queries when keywords are absent", () => {
     const entry = { ...slackEntry, keywords: undefined };
     expect(marketplaceEntryMatchesQuery(entry, entry.id)).toBe(true);
+    expect(marketplaceEntryMatchesQuery(entry, "Stryker was here")).toBe(false);
   });
 });
