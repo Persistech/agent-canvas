@@ -241,8 +241,14 @@ describe("substituteRedactedMcpCredentials", () => {
   it.each([
     { label: "an empty id", id: "" },
     { label: "a non-positional id", id: "custom-id" },
+    { label: "an id with a leading prefix", id: "prefix-stdio-0" },
+    { label: "an id with a trailing suffix", id: "stdio-0-suffix" },
   ])("falls back to the stored stdio name for $label", async ({ id }) => {
     const fetchSpy = mockEncryptedMcpConfig({
+      positional: {
+        command: "npx",
+        env: { API_KEY: "gAAAAA-wrong-position" },
+      },
       "my-server": {
         command: "npx",
         env: { API_KEY: "gAAAAA-name-match" },
@@ -258,6 +264,48 @@ describe("substituteRedactedMcpCredentials", () => {
     });
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledWith("encrypted");
+  });
+
+  it("resolves a multi-digit stdio position exactly", async () => {
+    mockEncryptedMcpConfig(
+      Object.fromEntries(
+        Array.from({ length: 11 }, (_, index) => [
+          `server-${index}`,
+          {
+            command: "npx",
+            env: { API_KEY: `gAAAAA-position-${index}` },
+          },
+        ]),
+      ),
+    );
+    const server = getStdioServer({
+      id: "stdio-10",
+      name: undefined,
+    });
+
+    const result = await substituteRedactedMcpCredentials(server);
+
+    expect(result).toEqual({
+      ...server,
+      env: { API_KEY: "gAAAAA-position-10" },
+    });
+  });
+
+  it("falls back to the stored name when a stdio position is out of range", async () => {
+    mockEncryptedMcpConfig({
+      "my-server": {
+        command: "npx",
+        env: { API_KEY: "gAAAAA-name-fallback" },
+      },
+    });
+    const server = getStdioServer({ id: "stdio-9" });
+
+    const result = await substituteRedactedMcpCredentials(server);
+
+    expect(result).toEqual({
+      ...server,
+      env: { API_KEY: "gAAAAA-name-fallback" },
+    });
   });
 
   it("keeps an exact stdio round trip when neither position nor name matches", async () => {
@@ -474,6 +522,14 @@ describe("substituteRedactedMcpCredentials", () => {
         id: "sse-0",
         type: "sse",
         auth: { strategy: "bearer", value: "user-entered-token" },
+      }),
+      getRemoteServer({
+        auth: { strategy: "bearer", value: "user-entered-token" },
+        env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
+      }),
+      getStdioServer({
+        env: undefined,
+        auth: { strategy: "bearer", value: REDACTED_MCP_SECRET_VALUE },
       }),
     ];
 
