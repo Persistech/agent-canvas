@@ -167,6 +167,28 @@ describe("Secret form behavior", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does nothing when the secret name control is absent", () => {
+    renderForm();
+    screen.getByTestId("name-input").remove();
+
+    const errors: unknown[] = [];
+    const captureError = (event: ErrorEvent) => {
+      event.preventDefault();
+      errors.push(event.error);
+    };
+    window.addEventListener("error", captureError);
+
+    try {
+      fireEvent.submit(screen.getByTestId("add-secret-form"));
+    } finally {
+      window.removeEventListener("error", captureError);
+    }
+
+    expect(errors).toHaveLength(0);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it("creates safely when its optional description control is missing", () => {
     renderForm();
     fireEvent.change(screen.getByTestId("name-input"), {
