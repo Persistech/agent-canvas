@@ -4,12 +4,19 @@ import { SectionCard } from "#/components/features/automations/detail/section-ca
 import { ActivitySection } from "#/components/features/automations/detail/activity-section";
 import { I18nKey } from "#/i18n/declaration";
 
+const mocks = vi.hoisted(() => ({
+  useTranslation: vi.fn(),
+}));
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      options?.count === undefined ? key : `${key}:${options.count}`,
-    i18n: { language: "en-US" },
-  }),
+  useTranslation: (namespace?: unknown) => {
+    mocks.useTranslation(namespace);
+    return {
+      t: (key: string, options?: { count?: number }) =>
+        options?.count === undefined ? key : `${key}:${options.count}`,
+      i18n: { language: "en-US" },
+    };
+  },
 }));
 
 describe("SectionCard", () => {
@@ -36,6 +43,7 @@ describe("Automation activity summary", () => {
       <ActivitySection createdAt="2024-04-10T12:00:00Z" lastRunAt={null} />,
     );
 
+    expect(mocks.useTranslation).toHaveBeenCalledWith("openhands");
     expect(
       screen.getByText(I18nKey.AUTOMATIONS$DETAIL$ACTIVITY),
     ).toBeInTheDocument();
