@@ -293,6 +293,15 @@ describe("root layout", () => {
     expect(migrateUserConsentMock).toHaveBeenCalledOnce();
   });
 
+  it("renders while settings are loading without changing the language", () => {
+    useSettingsMock.mockReturnValue({ data: undefined });
+
+    renderMainApp();
+
+    expect(screen.getByTestId("root-layout")).toBeInTheDocument();
+    expect(changeLanguageMock).not.toHaveBeenCalled();
+  });
+
   it("shows the mobile menu outside a conversation and hides it inside one", () => {
     const { unmount } = renderMainApp("/settings");
 
