@@ -430,25 +430,36 @@ describe("CommandMenu", () => {
     expect(screen.getByTestId("command-menu")).toBeInTheDocument();
   });
 
-  it("does not render the browser portal during server rendering", () => {
+  it("does not render the browser portal when open during server rendering", async () => {
+    const serverStoreState = {
+      isOpen: true,
+      open: () => undefined,
+      close: () => undefined,
+      toggle: () => undefined,
+    };
+    vi.resetModules();
+    vi.doMock("#/stores/command-menu-store", () => ({
+      useCommandMenuStore: (
+        selector: (state: typeof serverStoreState) => unknown,
+      ) => selector(serverStoreState),
+    }));
+    const { CommandMenu: ServerCommandMenu } =
+      await import("#/components/features/command-menu/command-menu");
     const originalDocument = globalThis.document;
-    useCommandMenuStore.getState().open();
-    const initialState = vi
-      .spyOn(useCommandMenuStore, "getInitialState")
-      .mockReturnValue(useCommandMenuStore.getState());
     Object.defineProperty(globalThis, "document", {
       configurable: true,
       value: undefined,
     });
 
     try {
-      expect(renderToStaticMarkup(<CommandMenu />)).toBe("");
+      expect(renderToStaticMarkup(<ServerCommandMenu />)).toBe("");
     } finally {
       Object.defineProperty(globalThis, "document", {
         configurable: true,
         value: originalDocument,
       });
-      initialState.mockRestore();
+      vi.doUnmock("#/stores/command-menu-store");
+      vi.resetModules();
     }
   });
 });
