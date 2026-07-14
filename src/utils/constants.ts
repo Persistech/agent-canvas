@@ -23,6 +23,13 @@ export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
 };
 
+/**
+ * Fallback concurrent-conversation limit used when a cloud limit error omits
+ * the actual limit (matches the Personal Workspace cap). The backend normally
+ * sends the real limit in the error detail, so this is only a safety net.
+ */
+export const DEFAULT_CONCURRENT_SANDBOX_LIMIT = 3;
+
 export const SETTINGS_FORM = {
   LABEL_CLASSNAME: "text-[11px] font-medium leading-4 tracking-[0.11px]",
 };

@@ -24,6 +24,7 @@ import {
   displayErrorToast,
   TOAST_OPTIONS,
 } from "#/utils/custom-toast-handlers";
+import { isConcurrencyLimitError } from "#/utils/concurrency-limit-error";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import type { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { PluginPickerModal } from "#/components/features/plugins/plugin-picker-modal";
@@ -203,6 +204,8 @@ export function HomeChatLauncher() {
         navigate(`/conversations/${targetConversationId}`);
       } catch (error) {
         toast.dismiss(toastId);
+        // The conversation-limit modal already explains this failure.
+        if (isConcurrencyLimitError(error)) return;
         displayErrorToast(error instanceof Error ? error.message : null);
       }
     })();

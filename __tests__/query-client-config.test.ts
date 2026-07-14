@@ -1,8 +1,10 @@
 import { AxiosError } from "axios";
+import { MutationObserver } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAgentServerQueryClient } from "#/query-client-config";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import * as ToastHandlers from "#/utils/custom-toast-handlers";
+import { useConversationLimitStore } from "#/stores/conversation-limit-store";
 
 afterEach(() => {
   window.localStorage.clear();
@@ -87,6 +89,42 @@ describe("createAgentServerQueryClient", () => {
       }),
     ).rejects.toThrow("Request failed with status code 401");
 
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it("opens the conversation-limit modal instead of toasting on a cloud limit error", async () => {
+    const toastSpy = vi.spyOn(ToastHandlers, "displayErrorToast");
+    const client = createAgentServerQueryClient();
+    const limitError = new AxiosError(
+      "Request failed with status code 429",
+      "ERR_BAD_REQUEST",
+      undefined,
+      undefined,
+      {
+        status: 429,
+        data: {
+          detail: {
+            error: "CONCURRENCY_LIMIT_REACHED",
+            message:
+              "You have reached your limit of 3 concurrent conversations.",
+            limit: 3,
+            current: 3,
+          },
+        },
+      } as never,
+    );
+
+    const observer = new MutationObserver(client, {
+      mutationFn: async () => {
+        throw limitError;
+      },
+    });
+    await observer.mutate().catch(() => {});
+
+    expect(useConversationLimitStore.getState()).toMatchObject({
+      isOpen: true,
+      limit: 3,
+    });
     expect(toastSpy).not.toHaveBeenCalled();
   });
 });

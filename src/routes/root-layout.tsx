@@ -22,6 +22,7 @@ import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
+import { useConversationLimitStore } from "#/stores/conversation-limit-store";
 
 const EnvironmentSwitchOverlay = React.lazy(
   () => import("#/components/features/backends/environment-switch-overlay"),
@@ -35,6 +36,11 @@ const CommandMenu = React.lazy(() =>
   import("#/components/features/command-menu/command-menu").then((m) => ({
     default: m.CommandMenu,
   })),
+);
+const ConversationLimitModal = React.lazy(() =>
+  import("#/components/features/conversation/conversation-limit-modal").then(
+    (m) => ({ default: m.ConversationLimitModal }),
+  ),
 );
 
 export function ErrorBoundary() {
@@ -76,6 +82,11 @@ export default function MainApp() {
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
+  const {
+    isOpen: isConversationLimitModalOpen,
+    limit: conversationLimit,
+    closeLimitModal,
+  } = useConversationLimitStore();
 
   useSyncPostHogConsent();
   usePostHogIdentify();
@@ -140,6 +151,15 @@ export default function MainApp() {
               <Outlet />
             </div>
           </div>
+
+          {isConversationLimitModalOpen && (
+            <React.Suspense fallback={null}>
+              <ConversationLimitModal
+                limit={conversationLimit ?? undefined}
+                onClose={closeLimitModal}
+              />
+            </React.Suspense>
+          )}
         </div>
         <React.Suspense fallback={null}>
           <EnvironmentSwitchOverlay />

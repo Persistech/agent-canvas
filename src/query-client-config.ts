@@ -6,6 +6,11 @@ import { retrieveAxiosErrorMessage } from "./utils/retrieve-axios-error-message"
 import { displayErrorToast } from "./utils/custom-toast-handlers";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { recordBackendSuccess } from "#/api/backend-registry/health-store";
+import {
+  isConcurrencyLimitError,
+  getConcurrencyLimit,
+} from "#/utils/concurrency-limit-error";
+import { useConversationLimitStore } from "#/stores/conversation-limit-store";
 
 const handle401Error = (error: AxiosError, client: QueryClient) => {
   if (error?.response?.status === 401 || error?.status === 401) {
@@ -65,6 +70,15 @@ export const createAgentServerQueryClient = () => {
     mutationCache: new MutationCache({
       onError: (error, _, __, mutation) => {
         handle401Error(error, client);
+
+        // A cloud backend rejecting creation for too many concurrent
+        // conversations gets a dedicated modal instead of a generic toast.
+        if (isConcurrencyLimitError(error)) {
+          useConversationLimitStore
+            .getState()
+            .showLimitModal(getConcurrencyLimit(error));
+          return;
+        }
 
         const disableToast =
           mutation?.meta?.disableToast ?? mutation?.options.meta?.disableToast;

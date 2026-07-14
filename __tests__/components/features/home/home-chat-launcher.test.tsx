@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { AxiosError } from "axios";
 
 import { HomeChatLauncher } from "#/components/features/home/home-chat-launcher";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
@@ -255,6 +256,26 @@ function makeConversationResponse(
     updated_at: new Date().toISOString(),
     ...overrides,
   } as never;
+}
+
+function makeLimitError(limit = 3): AxiosError {
+  return new AxiosError(
+    "Request failed with status code 429",
+    "ERR_BAD_REQUEST",
+    undefined,
+    undefined,
+    {
+      status: 429,
+      data: {
+        detail: {
+          error: "CONCURRENCY_LIMIT_REACHED",
+          message: `You have reached your limit of ${limit} concurrent conversations.`,
+          limit,
+          current: limit,
+        },
+      },
+    } as never,
+  );
 }
 
 const localBackend = {
@@ -619,5 +640,23 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
     );
+  });
+
+  it("suppresses the generic error toast when creation hits the cloud conversation limit", async () => {
+    mockUseActiveBackend.mockReturnValue(cloudBackend);
+    const dismissSpy = vi.spyOn(toast, "dismiss");
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(makeLimitError());
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    // onError dismisses the loading toast first; once that has run, the
+    // suppression branch (skip displayErrorToast) has executed too.
+    await waitFor(() => expect(dismissSpy).toHaveBeenCalled());
+    expect(mockDisplayErrorToast).not.toHaveBeenCalled();
   });
 });

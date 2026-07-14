@@ -1,4 +1,38 @@
 {
+  "CONVERSATION_LIMIT$TITLE": {
+    "en": "Conversation limit reached",
+    "ja": "会話数の上限に達しました",
+    "zh-CN": "已达到对话数量上限",
+    "zh-TW": "已達到對話數量上限",
+    "ko-KR": "대화 한도에 도달했습니다",
+    "no": "Samtalegrense nådd",
+    "it": "Limite di conversazioni raggiunto",
+    "pt": "Limite de conversas atingido",
+    "es": "Límite de conversaciones alcanzado",
+    "ar": "تم الوصول إلى حد المحادثات",
+    "fr": "Limite de conversations atteinte",
+    "tr": "Konuşma sınırına ulaşıldı",
+    "de": "Konversationslimit erreicht",
+    "uk": "Досягнуто ліміту розмов",
+    "ca": "S'ha assolit el límit de converses"
+  },
+  "CONVERSATION_LIMIT$DESCRIPTION": {
+    "en": "You've reached the maximum number of concurrent conversations ({{limit}}) for your OpenHands Cloud plan. To start a new one, stop the runtime of an existing conversation.",
+    "ja": "OpenHands Cloud プランで同時に実行できる会話の上限（{{limit}}）に達しました。新しい会話を開始するには、既存の会話のランタイムを停止してください。",
+    "zh-CN": "您已达到 OpenHands Cloud 套餐允许的并发对话数量上限（{{limit}}）。若要开始新的对话，请先停止某个现有对话的运行时。",
+    "zh-TW": "您已達到 OpenHands Cloud 方案允許的並行對話數量上限（{{limit}}）。若要開始新的對話，請先停止某個現有對話的執行階段。",
+    "ko-KR": "OpenHands Cloud 플랜에서 동시에 실행할 수 있는 대화 수({{limit}})의 한도에 도달했습니다. 새 대화를 시작하려면 기존 대화의 런타임을 중지하세요.",
+    "no": "Du har nådd det maksimale antallet samtidige samtaler ({{limit}}) for OpenHands Cloud-abonnementet ditt. For å starte en ny, stopp kjøretiden til en eksisterende samtale.",
+    "it": "Hai raggiunto il numero massimo di conversazioni simultanee ({{limit}}) consentito dal tuo piano OpenHands Cloud. Per avviarne una nuova, arresta il runtime di una conversazione esistente.",
+    "pt": "Você atingiu o número máximo de conversas simultâneas ({{limit}}) do seu plano OpenHands Cloud. Para iniciar uma nova, pare o runtime de uma conversa existente.",
+    "es": "Has alcanzado el número máximo de conversaciones simultáneas ({{limit}}) de tu plan de OpenHands Cloud. Para iniciar una nueva, detén el runtime de una conversación existente.",
+    "ar": "لقد وصلت إلى الحد الأقصى لعدد المحادثات المتزامنة ({{limit}}) في خطة OpenHands Cloud الخاصة بك. لبدء محادثة جديدة، أوقف وقت تشغيل إحدى المحادثات الحالية.",
+    "fr": "Vous avez atteint le nombre maximal de conversations simultanées ({{limit}}) de votre forfait OpenHands Cloud. Pour en démarrer une nouvelle, arrêtez le runtime d'une conversation existante.",
+    "tr": "OpenHands Cloud planınız için eşzamanlı konuşma sayısının üst sınırına ({{limit}}) ulaştınız. Yeni bir konuşma başlatmak için mevcut bir konuşmanın çalışma zamanını durdurun.",
+    "de": "Sie haben die maximale Anzahl gleichzeitiger Konversationen ({{limit}}) Ihres OpenHands Cloud-Tarifs erreicht. Um eine neue zu starten, stoppen Sie die Laufzeitumgebung einer bestehenden Konversation.",
+    "uk": "Ви досягли максимальної кількості одночасних розмов ({{limit}}) у вашому плані OpenHands Cloud. Щоб розпочати нову, зупиніть середовище виконання наявної розмови.",
+    "ca": "Heu assolit el nombre màxim de converses simultànies ({{limit}}) del vostre pla d'OpenHands Cloud. Per iniciar-ne una de nova, atureu el temps d'execució d'una conversa existent."
+  },
   "COMMON$PATTERN": {
     "ar": "النمط:",
     "ca": "Patró:",
