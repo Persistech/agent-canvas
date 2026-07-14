@@ -124,8 +124,7 @@ export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_POR
 # for locally-generated session keys.
 export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
-# Make Canvas tools importable by the agent-server.
-export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
+CANVAS_TOOLS_DIR="/opt/agent-canvas/tools"
 
 # Track child PIDs so we can clean up on exit.
 PIDS=()
@@ -145,11 +144,16 @@ log "Starting agent-server on port $AGENT_SERVER_PORT..."
 
 if command -v openhands-agent-server >/dev/null 2>&1; then
   # Binary build (production image)
-  openhands-agent-server --import-modules canvas_ui_tool --port "$AGENT_SERVER_PORT" &
+  openhands-agent-server \
+    --extra-python-path "$CANVAS_TOOLS_DIR" \
+    --import-modules canvas_ui_tool \
+    --port "$AGENT_SERVER_PORT" &
 elif [ -x /agent-server/.venv/bin/python ]; then
   # Source build (development image)
   /agent-server/.venv/bin/python -m openhands.agent_server \
-    --import-modules canvas_ui_tool --port "$AGENT_SERVER_PORT" &
+    --extra-python-path "$CANVAS_TOOLS_DIR" \
+    --import-modules canvas_ui_tool \
+    --port "$AGENT_SERVER_PORT" &
 else
   log_error "Cannot find agent-server binary or source venv."
   exit 1
