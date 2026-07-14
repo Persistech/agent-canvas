@@ -48,9 +48,15 @@ describe("mock LLM profile lifecycle", () => {
   });
 
   it("lists profiles with normalized optional summary fields", async () => {
-    expect(
-      (await saveProfile("model only", { model: "openai/gpt-4o" })).status,
-    ).toBe(201);
+    const saved = await saveProfile("model only", {
+      model: "openai/gpt-4o",
+      base_url: "https://api.openai.com/v1",
+    });
+    expect(saved.status).toBe(201);
+    await expect(saved.json()).resolves.toEqual({
+      name: "model only",
+      message: "Profile 'model only' saved",
+    });
     expect(
       (
         await saveProfile("non-string fields", {
@@ -67,7 +73,7 @@ describe("mock LLM profile lifecycle", () => {
         {
           name: "model only",
           model: "openai/gpt-4o",
-          base_url: null,
+          base_url: "https://api.openai.com/v1",
           api_key_set: false,
         },
         {
@@ -146,9 +152,17 @@ describe("mock LLM profile lifecycle", () => {
       method: "POST",
     });
     expect(activation.status).toBe(200);
-    await expect(activation.json()).resolves.toMatchObject({
+    await expect(activation.json()).resolves.toEqual({
       name: "active",
+      message: "Profile 'active' activated and applied to current settings",
       llm_applied: true,
+    });
+
+    await saveProfile("inactive", { model: "openhands/minimax-m2.7" });
+    const unchangedSettings = await fetch(`${BASE_URL}/api/settings`);
+    await expect(unchangedSettings.json()).resolves.toMatchObject({
+      agent_settings: { llm: { model: "openai/gpt-4o" } },
+      llm_api_key_is_set: true,
     });
 
     await saveProfile("active", {
@@ -203,6 +217,10 @@ describe("mock LLM profile lifecycle", () => {
       jsonRequest({ new_name: " unchanged " }),
     );
     expect(sameName.status).toBe(200);
+    await expect(sameName.json()).resolves.toEqual({
+      name: "unchanged",
+      message: "Profile 'unchanged' renamed to 'unchanged'",
+    });
 
     const renamed = await fetch(
       `${BASE_URL}/api/profiles/unchanged/rename`,
@@ -213,6 +231,9 @@ describe("mock LLM profile lifecycle", () => {
       name: "renamed",
       message: "Profile 'unchanged' renamed to 'renamed'",
     });
+
+    const list = await fetch(`${BASE_URL}/api/profiles`);
+    await expect(list.json()).resolves.toMatchObject({ active_profile: null });
   });
 
   it("keeps an active profile active when it is renamed", async () => {
@@ -249,11 +270,24 @@ describe("mock LLM profile lifecycle", () => {
       method: "DELETE",
     });
     expect(inactiveDelete.status).toBe(200);
+    await expect(inactiveDelete.json()).resolves.toEqual({
+      name: "inactive",
+      message: "Profile 'inactive' deleted",
+    });
+
+    const afterInactiveDelete = await fetch(`${BASE_URL}/api/profiles`);
+    await expect(afterInactiveDelete.json()).resolves.toMatchObject({
+      active_profile: "active",
+    });
 
     const activeDelete = await fetch(`${BASE_URL}/api/profiles/active`, {
       method: "DELETE",
     });
     expect(activeDelete.status).toBe(200);
+    await expect(activeDelete.json()).resolves.toEqual({
+      name: "active",
+      message: "Profile 'active' deleted",
+    });
 
     const list = await fetch(`${BASE_URL}/api/profiles`);
     await expect(list.json()).resolves.toEqual({

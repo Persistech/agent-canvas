@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
   OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
@@ -64,6 +64,8 @@ describe("mock agent-server discovery", () => {
     const serverInfo = await fetchJson<{
       version: string;
       usable_tools: string[];
+      agents: string[];
+      default_agent: string;
       models: string[];
       security_analyzers: string[];
     }>("/server_info");
@@ -75,6 +77,8 @@ describe("mock agent-server discovery", () => {
         "task_tracker",
         "browser_tool_set",
       ],
+      agents: ["CodeActAgent"],
+      default_agent: "CodeActAgent",
       security_analyzers: ["llm", "none"],
     });
     expect(serverInfo.models).toContain("openhands/minimax-m2.7");
@@ -200,8 +204,30 @@ describe("mock agent-server discovery", () => {
         hide_llm_settings: false,
         hide_users_page: false,
       },
+      providers_configured: [],
+      faulty_models: [],
       updated_at: expect.any(String),
     });
+  });
+
+  it("falls back to deterministic settings when shared defaults omit optional sections", async () => {
+    vi.resetModules();
+    vi.doMock("#/services/settings", () => ({ DEFAULT_SETTINGS: {} }));
+
+    try {
+      const { MOCK_DEFAULT_USER_SETTINGS: settings } =
+        await import("#/mocks/settings-handlers");
+
+      expect(settings).toMatchObject({
+        agent_settings: {
+          llm: { model: "openhands/claude-opus-4-5-20251101" },
+        },
+        conversation_settings: {},
+      });
+    } finally {
+      vi.doUnmock("#/services/settings");
+      vi.resetModules();
+    }
   });
 });
 

@@ -178,6 +178,29 @@ describe("mock settings schemas and state", () => {
     });
   });
 
+  it("replaces incompatible nested values without leaking their previous shape", async () => {
+    const result = await getJson<{
+      agent_settings: {
+        verification: unknown;
+        llm: { model: unknown };
+      };
+    }>(
+      "/api/settings",
+      jsonRequest(
+        {
+          agent_settings_diff: {
+            verification: "disabled",
+            llm: { model: { family: "custom" } },
+          },
+        },
+        "PATCH",
+      ),
+    );
+
+    expect(result.body.agent_settings.verification).toBe("disabled");
+    expect(result.body.agent_settings.llm.model).toEqual({ family: "custom" });
+  });
+
   it("redacts, encrypts, or exposes persisted settings secrets", async () => {
     await fetch(
       `${BASE_URL}/api/settings`,
@@ -217,6 +240,52 @@ describe("mock settings schemas and state", () => {
       );
       expect(result.body.llm_api_key_is_set).toBe(false);
     }
+  });
+
+  it("handles absent LLM settings and independent API-key signals", async () => {
+    const withoutLlm = await getJson<{
+      agent_settings: { llm: null };
+      llm_api_key_is_set: boolean;
+    }>(
+      "/api/settings",
+      jsonRequest({ agent_settings_diff: { llm: null } }, "PATCH"),
+    );
+    expect(withoutLlm.body).toMatchObject({
+      agent_settings: { llm: null },
+      llm_api_key_is_set: false,
+    });
+
+    resetTestHandlersMockSettings();
+    await fetch(
+      `${BASE_URL}/api/v1/settings`,
+      jsonRequest(
+        {
+          llm_api_key_set: true,
+          agent_settings_diff: { llm: { api_key: null } },
+        },
+        "POST",
+      ),
+    );
+    const flagOnly = await getJson<{ llm_api_key_is_set: boolean }>(
+      "/api/settings",
+    );
+    expect(flagOnly.body.llm_api_key_is_set).toBe(true);
+
+    resetTestHandlersMockSettings();
+    await fetch(
+      `${BASE_URL}/api/v1/settings`,
+      jsonRequest(
+        {
+          llm_api_key_set: false,
+          agent_settings_diff: { llm: { api_key: "nested-key" } },
+        },
+        "POST",
+      ),
+    );
+    const nestedOnly = await getJson<{ llm_api_key_is_set: boolean }>(
+      "/api/settings",
+    );
+    expect(nestedOnly.body.llm_api_key_is_set).toBe(true);
   });
 
   it("merges app preferences across incremental updates", async () => {
@@ -270,9 +339,48 @@ describe("mock settings schemas and state", () => {
     });
   });
 
+  it("preserves unrelated persisted misc settings while merging preferences", async () => {
+    await fetch(
+      `${BASE_URL}/api/v1/settings`,
+      jsonRequest(
+        {
+          misc_settings: {
+            marker: "keep-me",
+            app_preferences: { language: "en" },
+          },
+        },
+        "POST",
+      ),
+    );
+
+    const updated = await getJson<{
+      misc_settings: {
+        marker: string;
+        app_preferences: Record<string, unknown>;
+      };
+    }>(
+      "/api/settings",
+      jsonRequest(
+        {
+          misc_settings_diff: {
+            app_preferences: { git_user_name: "Ada" },
+          },
+        },
+        "PATCH",
+      ),
+    );
+
+    expect(updated.body.misc_settings).toEqual({
+      marker: "keep-me",
+      app_preferences: { language: "en", git_user_name: "Ada" },
+    });
+  });
+
   it("supports independent conversation-settings updates", async () => {
     const result = await getJson<{
+      agent_settings: Record<string, unknown>;
       conversation_settings: Record<string, unknown>;
+      misc_settings: { app_preferences: Record<string, unknown> };
     }>(
       "/api/settings",
       jsonRequest(
@@ -284,6 +392,11 @@ describe("mock settings schemas and state", () => {
       confirmation_mode: false,
       max_iterations: 99,
     });
+    expect(result.body.agent_settings).toMatchObject({
+      llm: { model: "openhands/minimax-m2.7" },
+      verification: { critic_enabled: false },
+    });
+    expect(result.body.misc_settings).toEqual({ app_preferences: {} });
   });
 
   it("normalizes a persisted null API-key flag in update responses", async () => {
@@ -357,6 +470,8 @@ describe("legacy settings persistence", () => {
     const persisted = await getJson<{
       agent_settings: Record<string, unknown>;
       conversation_settings: Record<string, unknown>;
+      agent_settings_schema: { model_name: string };
+      conversation_settings_schema: { model_name: string };
       language: string;
       llm_api_key_set: boolean;
     }>("/api/v1/settings");
@@ -374,6 +489,14 @@ describe("legacy settings persistence", () => {
       },
       language: "ja",
       llm_api_key_set: true,
+    });
+    expect(persisted.body).not.toHaveProperty("agent_settings_diff");
+    expect(persisted.body).not.toHaveProperty("conversation_settings_diff");
+    expect(persisted.body.agent_settings_schema).toMatchObject({
+      model_name: "AgentSettings",
+    });
+    expect(persisted.body.conversation_settings_schema).toMatchObject({
+      model_name: "ConversationSettings",
     });
   });
 
