@@ -6,6 +6,18 @@ import { TABLE_DEMO_CONVERSATION_ID } from "#/fixtures/table-demo-conversation";
 
 const API_BASE = "http://localhost:3000";
 
+type MockConversationResponse = {
+  agent: unknown | null;
+  created_at: string;
+  execution_status: string;
+  id: string;
+  metrics: unknown | null;
+  sandbox_status: string | null;
+  title: string | null;
+  updated_at: string;
+  workspace: { working_dir: string } | null;
+};
+
 const requestJson = async <T>(path: string, init?: RequestInit) => {
   const response = await fetch(`${API_BASE}${path}`, init);
   return {
@@ -105,17 +117,12 @@ describe("mock conversation handlers", () => {
   });
 
   it("supports unfiltered, plain, and bracketed batch conversation lookups", async () => {
-    const all = await requestJson<
-      {
-        id: string;
-        sandbox_status: string | null;
-        workspace: { working_dir: string } | null;
-      }[]
-    >("/api/conversations");
-    const plainIds = await requestJson<({ id: string } | null)[]>(
+    const all =
+      await requestJson<MockConversationResponse[]>("/api/conversations");
+    const plainIds = await requestJson<(MockConversationResponse | null)[]>(
       "/api/conversations?ids=1&ids=missing",
     );
-    const bracketedIds = await requestJson<({ id: string } | null)[]>(
+    const bracketedIds = await requestJson<(MockConversationResponse | null)[]>(
       "/api/conversations?ids%5B%5D=2&ids%5B%5D=missing",
     );
 
@@ -133,7 +140,20 @@ describe("mock conversation handlers", () => {
         }),
       ]),
     );
-    expect(plainIds.body).toEqual([expect.objectContaining({ id: "1" }), null]);
+    expect(plainIds.body).toEqual([
+      {
+        agent: null,
+        created_at: expect.any(String),
+        execution_status: "waiting_for_confirmation",
+        id: "1",
+        metrics: null,
+        sandbox_status: null,
+        title: "My New Project",
+        updated_at: expect.any(String),
+        workspace: null,
+      },
+      null,
+    ]);
     expect(bracketedIds.body).toEqual([
       expect.objectContaining({ id: "2" }),
       null,
@@ -151,11 +171,17 @@ describe("mock conversation handlers", () => {
     );
 
     expect(found).toEqual({
-      body: expect.objectContaining({
+      body: {
+        agent: null,
+        created_at: expect.any(String),
+        metrics: null,
         id: "5",
         title: "Errored Project",
         execution_status: "idle",
-      }),
+        sandbox_status: "ERROR",
+        updated_at: expect.any(String),
+        workspace: null,
+      },
       status: 200,
     });
     expect(missing).toEqual({ body: null, status: 404 });
@@ -172,11 +198,17 @@ describe("mock conversation handlers", () => {
       }>("/api/conversations", { method: "POST" });
 
       expect(created).toEqual({
-        body: expect.objectContaining({
+        body: {
+          agent: null,
+          created_at: expect.any(String),
           id: "42424",
+          metrics: null,
+          sandbox_status: null,
           title: "New Conversation",
           execution_status: "idle",
-        }),
+          updated_at: expect.any(String),
+          workspace: null,
+        },
         status: 201,
       });
 
@@ -237,7 +269,17 @@ describe("mock conversation handlers", () => {
 
   it("paginates local events in ascending and descending timestamp order", async () => {
     const ascending = await requestJson<{
-      items: { id: string; timestamp: string }[];
+      items: {
+        activated_microagents: unknown[];
+        extended_content: unknown[];
+        id: string;
+        llm_message: {
+          content: { text: string; type: string }[];
+          role: string;
+        };
+        source: string;
+        timestamp: string;
+      }[];
       next_page_id: string | null;
     }>("/api/conversations/pagination-local/events/search");
     const descending = await requestJson<{
@@ -248,10 +290,28 @@ describe("mock conversation handlers", () => {
     );
 
     expect(ascending.body.items).toHaveLength(100);
-    expect(ascending.body.items[0]?.id).toBe("local-pagination-message-1");
-    expect(ascending.body.items.at(-1)?.id).toBe(
-      "local-pagination-message-100",
-    );
+    expect(ascending.body.items[0]).toEqual({
+      activated_microagents: [],
+      extended_content: [],
+      id: "local-pagination-message-1",
+      llm_message: {
+        content: [{ text: "Local pagination message 1", type: "text" }],
+        role: "assistant",
+      },
+      source: "agent",
+      timestamp: "2026-05-13T00:01:00.000Z",
+    });
+    expect(ascending.body.items.at(-1)).toEqual({
+      activated_microagents: [],
+      extended_content: [],
+      id: "local-pagination-message-100",
+      llm_message: {
+        content: [{ text: "Local pagination message 100", type: "text" }],
+        role: "assistant",
+      },
+      source: "agent",
+      timestamp: "2026-05-13T01:40:00.000Z",
+    });
     expect(ascending.body.next_page_id).toBeNull();
     expect(descending.body.items.map(({ id }) => id)).toEqual([
       "local-pagination-message-100",
@@ -261,20 +321,33 @@ describe("mock conversation handlers", () => {
   });
 
   it("returns only pagination events older than the requested timestamp", async () => {
-    const page = await requestJson<{
-      items: { id: string }[];
-      next_page_id: string | null;
-    }>(
-      "/api/conversations/pagination-local/events/search?timestamp__lt=2026-05-13T00%3A03%3A00.000Z&limit=10&sort_order=TIMESTAMP_DESC",
-    );
+    const timer = vi.spyOn(globalThis, "setTimeout");
 
-    expect(page.body).toEqual({
-      items: [
-        expect.objectContaining({ id: "local-pagination-message-2" }),
-        expect.objectContaining({ id: "local-pagination-message-1" }),
-      ],
-      next_page_id: null,
-    });
+    try {
+      await requestJson(
+        "/api/conversations/pagination-local/events/search?limit=1",
+      );
+      expect(timer).not.toHaveBeenCalledWith(expect.any(Function), 500);
+
+      timer.mockClear();
+      const page = await requestJson<{
+        items: { id: string }[];
+        next_page_id: string | null;
+      }>(
+        "/api/conversations/pagination-local/events/search?timestamp__lt=2026-05-13T00%3A03%3A00.000Z&limit=10&sort_order=TIMESTAMP_DESC",
+      );
+
+      expect(timer).toHaveBeenCalledWith(expect.any(Function), 500);
+      expect(page.body).toEqual({
+        items: [
+          expect.objectContaining({ id: "local-pagination-message-2" }),
+          expect.objectContaining({ id: "local-pagination-message-1" }),
+        ],
+        next_page_id: null,
+      });
+    } finally {
+      timer.mockRestore();
+    }
   });
 
   it("paginates static events and returns an empty page for unknown conversations", async () => {
@@ -295,9 +368,30 @@ describe("mock conversation handlers", () => {
   });
 
   it("serves cloud conversations and their paginated events through the proxy", async () => {
-    const batch = await cloudProxy<({ id: string } | null)[]>(
-      "/api/v1/app-conversations?ids=pagination-cloud&ids=unknown",
-    );
+    const batch = await cloudProxy<
+      ({
+        agent?: unknown;
+        conversation_url: string | null;
+        created_at: string;
+        created_by_user_id: string | null;
+        execution_status: string;
+        git_provider: string | null;
+        id: string;
+        llm_model: string;
+        metrics: unknown | null;
+        pr_number: number[];
+        public: boolean;
+        sandbox_id: string | null;
+        selected_branch: string | null;
+        selected_repository: string | null;
+        session_api_key: string | null;
+        sub_conversation_ids: string[];
+        title: string;
+        trigger: unknown | null;
+        updated_at: string;
+        workspace: { working_dir: string };
+      } | null)[]
+    >("/api/v1/app-conversations?ids=pagination-cloud&ids=unknown");
     const emptyBatch = await cloudProxy<Record<string, never>>(
       "/api/v1/app-conversations",
     );
@@ -313,11 +407,27 @@ describe("mock conversation handlers", () => {
     );
 
     expect(batch.body).toEqual([
-      expect.objectContaining({
-        id: "pagination-cloud",
+      {
+        conversation_url: null,
+        created_at: expect.any(String),
+        created_by_user_id: null,
         execution_status: "idle",
+        git_provider: null,
+        id: "pagination-cloud",
+        llm_model: "openhands/claude-haiku-4-5-20251001",
+        metrics: null,
+        pr_number: [],
+        public: false,
+        sandbox_id: null,
+        selected_branch: null,
+        selected_repository: null,
+        session_api_key: null,
+        sub_conversation_ids: [],
+        title: "Cloud pagination fixture",
+        trigger: null,
+        updated_at: expect.any(String),
         workspace: { working_dir: "/workspace/project" },
-      }),
+      },
       null,
     ]);
     expect(emptyBatch.body).toEqual({});
@@ -334,13 +444,23 @@ describe("mock conversation handlers", () => {
 
   it("serves cloud account bootstrap data through the proxy", async () => {
     const settings = await cloudProxy<{
+      agent: string;
+      language: string;
+      llm_api_key: string | null;
+      llm_api_key_set: boolean;
+      llm_base_url: string;
       llm_model: string;
+      search_api_key_set: boolean;
       user_consents_to_analytics: boolean;
       provider_tokens_set: Record<string, string>;
     }>("/api/v1/settings");
-    const key = await cloudProxy<{ id: string; auth_type: string }>(
-      "/api/keys/current",
-    );
+    const key = await cloudProxy<{
+      auth_type: string;
+      id: string;
+      name: string;
+      org_id: string;
+      user_id: string;
+    }>("/api/keys/current");
     const organizations = await cloudProxy<{
       items: { id: string; is_personal: boolean }[];
       current_org_id: string;
@@ -352,18 +472,28 @@ describe("mock conversation handlers", () => {
       "/api/authenticate",
     );
     const missingPath = await cloudProxy<Record<string, never>>();
-    const unknownPath = await cloudProxy<Record<string, never>>(
-      "/api/not-implemented",
+    const unknownPathWithIds = await cloudProxy<Record<string, never>>(
+      "/api/not-implemented?ids=unknown",
     );
 
-    expect(settings.body).toMatchObject({
+    expect(settings.body).toEqual({
+      agent: "CodeActAgent",
+      language: "en",
+      llm_api_key: null,
+      llm_api_key_set: false,
+      llm_base_url: "",
       llm_model: "openhands/claude-haiku-4-5-20251001",
+      search_api_key_set: false,
       user_consents_to_analytics: false,
       provider_tokens_set: { github: "" },
     });
-    expect(key.body).toEqual(
-      expect.objectContaining({ id: "mock-key", auth_type: "api_key" }),
-    );
+    expect(key.body).toEqual({
+      auth_type: "api_key",
+      id: "mock-key",
+      name: "Mock key",
+      org_id: "org-1",
+      user_id: "user-1",
+    });
     expect(organizations.body).toEqual({
       items: [{ id: "org-1", name: "Mock Org", is_personal: true }],
       current_org_id: "org-1",
@@ -371,7 +501,7 @@ describe("mock conversation handlers", () => {
     expect(membership.body).toEqual({ org_id: "org-1", user_id: "org-1" });
     expect(authenticated.body).toEqual({ ok: true });
     expect(missingPath.body).toEqual({});
-    expect(unknownPath.body).toEqual({});
+    expect(unknownPathWithIds.body).toEqual({});
   });
 
   it("supports conversation controls and auxiliary conversation resources", async () => {
@@ -411,6 +541,7 @@ describe("mock conversation handlers", () => {
       ),
       requestJson<{
         microagents: {
+          content: string;
           name: string;
           type: string;
           triggers: string[];
@@ -427,25 +558,49 @@ describe("mock conversation handlers", () => {
     expect(vscode.body).toEqual({ url: null });
     expect(skills.body).toEqual({ skills: [] });
     expect(pendingMessage.body).toEqual({ id: "mock-pending-id", position: 0 });
-    expect(microagents.body.microagents).toHaveLength(7);
-    expect(microagents.body.microagents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "test-runner",
-          type: "agentskills",
-          triggers: ["/test"],
-        }),
-        expect.objectContaining({
-          name: "code-search",
-          type: "knowledge",
-          triggers: ["/search"],
-        }),
-        expect.objectContaining({
-          name: "work_hosts",
-          type: "repo",
-          triggers: [],
-        }),
-      ]),
-    );
+    expect(microagents.body.microagents).toEqual([
+      {
+        name: "init",
+        type: "agentskills",
+        content: "Initialize an AGENTS.md file for the repository",
+        triggers: ["/init"],
+      },
+      {
+        name: "releasenotes",
+        type: "agentskills",
+        content: "Generate a changelog from the most recent release",
+        triggers: ["/releasenotes"],
+      },
+      {
+        name: "test-runner",
+        type: "agentskills",
+        content: "Run the test suite and report results",
+        triggers: ["/test"],
+      },
+      {
+        name: "code-search",
+        type: "knowledge",
+        content: "Search the codebase semantically",
+        triggers: ["/search"],
+      },
+      {
+        name: "docker",
+        type: "agentskills",
+        content: "Docker usage guide for container environments",
+        triggers: ["docker", "container"],
+      },
+      {
+        name: "github",
+        type: "agentskills",
+        content: "GitHub API interaction guide",
+        triggers: ["github", "git"],
+      },
+      {
+        name: "work_hosts",
+        type: "repo",
+        content: "Available hosts for web applications",
+        triggers: [],
+      },
+    ]);
   });
 });

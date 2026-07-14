@@ -23,15 +23,19 @@ const PAGINATION_EVENT_COUNT = 100;
 const PAGINATION_PAGE_DELAY_MS = 500;
 const PAGINATION_BASE_TIME = Date.UTC(2026, 4, 13, 0, 0, 0);
 
-type MockConversation = DirectConversationInfo & {
+type MockConversation = Omit<
+  DirectConversationInfo,
+  "title" | "execution_status"
+> & {
+  title: string;
+  execution_status: NonNullable<DirectConversationInfo["execution_status"]>;
   selected_repository?: string | null;
   selected_branch?: string | null;
   git_provider?: string | null;
 };
 
 type CloudProxyEnvelope = {
-  method?: string;
-  path?: string;
+  path: string;
 };
 
 const conversations: MockConversation[] = [
@@ -205,10 +209,10 @@ function createConversationResponse(
 ): DirectConversationInfo {
   return {
     id: conversation.id,
-    title: conversation.title ?? null,
+    title: conversation.title,
     created_at: conversation.created_at,
     updated_at: conversation.updated_at,
-    execution_status: conversation.execution_status ?? "idle",
+    execution_status: conversation.execution_status,
     sandbox_status: conversation.sandbox_status ?? null,
     metrics: conversation.metrics ?? null,
     agent: conversation.agent ?? null,
@@ -288,7 +292,7 @@ export const CONVERSATION_HANDLERS = [
             title: body.title,
             updated_at: new Date().toISOString(),
           });
-          return HttpResponse.json(null, { status: 200 });
+          return HttpResponse.json(null);
         }
       }
       return HttpResponse.json(null, { status: 404 });
@@ -299,7 +303,7 @@ export const CONVERSATION_HANDLERS = [
     const conversationId = params.conversationId as string;
     if (CONVERSATIONS.has(conversationId)) {
       CONVERSATIONS.delete(conversationId);
-      return HttpResponse.json(null, { status: 200 });
+      return HttpResponse.json(null);
     }
     return HttpResponse.json(null, { status: 404 });
   }),
@@ -351,20 +355,20 @@ export const CONVERSATION_HANDLERS = [
 
   http.post("*/api/cloud-proxy", async ({ request }) => {
     const envelope = (await request.json()) as CloudProxyEnvelope;
-    const upstreamPath = envelope.path ?? "/";
-    const upstreamUrl = new URL(upstreamPath, "https://mock-cloud.test");
+    const upstreamUrl = new URL(envelope.path, "https://mock-cloud.test");
 
-    if (upstreamUrl.pathname === "/api/v1/app-conversations") {
-      const ids = upstreamUrl.searchParams.getAll("ids");
-      if (ids.length > 0) {
-        return HttpResponse.json(
-          ids.map((id) =>
-            id === PAGINATION_CLOUD_CONVERSATION_ID
-              ? CLOUD_PAGINATION_CONVERSATION
-              : null,
-          ),
-        );
-      }
+    const ids = upstreamUrl.searchParams.getAll("ids");
+    if (
+      upstreamUrl.pathname === "/api/v1/app-conversations" &&
+      ids.length > 0
+    ) {
+      return HttpResponse.json(
+        ids.map((id) =>
+          id === PAGINATION_CLOUD_CONVERSATION_ID
+            ? CLOUD_PAGINATION_CONVERSATION
+            : null,
+        ),
+      );
     }
 
     if (upstreamUrl.pathname === "/api/v1/app-conversations/search") {

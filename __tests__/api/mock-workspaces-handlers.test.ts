@@ -1,7 +1,6 @@
 import { http, HttpResponse } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resetMockWorkspaces } from "#/mocks/handlers";
 import { server } from "#/mocks/node";
 
 const unhandledWorkspacesRequest = () =>
@@ -15,11 +14,13 @@ const UNHANDLED_WORKSPACES_REQUESTS = [
 
 const installWorkspacesHandlers = async () => {
   vi.resetModules();
-  const { WORKSPACES_HANDLERS } = await import("#/mocks/workspaces-handlers");
+  const { WORKSPACES_HANDLERS, resetMockWorkspaces } =
+    await import("#/mocks/workspaces-handlers");
   server.resetHandlers(
     ...WORKSPACES_HANDLERS,
     ...UNHANDLED_WORKSPACES_REQUESTS,
   );
+  return resetMockWorkspaces;
 };
 
 const postJson = (path: string, body: unknown) =>
@@ -38,13 +39,12 @@ const deleteByPath = (path: string, workspacePath: string) =>
   );
 
 describe("mock workspaces handlers", () => {
-  beforeEach(installWorkspacesHandlers);
-
   afterEach(() => {
-    resetMockWorkspaces();
+    server.resetHandlers();
   });
 
   it("starts with an empty workspaces list", async () => {
+    await installWorkspacesHandlers();
     const response = await listWorkspaces();
 
     expect(response.status).toBe(200);
@@ -55,6 +55,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("persists added workspaces across list calls", async () => {
+    await installWorkspacesHandlers();
     await postJson("/api/workspaces", {
       workspaces: [{ id: "w1", name: "Project", path: "/workspace/project" }],
     });
@@ -67,6 +68,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("upserts a workspace when path already exists", async () => {
+    await installWorkspacesHandlers();
     await postJson("/api/workspaces", {
       workspaces: [
         { id: "w1", name: "Other", path: "/workspace/other" },
@@ -90,6 +92,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("treats omitted workspace and parent collections as no-op updates", async () => {
+    await installWorkspacesHandlers();
     const workspacesResponse = await postJson("/api/workspaces", {});
 
     expect(workspacesResponse.status).toBe(200);
@@ -108,6 +111,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("removes a workspace by path", async () => {
+    await installWorkspacesHandlers();
     await postJson("/api/workspaces", {
       workspaces: [
         { id: "w1", name: "Project", path: "/workspace/project" },
@@ -133,6 +137,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("persists workspace parents and removes them by path", async () => {
+    await installWorkspacesHandlers();
     await postJson("/api/workspaces/parents", {
       parents: [
         { id: "p1", name: "Repos", path: "/workspace/repos" },
@@ -173,6 +178,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("replaces a workspace parent when its path is already registered", async () => {
+    await installWorkspacesHandlers();
     await postJson("/api/workspaces/parents", {
       parents: [
         { id: "p1", name: "Other", path: "/workspace/other" },
@@ -198,6 +204,7 @@ describe("mock workspaces handlers", () => {
   });
 
   it("acknowledges workspace session creation and deletion", async () => {
+    await installWorkspacesHandlers();
     const createResponse = await fetch(
       "http://localhost:3000/api/auth/workspace-session",
       { method: "POST" },
@@ -213,5 +220,23 @@ describe("mock workspaces handlers", () => {
 
     expect(deleteResponse.status).toBe(204);
     await expect(deleteResponse.text()).resolves.toBe("");
+  });
+
+  it("resets workspace and parent state together", async () => {
+    const resetMockWorkspaces = await installWorkspacesHandlers();
+    await postJson("/api/workspaces", {
+      workspaces: [{ id: "w1", name: "Project", path: "/workspace/project" }],
+    });
+    await postJson("/api/workspaces/parents", {
+      parents: [{ id: "p1", name: "Repos", path: "/workspace/repos" }],
+    });
+
+    resetMockWorkspaces();
+
+    const response = await listWorkspaces();
+    await expect(response.json()).resolves.toEqual({
+      workspaces: [],
+      workspaceParents: [],
+    });
   });
 });
