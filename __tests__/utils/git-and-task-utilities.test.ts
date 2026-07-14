@@ -216,6 +216,11 @@ describe("Git navigation URLs", () => {
       repo: undefined,
       filePath: "",
     });
+    expect(extractRepositoryInfo({}, null)).toEqual({
+      owner: undefined,
+      repo: undefined,
+      filePath: "",
+    });
   });
 
   it("builds repository URLs for hosted and Data Center repositories", () => {

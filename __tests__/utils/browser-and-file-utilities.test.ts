@@ -48,7 +48,10 @@ const useWindowCapabilities = ({
     get(target, property, receiver) {
       if (property === "matchMedia") {
         if (finePointer === undefined) return undefined;
-        return vi.fn().mockReturnValue({ matches: finePointer });
+        return vi.fn((query: string) => ({
+          matches:
+            query === "(pointer: fine)" ? finePointer : !finePointer,
+        }));
       }
       return Reflect.get(target, property, receiver);
     },
@@ -124,6 +127,7 @@ describe("mobile environment detection", () => {
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
       "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
     );
+    useWindowCapabilities({ hasTouchProperty: false, finePointer: false });
 
     expect(isMobileUserAgent()).toBe(true);
     expect(isMobileDevice()).toBe(true);
@@ -131,7 +135,7 @@ describe("mobile environment detection", () => {
 
   it("does not classify a desktop without touch input as mobile", () => {
     useDesktopNavigator();
-    useWindowCapabilities({ hasTouchProperty: false, finePointer: true });
+    useWindowCapabilities({ hasTouchProperty: false, finePointer: false });
 
     expect(isMobileUserAgent()).toBe(false);
     expect(isMobileDevice()).toBe(false);
