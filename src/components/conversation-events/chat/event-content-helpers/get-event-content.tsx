@@ -137,7 +137,7 @@ const getVisionInspectObservationTitle = (
 };
 
 // Action Event Processing
-const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
+const getActionEventTitle = (event: ActionEvent): React.ReactNode => {
   const visionInspectTitle = getVisionInspectActionTitle(event);
   if (visionInspectTitle) {
     return visionInspectTitle;
@@ -234,7 +234,7 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
 
 // Observation Event Processing
 const getObservationEventTitle = (
-  event: OpenHandsEvent,
+  event: ObservationEvent,
   correspondingAction?: ActionEvent,
 ): React.ReactNode => {
   const visionInspectObservationTitle = getVisionInspectObservationTitle(
