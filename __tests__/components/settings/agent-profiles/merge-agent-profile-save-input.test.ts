@@ -79,6 +79,21 @@ describe("mergeAgentProfileSaveInput", () => {
     });
   });
 
+  it.each([
+    ["null", null],
+    ["empty", []],
+    ["specific", [{ name: "terminal", params: {} }]],
+  ])("preserves the %s tool selection", (_label, tools) => {
+    const stored = { ...storedOpenHands, tools } as unknown as AgentProfile;
+    const merged = mergeAgentProfileSaveInput(stored, {
+      agent_kind: "openhands",
+      enable_sub_agents: true,
+      llm_profile_ref: "new-llm",
+    });
+
+    expect((merged as { tools?: unknown }).tools).toEqual(tools);
+  });
+
   it("preserves unmodeled ACP fields under the edited ones", () => {
     const edited: AgentProfileSaveInput = {
       agent_kind: "acp",
