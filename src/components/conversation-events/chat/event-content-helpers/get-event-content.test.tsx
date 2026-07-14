@@ -143,6 +143,7 @@ const createACPEvent = (): ACPToolCallEvent => ({
 type TranslationTitleProps = {
   i18nKey: string;
   values: Record<string, unknown>;
+  components: Record<string, React.ReactNode>;
 };
 
 const getTranslationProps = (title: React.ReactNode): TranslationTitleProps => {
@@ -160,10 +161,14 @@ const expectTranslatedTitle = (
   correspondingAction?: ActionEvent,
 ) => {
   const { title } = getEventContent(event, correspondingAction);
-  expect(getTranslationProps(title)).toMatchObject({
+  const props = getTranslationProps(title);
+  expect(props).toMatchObject({
     i18nKey: key,
     values,
   });
+  expect(Object.keys(props.components)).toEqual(["path", "cmd"]);
+  expect(isValidElement(props.components.path)).toBe(true);
+  expect(isValidElement(props.components.cmd)).toBe(true);
 };
 
 beforeEach(() => {
@@ -325,8 +330,20 @@ describe("action titles", () => {
     expect(getEventContent(event).title).toBe("Inspecting the result");
   });
 
+  it("keeps a fallback-shaped fragment when it is not the whole summary", () => {
+    const summary = 'Completed execute_bash: {"command":"npm test"}';
+    const event = createActionEvent(
+      actionOf("ThinkAction", { thought: "reasoning" }),
+      { summary },
+    );
+
+    expect(getEventContent(event).title).toBe(summary);
+  });
+
   it.each([
     'execute_bash: {"command":"npm test"}',
+    'execute_bash:{"command":"npm test"}',
+    'execute_bash : {"command":"npm test"}',
     'grep: ["one", "two"]',
     "   ",
   ])("ignores a non-human summary and uses the action title: %s", (summary) => {
@@ -339,6 +356,7 @@ describe("action titles", () => {
   });
 
   const longCommand = "c".repeat(81);
+  const exactCommand = "e".repeat(80);
   const longPattern = "p".repeat(51);
 
   it.each([
@@ -363,6 +381,17 @@ describe("action titles", () => {
       }),
       key: "ACTION_MESSAGE$RUN",
       values: { command: "pwd" },
+    },
+    {
+      name: "exact-length terminal command",
+      action: actionOf("TerminalAction", {
+        command: exactCommand,
+        is_input: false,
+        timeout: null,
+        reset: false,
+      }),
+      key: "ACTION_MESSAGE$RUN",
+      values: { command: exactCommand },
     },
     {
       name: "empty terminal command",
@@ -471,6 +500,12 @@ describe("action titles", () => {
         path: null,
         include: null,
       }),
+      key: "ACTION_MESSAGE$GREP",
+      values: { pattern: "" },
+    },
+    {
+      name: "grep without a pattern field",
+      action: actionOf("GrepAction", { path: null, include: null }),
       key: "ACTION_MESSAGE$GREP",
       values: { pattern: "" },
     },
@@ -859,6 +894,20 @@ describe("unknown and incomplete events", () => {
       details: "",
     });
     expect(mocks.translate).toHaveBeenCalledWith("EVENT$UNKNOWN_EVENT");
+  });
+
+  it("does not route a non-agent action-shaped payload as an agent action", () => {
+    const event = {
+      id: "user-action-shape",
+      timestamp: TIMESTAMP,
+      source: "user",
+      action: { kind: "SwitchLLMAction" },
+    } as unknown as OpenHandsEvent;
+
+    expect(getEventContent(event)).toEqual({
+      title: "translated:EVENT$UNKNOWN_EVENT",
+      details: "",
+    });
   });
 
   it.each([
