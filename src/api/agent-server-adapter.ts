@@ -9,7 +9,10 @@ import {
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
-import { isAgentServerToolAvailable } from "./agent-server-compatibility";
+import {
+  getAgentServerDefaultTools,
+  isAgentServerToolAvailable,
+} from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
@@ -529,14 +532,18 @@ function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
 
 function getAgentTools(agentSettings: SettingsRecord): AgentToolSpec[] {
   const tools = new Map<string, AgentToolSpec>();
+  const runtimeDefaults = getAgentServerDefaultTools();
 
-  for (const name of DEFAULT_TOOL_NAMES) {
+  for (const name of runtimeDefaults ?? DEFAULT_TOOL_NAMES) {
     if (shouldIncludeTool(name, agentSettings)) {
       tools.set(name, { name, params: {} });
     }
   }
 
-  for (const name of [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME]) {
+  const conditionalTools = runtimeDefaults
+    ? [TASK_TOOL_SET_NAME]
+    : [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME];
+  for (const name of conditionalTools) {
     if (shouldIncludeTool(name, agentSettings)) {
       tools.set(name, { name, params: {} });
     }

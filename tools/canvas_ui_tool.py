@@ -10,7 +10,7 @@ UI effect happens client-side: the frontend watches the WebSocket stream for
 """
 
 from collections.abc import Sequence
-from typing import ClassVar, Literal
+from typing import Literal
 
 from pydantic import Field
 
@@ -104,8 +104,6 @@ the same turn."""
 
 class CanvasUITool(ToolDefinition[CanvasUIAction, CanvasUIObservation]):
     """Tool for controlling the Agent Canvas UI from the agent."""
-
-    runtime_default: ClassVar[bool] = True
 
     @classmethod
     def create(

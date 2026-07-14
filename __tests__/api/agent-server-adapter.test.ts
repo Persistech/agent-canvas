@@ -20,10 +20,12 @@ import {
 } from "#/constants/llm-subscription";
 
 const {
+  mockGetAgentServerDefaultTools,
   mockGetAgentServerWorkingDir,
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
+  mockGetAgentServerDefaultTools: vi.fn<() => string[] | null>(() => null),
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
   mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
@@ -44,6 +46,7 @@ vi.mock("#/api/agent-server-config", () => ({
 }));
 
 vi.mock("#/api/agent-server-compatibility", () => ({
+  getAgentServerDefaultTools: mockGetAgentServerDefaultTools,
   isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
 }));
 
@@ -52,6 +55,7 @@ vi.mock("#/api/backend-registry/active-store", () => ({
 }));
 
 beforeEach(() => {
+  mockGetAgentServerDefaultTools.mockReturnValue(null);
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
     id: "default-local",
@@ -591,7 +595,25 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  describe("canvas_ui runtime tool", () => {
+  describe("server default tools", () => {
+    it("uses the runtime's resolved default tool list", () => {
+      mockGetAgentServerDefaultTools.mockReturnValue([
+        "terminal",
+        "canvas_ui",
+        "deployment_tool",
+      ]);
+
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+      }) as { agent_settings: { tools: Array<{ name: string }> } };
+
+      expect(payload.agent_settings.tools.map((tool) => tool.name)).toEqual([
+        "terminal",
+        "canvas_ui",
+        "deployment_tool",
+      ]);
+    });
+
     it("selects canvas_ui when the runtime advertises it", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,

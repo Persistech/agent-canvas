@@ -10,10 +10,6 @@ const toolSource = readFileSync(
 );
 
 describe("canvas_ui browser guidance", () => {
-  it("declares itself as a runtime default", () => {
-    expect(toolSource).toContain("runtime_default: ClassVar[bool] = True");
-  });
-
   it("tells the agent to capture a browser screenshot before opening the browser tab", () => {
     const captureInstruction = "browser_get_state(include_screenshot=true)";
     const openBrowserInstruction = 'command="open_tab", tab="browser"';
