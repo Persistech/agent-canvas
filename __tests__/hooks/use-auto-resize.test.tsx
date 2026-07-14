@@ -17,12 +17,14 @@ interface ElementOptions {
   height?: number | null;
   scrollHeight?: number;
   text?: string;
+  requireAutoHeightForMeasurement?: boolean;
 }
 
 function createEditableElement({
   height = 20,
   scrollHeight = 20,
   text = "content",
+  requireAutoHeightForMeasurement = false,
 }: ElementOptions = {}) {
   const element = document.createElement("div");
   element.contentEditable = "true";
@@ -32,7 +34,10 @@ function createEditableElement({
   let measuredScrollHeight = scrollHeight;
   Object.defineProperty(element, "scrollHeight", {
     configurable: true,
-    get: () => measuredScrollHeight,
+    get: () =>
+      requireAutoHeightForMeasurement && element.style.height !== "auto"
+        ? 0
+        : measuredScrollHeight,
   });
   Object.defineProperty(element, "offsetHeight", {
     configurable: true,
@@ -96,7 +101,7 @@ function createHookScenario({
   includeElement = true,
   minHeight = 20,
   maxHeight = 120,
-  enableManualResize = false,
+  enableManualResize,
   callbacks = true,
   ...elementOptions
 }: HookScenarioOptions = {}) {
@@ -191,6 +196,19 @@ describe("automatic content-editable resizing", () => {
     expect(scenario.onHeightChange).toHaveBeenLastCalledWith(20);
   });
 
+  it("measures content after temporarily releasing the explicit height", () => {
+    const scenario = createHookScenario({
+      height: 20,
+      scrollHeight: 80,
+      requireAutoHeightForMeasurement: true,
+    });
+
+    scenario.animationFrames.flushAll();
+
+    expect(scenario.editable?.element.style.height).toBe("80px");
+    expect(scenario.onHeightChange).toHaveBeenLastCalledWith(80);
+  });
+
   it("grows with content up to the maximum then enables scrolling", () => {
     const scenario = createHookScenario({
       height: 20,
@@ -211,6 +229,19 @@ describe("automatic content-editable resizing", () => {
     expect(scenario.editable?.element.style.height).toBe("120px");
     expect(scenario.editable?.element.style.overflowY).toBe("auto");
     expect(scenario.onHeightChange).toHaveBeenLastCalledWith(120);
+  });
+
+  it("keeps scrolling hidden when content exactly reaches the maximum", () => {
+    const scenario = createHookScenario({
+      height: 20,
+      scrollHeight: 120,
+      maxHeight: 120,
+    });
+
+    scenario.animationFrames.flushAll();
+
+    expect(scenario.editable?.element.style.height).toBe("120px");
+    expect(scenario.editable?.element.style.overflowY).toBe("hidden");
   });
 
   it("resizes without a height callback", () => {
@@ -243,19 +274,99 @@ describe("automatic content-editable resizing", () => {
     expect(scenario.onGripDragEnd).not.toHaveBeenCalled();
   });
 
-  it("treats null DOM text content as empty", () => {
+  it("keeps manual mode disabled by default", () => {
     const scenario = createHookScenario({
       height: 80,
-      scrollHeight: 10,
+      scrollHeight: 20,
+      text: "",
     });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    expect(scenario.onGripDragStart).not.toHaveBeenCalled();
+    expect(scenario.onGripDragEnd).not.toHaveBeenCalled();
+
+    scenario.editable!.element.style.height = "20px";
+    act(() => scenario.result.current.smartResize());
+    scenario.animationFrames.flushAll();
+    expect(scenario.editable?.element.style.height).toBe("20px");
+  });
+
+  it("does not carry a disabled drag height into a later manual resize", () => {
+    const animationFrames = installControlledAnimationFrames();
+    const editable = createEditableElement({
+      height: 80,
+      scrollHeight: 10,
+      text: "",
+    });
+    const ref: RefObject<HTMLElement | null> = { current: editable.element };
+    const { result, rerender } = renderHook(
+      ({ enableManualResize }: { enableManualResize: boolean }) =>
+        useAutoResize(ref, { enableManualResize }),
+      { initialProps: { enableManualResize: false } },
+    );
+
+    startMouseDrag(result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    rerender({ enableManualResize: true });
+    ref.current = null;
+    startMouseDrag(result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    ref.current = editable.element;
+    editable.element.style.height = "20px";
+    act(() => result.current.smartResize());
+    animationFrames.flushAll();
+
+    expect(editable.element.style.height).toBe("20px");
+  });
+
+  it("supports drag resizing when all callbacks are omitted", () => {
+    const scenario = createHookScenario({
+      callbacks: false,
+      height: 80,
+      scrollHeight: 20,
+    });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+
+    expect(() => {
+      fireEvent.mouseMove(document, { clientY: 90 });
+      fireEvent.mouseUp(document);
+    }).not.toThrow();
+    expect(scenario.editable?.element.style.height).toBe("90px");
+  });
+
+  it("treats whitespace and null DOM text as empty manual content", () => {
+    const scenario = createHookScenario({
+      enableManualResize: true,
+      height: 100,
+      scrollHeight: 10,
+      text: "",
+    });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    scenario.editable!.element.style.height = "20px";
+    scenario.editable!.element.textContent = "   \n\t";
+    act(() => scenario.result.current.smartResize());
+    scenario.animationFrames.flushAll();
+    expect(scenario.editable?.element.style.height).toBe("110px");
+
+    scenario.editable!.element.style.height = "20px";
     Object.defineProperty(scenario.editable!.element, "textContent", {
       configurable: true,
       get: () => null,
     });
-
+    act(() => scenario.result.current.smartResize());
     scenario.animationFrames.flushAll();
 
-    expect(scenario.editable?.element.style.height).toBe("20px");
+    expect(scenario.editable?.element.style.height).toBe("110px");
   });
 
   it("preserves a manual height for empty and fitting content", () => {
@@ -273,6 +384,7 @@ describe("automatic content-editable resizing", () => {
     expect(scenario.onGripDragStart).toHaveBeenCalledOnce();
     expect(scenario.onGripDragEnd).toHaveBeenCalledOnce();
 
+    scenario.editable!.element.style.height = "20px";
     act(() => scenario.result.current.smartResize());
     scenario.animationFrames.flushAll();
     expect(scenario.editable?.element.style.height).toBe("110px");
@@ -284,6 +396,46 @@ describe("automatic content-editable resizing", () => {
     scenario.animationFrames.flushAll();
     expect(scenario.editable?.element.style.height).toBe("110px");
     expect(scenario.onHeightChange).toHaveBeenLastCalledWith(110);
+  });
+
+  it("does not restore a stored manual height for non-empty content", () => {
+    const scenario = createHookScenario({
+      enableManualResize: true,
+      height: 100,
+      scrollHeight: 60,
+      text: "",
+    });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    scenario.editable!.element.style.height = "10px";
+    scenario.editable!.element.textContent = "message";
+    scenario.editable!.setScrollHeight(5);
+    act(() => scenario.result.current.smartResize());
+    scenario.animationFrames.flushAll();
+
+    expect(scenario.editable?.element.style.height).toBe("20px");
+  });
+
+  it("hides overflow again when manually sized content starts fitting", () => {
+    const scenario = createHookScenario({
+      enableManualResize: true,
+      height: 100,
+      scrollHeight: 200,
+      text: "message",
+    });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+    expect(scenario.editable?.element.style.overflowY).toBe("auto");
+
+    scenario.editable!.setScrollHeight(50);
+    act(() => scenario.result.current.smartResize());
+    scenario.animationFrames.flushAll();
+
+    expect(scenario.editable?.element.style.height).toBe("110px");
+    expect(scenario.editable?.element.style.overflowY).toBe("hidden");
   });
 
   it("clears manual mode after dragging to the minimum height", () => {
@@ -298,9 +450,10 @@ describe("automatic content-editable resizing", () => {
 
     act(() => scenario.result.current.smartResize());
     scenario.animationFrames.flushAll();
-    expect(scenario.editable?.element.style.height).toBe("20px");
+    const heightBeforeRelease = scenario.editable?.element.style.height;
 
     fireEvent.mouseUp(document);
+    expect(heightBeforeRelease).toBe("20px");
     scenario.editable!.element.style.height = "100px";
     act(() => scenario.result.current.smartResize());
     scenario.animationFrames.flushAll();
@@ -308,6 +461,49 @@ describe("automatic content-editable resizing", () => {
     expect(scenario.editable?.element.style.height).toBe("20px");
     expect(scenario.onGripDragEnd).toHaveBeenCalledOnce();
   });
+
+  it("clears manual mode at the minimum-height tolerance boundary", () => {
+    const scenario = createHookScenario({
+      enableManualResize: true,
+      height: 100,
+      scrollHeight: 10,
+      text: "",
+    });
+    startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 178.5 });
+    fireEvent.mouseUp(document);
+    expect(scenario.editable?.element.style.height).toBe("21.5px");
+
+    scenario.editable!.element.style.height = "100px";
+    act(() => scenario.result.current.smartResize());
+    scenario.animationFrames.flushAll();
+
+    expect(scenario.editable?.element.style.height).toBe("20px");
+  });
+
+  it.each([
+    { clientY: 180, currentHeight: "30px", expectedHeight: "30px" },
+    { clientY: 178.5, currentHeight: "20px", expectedHeight: "20px" },
+  ])(
+    "does not restore a stored manual height at the minimum tolerance ($clientY)",
+    ({ clientY, currentHeight, expectedHeight }) => {
+      const scenario = createHookScenario({
+        enableManualResize: true,
+        height: 100,
+        scrollHeight: 10,
+        text: "",
+      });
+      startMouseDrag(scenario.result.current.handleGripMouseDown, 100);
+      fireEvent.mouseMove(document, { clientY });
+
+      scenario.editable!.element.style.height = currentHeight;
+      act(() => scenario.result.current.smartResize());
+      scenario.animationFrames.flushAll();
+
+      fireEvent.mouseUp(document);
+      expect(scenario.editable?.element.style.height).toBe(expectedHeight);
+    },
+  );
 
   it("preserves the existing height when a manual drag spans a missing element", () => {
     const scenario = createHookScenario({
@@ -361,6 +557,83 @@ describe("automatic content-editable resizing", () => {
     scenario.animationFrames.flushAll();
     expect(scenario.editable?.element.style.height).toBe("20px");
   });
+
+  it("uses updated constraints and callbacks after rerender", () => {
+    const animationFrames = installControlledAnimationFrames();
+    const editable = createEditableElement({
+      height: 20,
+      scrollHeight: 40,
+    });
+    const ref = { current: editable.element };
+    const oldHeightChange = vi.fn();
+    const oldDragStart = vi.fn();
+    const oldDragEnd = vi.fn();
+    const newHeightChange = vi.fn();
+    const newDragStart = vi.fn();
+    const newDragEnd = vi.fn();
+    const { result, rerender } = renderHook(
+      (props: {
+        minHeight: number;
+        maxHeight: number;
+        onHeightChange: (height: number) => void;
+        onGripDragStart: () => void;
+        onGripDragEnd: () => void;
+      }) => useAutoResize(ref, { ...props, enableManualResize: true }),
+      {
+        initialProps: {
+          minHeight: 20,
+          maxHeight: 120,
+          onHeightChange: oldHeightChange,
+          onGripDragStart: oldDragStart,
+          onGripDragEnd: oldDragEnd,
+        },
+      },
+    );
+    animationFrames.flushAll();
+    oldHeightChange.mockClear();
+
+    editable.setScrollHeight(100);
+    rerender({
+      minHeight: 60,
+      maxHeight: 80,
+      onHeightChange: newHeightChange,
+      onGripDragStart: newDragStart,
+      onGripDragEnd: newDragEnd,
+    });
+
+    expect(animationFrames.frames.size).toBe(1);
+    animationFrames.flushAll();
+    expect(editable.element.style.height).toBe("80px");
+    expect(editable.element.style.overflowY).toBe("auto");
+    expect(newHeightChange).toHaveBeenLastCalledWith(80);
+
+    editable.element.style.height = "100px";
+    editable.setScrollHeight(40);
+    act(() => result.current.smartResize());
+    animationFrames.flushAll();
+    expect(editable.element.style.height).toBe("60px");
+    expect(newHeightChange).toHaveBeenLastCalledWith(60);
+
+    editable.element.style.height = "20px";
+    editable.setScrollHeight(50);
+    act(() => result.current.smartResize());
+    animationFrames.flushAll();
+    expect(editable.element.style.height).toBe("60px");
+    expect(newHeightChange).toHaveBeenLastCalledWith(60);
+
+    oldHeightChange.mockClear();
+    newHeightChange.mockClear();
+    startMouseDrag(result.current.handleGripMouseDown, 100);
+    fireEvent.mouseMove(document, { clientY: 90 });
+    fireEvent.mouseUp(document);
+
+    expect(oldHeightChange).not.toHaveBeenCalled();
+    expect(oldDragStart).not.toHaveBeenCalled();
+    expect(oldDragEnd).not.toHaveBeenCalled();
+    expect(newHeightChange).toHaveBeenCalledWith(70);
+    expect(newDragStart).toHaveBeenCalledOnce();
+    expect(newDragEnd).toHaveBeenCalledOnce();
+  });
 });
 
 describe("prefilled value application", () => {
@@ -386,7 +659,10 @@ describe("prefilled value application", () => {
     expect(focus).toHaveBeenCalledOnce();
     expect(onValueApplied).toHaveBeenCalledOnce();
     animationFrames.flushAll();
+    expect(focus).toHaveBeenCalledOnce();
+    expect(onValueApplied).toHaveBeenCalledOnce();
     unmount();
+    expect(animationFrames.cancel).not.toHaveBeenCalledWith(0);
   });
 
   it("applies a value when no consumption callback is supplied", () => {

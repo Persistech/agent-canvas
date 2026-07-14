@@ -9,7 +9,6 @@ import { useDragResize } from "./use-drag-resize";
 const DEFAULT_MIN_HEIGHT = 20;
 const DEFAULT_MAX_HEIGHT = 120;
 const HEIGHT_INCREMENT = 20;
-const MANUAL_OVERSIZE_THRESHOLD = 50;
 
 // Manual height tracking utilities
 const useManualHeight = () => {
@@ -71,12 +70,6 @@ const applyHeightToElement = (
 
   return finalHeight;
 };
-
-const isManuallyOversized = (
-  currentHeight: number,
-  contentHeight: number,
-  threshold = MANUAL_OVERSIZE_THRESHOLD,
-): boolean => currentHeight > contentHeight + threshold;
 
 const measureElementHeights = (
   element: HTMLElement,
@@ -215,28 +208,13 @@ export const useAutoResize = (
 
   // Handle content that exceeds current height but within max height
   const handleContentExceedsCurrentHeight = useCallback(
-    (
-      element: HTMLElement,
-      currentHeight: number,
-      contentHeight: number,
-    ): void => {
-      // Grow unless the element is manually oversized beyond content significantly
-      if (!isManuallyOversized(currentHeight, contentHeight)) {
-        const finalHeight = Math.max(contentHeight, minHeight);
-        applyResizeStrategy(element, {
-          finalHeight,
-          overflowY: "hidden",
-        });
-        executeHeightCallback(finalHeight, onHeightChange);
-        return;
-      }
-
-      // Keep manual height and allow scrolling as needed
+    (element: HTMLElement, contentHeight: number): void => {
+      const finalHeight = Math.max(contentHeight, minHeight);
       applyResizeStrategy(element, {
-        finalHeight: currentHeight,
-        overflowY: "auto",
+        finalHeight,
+        overflowY: "hidden",
       });
-      executeHeightCallback(currentHeight, onHeightChange);
+      executeHeightCallback(finalHeight, onHeightChange);
     },
     [minHeight, onHeightChange],
   );
@@ -285,7 +263,7 @@ export const useAutoResize = (
 
     // If content exceeds current height but within max
     if (contentHeight <= maxHeight) {
-      handleContentExceedsCurrentHeight(element, currentHeight, contentHeight);
+      handleContentExceedsCurrentHeight(element, contentHeight);
       return;
     }
 
