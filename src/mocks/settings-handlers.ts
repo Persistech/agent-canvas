@@ -449,7 +449,7 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
 };
 
 const MOCK_USER_PREFERENCES: {
-  settings: Settings | null;
+  settings: Settings;
 } = {
   settings: structuredClone(MOCK_DEFAULT_USER_SETTINGS),
 };
@@ -471,13 +471,11 @@ const MOCK_LLM_PROFILES: {
 let mockOpenAISubscriptionConnected = false;
 
 const getProfileNameParam = (value: unknown): string =>
-  decodeURIComponent(
-    Array.isArray(value) ? String(value[0] ?? "") : String(value ?? ""),
-  );
+  decodeURIComponent(String(value));
 
 const profileToListItem = (profile: MockLlmProfile) => ({
   name: profile.name,
-  model: typeof profile.config.model === "string" ? profile.config.model : null,
+  model: profile.config.model as string,
   base_url:
     typeof profile.config.base_url === "string"
       ? profile.config.base_url
@@ -486,14 +484,12 @@ const profileToListItem = (profile: MockLlmProfile) => ({
 });
 
 const applyProfileToMockSettings = (profile: MockLlmProfile) => {
-  const current =
-    MOCK_USER_PREFERENCES.settings ||
-    structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+  const current = MOCK_USER_PREFERENCES.settings;
 
   MOCK_USER_PREFERENCES.settings = {
     ...current,
     agent_settings: {
-      ...(current.agent_settings ?? {}),
+      ...current.agent_settings,
       llm: structuredClone(profile.config),
     },
     llm_api_key_set: profile.api_key_set,
@@ -611,11 +607,12 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
 >((acc, model) => {
   if (!MOCK_VERIFIED_MODELS.has(model)) return acc;
 
-  const [provider, ...rest] = model.split("/");
-  if (!provider || rest.length === 0) return acc;
+  const separator = model.indexOf("/");
+  const provider = model.slice(0, separator);
+  const name = model.slice(separator + 1);
 
   acc[provider] ??= [];
-  acc[provider].push(rest.join("/"));
+  acc[provider].push(name);
   return acc;
 }, {});
 
@@ -736,7 +733,7 @@ export const SETTINGS_HANDLERS = [
     if (query) {
       providers = providers.filter((p) => p.name.toLowerCase().includes(query));
     }
-    if (verifiedEq !== null && verifiedEq !== undefined) {
+    if (verifiedEq !== null) {
       const wantVerified = verifiedEq === "true";
       providers = providers.filter((p) => p.verified === wantVerified);
     }
@@ -752,11 +749,10 @@ export const SETTINGS_HANDLERS = [
     const providerEq = url.searchParams.get("provider__eq");
 
     let models = MOCK_MODELS.map((m) => {
-      const [provider, ...rest] = m.split("/");
-      const name = rest.join("/");
+      const separator = m.indexOf("/");
       return {
-        provider: provider || null,
-        name,
+        provider: m.slice(0, separator),
+        name: m.slice(separator + 1),
         verified: MOCK_VERIFIED_MODELS.has(m),
       };
     });
@@ -767,7 +763,7 @@ export const SETTINGS_HANDLERS = [
     if (query) {
       models = models.filter((m) => m.name.toLowerCase().includes(query));
     }
-    if (verifiedEq !== null && verifiedEq !== undefined) {
+    if (verifiedEq !== null) {
       const wantVerified = verifiedEq === "true";
       models = models.filter((m) => m.verified === wantVerified);
     }
@@ -935,18 +931,11 @@ export const SETTINGS_HANDLERS = [
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
-    if (!settings) return HttpResponse.json(null, { status: 404 });
-
     return HttpResponse.json(settings);
   }),
 
   // New settings API endpoints (GET /api/settings with X-Expose-Secrets header support)
   http.get("*/api/settings", async ({ request }) => {
-    // Exclude sub-paths like /api/settings/agent-schema (handled by separate handlers)
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split("/").filter(Boolean);
-    if (pathParts.length > 2) return undefined;
-
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
@@ -959,21 +948,13 @@ export const SETTINGS_HANDLERS = [
       disabled_skills: [],
     };
 
-    if (!settings) {
-      return HttpResponse.json({
-        agent_settings: {},
-        conversation_settings: {},
-        llm_api_key_is_set: false,
-        misc_settings: { app_preferences: DEFAULT_APP_PREFERENCES },
-      });
-    }
-
     const exposeSecrets = request.headers.get("X-Expose-Secrets");
 
     // Build agent_settings, handling secrets based on header
-    const agentSettings = structuredClone(
-      settings.agent_settings ?? {},
-    ) as Record<string, unknown>;
+    const agentSettings = structuredClone(settings.agent_settings) as Record<
+      string,
+      unknown
+    >;
     const llm = agentSettings.llm as Record<string, unknown> | undefined;
     if (llm?.api_key) {
       if (exposeSecrets === "encrypted") {
@@ -1011,7 +992,7 @@ export const SETTINGS_HANDLERS = [
 
     return HttpResponse.json({
       agent_settings: agentSettings,
-      conversation_settings: settings.conversation_settings ?? {},
+      conversation_settings: settings.conversation_settings,
       llm_api_key_is_set: llmApiKeySet,
       misc_settings: { app_preferences: appPreferences },
     });
@@ -1046,14 +1027,12 @@ export const SETTINGS_HANDLERS = [
       );
     }
 
-    const current =
-      MOCK_USER_PREFERENCES.settings ||
-      structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+    const current = MOCK_USER_PREFERENCES.settings;
     const nextSettings: Settings = { ...current };
 
     if (body.agent_settings_diff) {
       const merged = deepMerge(
-        (current.agent_settings ?? {}) as Record<string, unknown>,
+        current.agent_settings as Record<string, unknown>,
         body.agent_settings_diff,
       );
       nextSettings.agent_settings = merged as Settings["agent_settings"];
@@ -1071,7 +1050,7 @@ export const SETTINGS_HANDLERS = [
 
     if (body.conversation_settings_diff) {
       nextSettings.conversation_settings = {
-        ...(current.conversation_settings ?? {}),
+        ...current.conversation_settings,
         ...body.conversation_settings_diff,
       };
     }
@@ -1101,8 +1080,8 @@ export const SETTINGS_HANDLERS = [
 
     // Return the updated settings (without secrets exposed)
     return HttpResponse.json({
-      agent_settings: nextSettings.agent_settings ?? {},
-      conversation_settings: nextSettings.conversation_settings ?? {},
+      agent_settings: nextSettings.agent_settings,
+      conversation_settings: nextSettings.conversation_settings,
       llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
       misc_settings: ((nextSettings as Record<string, unknown>)
         .misc_settings as
@@ -1131,9 +1110,7 @@ export const SETTINGS_HANDLERS = [
     const body = (await request.json()) as Record<string, unknown> | null;
 
     if (body) {
-      const current =
-        MOCK_USER_PREFERENCES.settings ||
-        structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+      const current = MOCK_USER_PREFERENCES.settings;
 
       if ("agent_settings" in body || "conversation_settings" in body) {
         return HttpResponse.json(
@@ -1154,7 +1131,7 @@ export const SETTINGS_HANDLERS = [
         | undefined;
       if (agentSettingsPatch) {
         const merged = deepMerge(
-          (current.agent_settings ?? {}) as Record<string, unknown>,
+          current.agent_settings as Record<string, unknown>,
           agentSettingsPatch,
         );
         nextSettings.agent_settings = merged as Settings["agent_settings"];
@@ -1165,7 +1142,7 @@ export const SETTINGS_HANDLERS = [
         | undefined;
       if (conversationSettingsPatch) {
         nextSettings.conversation_settings = {
-          ...(current.conversation_settings ?? {}),
+          ...current.conversation_settings,
           ...conversationSettingsPatch,
         };
       }
@@ -1183,16 +1160,9 @@ export const SETTINGS_HANDLERS = [
       }
 
       MOCK_USER_PREFERENCES.settings = nextSettings;
-      return HttpResponse.json(null, { status: 200 });
+      return HttpResponse.json(null);
     }
 
     return HttpResponse.json(null, { status: 400 });
-  }),
-
-  // POST /api/mcp/test – MCP server connectivity check before install.
-  // Returns ok:true so the install modal can proceed to save and close.
-  http.post("*/api/mcp/test", async () => {
-    await delay();
-    return HttpResponse.json({ ok: true, tools: [] });
   }),
 ];

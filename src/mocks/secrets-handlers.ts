@@ -22,12 +22,7 @@ const secrets = new Map<string, { value: string; description?: string }>([
  */
 export const SECRETS_HANDLERS = [
   // GET /api/settings/secrets - List all secrets (names and descriptions only)
-  http.get("*/api/settings/secrets", async ({ request }) => {
-    // Exclude requests with a :name param (handled by the next handler)
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split("/").filter(Boolean);
-    if (pathParts.length > 3) return undefined; // Let it pass through to :name handler
-
+  http.get("*/api/settings/secrets", async () => {
     const secretsList = Array.from(secrets.entries()).map(
       ([name, { description }]) => ({ name, description }),
     );
@@ -36,10 +31,7 @@ export const SECRETS_HANDLERS = [
 
   // GET /api/settings/secrets/:name - Get secret value by name
   http.get("*/api/settings/secrets/:name", async ({ params }) => {
-    const { name } = params;
-    if (typeof name !== "string") {
-      return HttpResponse.json({ detail: "Invalid name" }, { status: 400 });
-    }
+    const name = params.name as string;
 
     const secret = secrets.get(name);
     if (!secret) {
@@ -79,10 +71,7 @@ export const SECRETS_HANDLERS = [
 
   // DELETE /api/settings/secrets/:name - Delete a secret by name
   http.delete("*/api/settings/secrets/:name", async ({ params }) => {
-    const { name } = params;
-    if (typeof name !== "string") {
-      return HttpResponse.json({ detail: "Invalid name" }, { status: 400 });
-    }
+    const name = params.name as string;
 
     const deleted = secrets.delete(name);
     if (!deleted) {

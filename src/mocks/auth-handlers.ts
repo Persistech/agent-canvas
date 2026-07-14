@@ -29,5 +29,5 @@ export const AUTH_HANDLERS = [
     HttpResponse.json({ message: "Authenticated" }),
   ),
 
-  http.post("*/api/logout", () => HttpResponse.json(null, { status: 200 })),
+  http.post("*/api/logout", () => HttpResponse.json(null)),
 ];
