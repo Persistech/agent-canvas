@@ -521,6 +521,12 @@ describe("action titles", () => {
       key: "ACTION_MESSAGE$GLOB",
       values: { pattern: "" },
     },
+    {
+      name: "glob without a pattern field",
+      action: actionOf("GlobAction", { path: null }),
+      key: "ACTION_MESSAGE$GLOB",
+      values: { pattern: "" },
+    },
   ])("formats the $name action", ({ action, key, values, toolName }) => {
     const event = createActionEvent(action, {
       tool_name: toolName ?? "tool-name",

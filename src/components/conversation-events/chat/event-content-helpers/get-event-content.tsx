@@ -203,19 +203,13 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
     case "GrepAction":
       actionKey = "ACTION_MESSAGE$GREP";
       actionValues = {
-        pattern:
-          "pattern" in event.action && event.action.pattern
-            ? trimText(String(event.action.pattern), 50)
-            : "",
+        pattern: trimText(event.action.pattern ?? "", 50),
       };
       break;
     case "GlobAction":
       actionKey = "ACTION_MESSAGE$GLOB";
       actionValues = {
-        pattern:
-          "pattern" in event.action && event.action.pattern
-            ? trimText(String(event.action.pattern), 50)
-            : "",
+        pattern: trimText(event.action.pattern ?? "", 50),
       };
       break;
     case "BrowserNavigateAction":
