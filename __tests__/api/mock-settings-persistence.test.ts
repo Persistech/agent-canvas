@@ -254,6 +254,14 @@ describe("mock settings schemas and state", () => {
       agent_settings: { llm: null },
       llm_api_key_is_set: false,
     });
+    const fetchedWithoutLlm = await getJson<{
+      agent_settings: { llm: null };
+      llm_api_key_is_set: boolean;
+    }>("/api/settings");
+    expect(fetchedWithoutLlm.body).toMatchObject({
+      agent_settings: { llm: null },
+      llm_api_key_is_set: false,
+    });
 
     resetTestHandlersMockSettings();
     await fetch(
@@ -443,6 +451,16 @@ describe("legacy settings persistence", () => {
     );
     expect(one.response.status).toBe(422);
     expect(one.body.keys).toEqual(["agent_settings"]);
+
+    const conversationOnly = await getJson<{ error: string; keys: string[] }>(
+      "/api/v1/settings",
+      jsonRequest({ conversation_settings: {} }, "POST"),
+    );
+    expect(conversationOnly.response.status).toBe(422);
+    expect(conversationOnly.body).toEqual({
+      error: "Use *_diff nested settings payloads",
+      keys: ["conversation_settings"],
+    });
   });
 
   it("accepts nested diffs and independent top-level settings", async () => {

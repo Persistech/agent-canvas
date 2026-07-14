@@ -184,6 +184,9 @@ describe("mock LLM profile lifecycle", () => {
       jsonRequest({ new_name: "new" }),
     );
     expect(missing.status).toBe(404);
+    await expect(missing.json()).resolves.toEqual({
+      detail: "Profile 'missing' not found",
+    });
 
     await saveProfile("first", { model: "openai/gpt-4o" });
     await saveProfile("second", { model: "openai/gpt-5.5" });

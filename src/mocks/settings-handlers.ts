@@ -24,7 +24,6 @@ function deepMerge(
       typeof value === "object" &&
       !Array.isArray(value) &&
       typeof result[key] === "object" &&
-      result[key] != null &&
       !Array.isArray(result[key])
     ) {
       result[key] = deepMerge(
@@ -968,16 +967,9 @@ export const SETTINGS_HANDLERS = [
       }
     }
 
-    const llmApiKeySet =
-      !!settings.llm_api_key_set ||
-      (!!(settings.agent_settings as Record<string, unknown> | undefined)
-        ?.llm &&
-        !!(
-          (settings.agent_settings as Record<string, unknown>).llm as Record<
-            string,
-            unknown
-          >
-        )?.api_key);
+    const persistedLlm = (settings.agent_settings as Record<string, unknown>)
+      .llm as Record<string, unknown> | null | undefined;
+    const llmApiKeySet = !!settings.llm_api_key_set || !!persistedLlm?.api_key;
 
     // Reuse the persisted misc_settings.app_preferences for repeat fetches,
     // but always fall back to the default-empty block so the GUI sees a

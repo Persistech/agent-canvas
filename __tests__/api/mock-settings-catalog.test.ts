@@ -165,6 +165,11 @@ describe("mock agent-server discovery", () => {
       name: "gpt-4o",
       verified: false,
     });
+    expect(all.items).toContainEqual({
+      provider: "anthropic",
+      name: "claude-opus-4-8",
+      verified: true,
+    });
 
     const matching = await fetchJson<{ items: unknown[] }>(
       "/api/v1/config/models/search?provider__eq=anthropic&query=OPUS&verified__eq=true",
