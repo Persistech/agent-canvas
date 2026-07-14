@@ -7,12 +7,11 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import {
-  AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
+  AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION,
   AgentServerUnavailableError,
   AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
-  CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
   isCachedAgentServerVersionAtLeast,
   loadAgentServerInfo,
   MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
@@ -91,24 +90,14 @@ describe("loadAgentServerInfo", () => {
     await loadAgentServerInfo();
 
     expect(
-      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION),
-    ).toBe(false);
-    expect(
-      isCachedAgentServerVersionAtLeast(
-        CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
-      ),
+      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION),
     ).toBe(false);
 
     getServerInfoMock.mockResolvedValue({ version: "1.36.0" });
     await loadAgentServerInfo();
 
     expect(
-      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION),
-    ).toBe(true);
-    expect(
-      isCachedAgentServerVersionAtLeast(
-        CONVERSATION_SCOPED_CLIENT_TOOLS_MINIMUM_VERSION,
-      ),
+      isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION),
     ).toBe(true);
   });
 

@@ -21,12 +21,10 @@ import {
 
 const {
   mockGetAgentServerWorkingDir,
-  mockIsCachedAgentServerVersionAtLeast,
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
-  mockIsCachedAgentServerVersionAtLeast: vi.fn(() => true),
   mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
     id: "default-local",
@@ -45,11 +43,7 @@ vi.mock("#/api/agent-server-config", () => ({
   syncBakedSessionApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/agent-server-compatibility", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("#/api/agent-server-compatibility")
-  >()),
-  isCachedAgentServerVersionAtLeast: mockIsCachedAgentServerVersionAtLeast,
+vi.mock("#/api/agent-server-compatibility", () => ({
   isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
 }));
 
@@ -58,8 +52,6 @@ vi.mock("#/api/backend-registry/active-store", () => ({
 }));
 
 beforeEach(() => {
-  mockIsCachedAgentServerVersionAtLeast.mockReset();
-  mockIsCachedAgentServerVersionAtLeast.mockReturnValue(true);
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
     id: "default-local",
@@ -604,25 +596,23 @@ describe("buildStartConversationRequest", () => {
   });
 
   describe("canvas_ui tool injection", () => {
-    it("sends canvas_ui as a client tool for supported OpenHands profile launches", () => {
+    it("appends the server-side canvas_ui tool to OpenHands profile launches", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
         agentProfileId: "profile-xyz",
         agentProfileKind: "openhands",
       });
 
-      expect(payload.client_tools).toEqual([
-        expect.objectContaining({
-          name: "canvas_ui",
-          description: expect.stringContaining(
-            "browser_get_state(include_screenshot=true)",
-          ),
-        }),
-      ]);
+      expect(payload.agent_launch_additions).toEqual({
+        tools_append: [{ name: "canvas_ui", params: {} }],
+      });
+      expect(payload.tool_module_qualnames).toEqual({
+        canvas_ui: "canvas_ui_tool",
+      });
     });
 
-    it("omits client tools from OpenHands profile launches before agent-server 1.36.0", () => {
-      mockIsCachedAgentServerVersionAtLeast.mockReturnValue(false);
+    it("omits canvas_ui from OpenHands profile launches when unavailable", () => {
+      mockIsAgentServerToolAvailable.mockReturnValue(false);
 
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
@@ -630,10 +620,8 @@ describe("buildStartConversationRequest", () => {
         agentProfileKind: "openhands",
       });
 
-      expect(payload.client_tools).toBeUndefined();
-      expect(mockIsCachedAgentServerVersionAtLeast).toHaveBeenCalledWith(
-        "1.36.0",
-      );
+      expect(payload.agent_launch_additions).toBeUndefined();
+      expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
     it("registers canvas_ui_tool in tool_module_qualnames when the backend advertises canvas_ui", () => {
@@ -1198,7 +1186,7 @@ describe("agent_settings runtime services suffix", () => {
       query: "hello",
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
-      agent_launch_overrides?: unknown;
+      agent_launch_additions?: unknown;
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
       load_public_skills: false,
@@ -1228,7 +1216,7 @@ describe("agent_settings runtime services suffix", () => {
       query: "hello",
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
-      agent_launch_overrides?: unknown;
+      agent_launch_additions?: unknown;
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
       load_public_skills: false,
@@ -1237,7 +1225,7 @@ describe("agent_settings runtime services suffix", () => {
     expect(
       payload.agent_settings.agent_context.system_message_suffix as string,
     ).toContain("<RUNTIME_SERVICES>");
-    expect(payload.agent_launch_overrides).toBeUndefined();
+    expect(payload.agent_launch_additions).toBeUndefined();
   });
 
   it("sends rendered runtime services for a profile launch", () => {
@@ -1256,7 +1244,7 @@ describe("agent_settings runtime services suffix", () => {
       agentProfileId: "profile-xyz",
     });
 
-    expect(payload.agent_launch_overrides).toEqual({
+    expect(payload.agent_launch_additions).toEqual({
       system_message_suffix_append: expect.stringContaining(
         "* Automation backend: http://automation:8000",
       ),

@@ -13,7 +13,7 @@ import AgentProfilesService, {
   type AgentProfileListResponse,
 } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import {
-  AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
+  AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION,
   isCachedAgentServerVersionAtLeast,
 } from "#/api/agent-server-compatibility";
 import PluginsManagementService, {
@@ -139,7 +139,7 @@ export const useCreateConversation = () => {
         resolvedAgentProfile?.name === WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME &&
         resolvedAgentProfile.agent_kind === "openhands" &&
         !isCachedAgentServerVersionAtLeast(
-          AGENT_LAUNCH_OVERRIDES_MINIMUM_VERSION,
+          AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION,
         )
       ) {
         // TODO: Remove when agent-server versions before 1.36.0 are unsupported.
