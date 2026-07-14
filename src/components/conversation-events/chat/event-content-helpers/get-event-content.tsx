@@ -27,7 +27,6 @@ import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 
 const trimText = (text: string, maxLength: number): string => {
-  if (!text) return "";
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 };
 
@@ -150,7 +149,7 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
   }
 
   const actionType = event.action.kind;
-  let actionKey = "";
+  let actionKey: string;
   let actionValues: Record<string, unknown> = {};
 
   switch (actionType) {
@@ -260,7 +259,7 @@ const getObservationEventTitle = (
   }
 
   const observationType = event.observation.kind;
-  let observationKey = "";
+  let observationKey: string;
   let observationValues: Record<string, unknown> = {};
 
   switch (observationType) {
