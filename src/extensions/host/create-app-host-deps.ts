@@ -3,11 +3,13 @@ import ConversationService from "#/api/conversation-service/conversation-service
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
+import EventService from "#/api/event-service/event-service.api";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { contributionRegistry } from "../contribution-registry";
 import type {
   ConversationSummary,
   CreateConversationOptions,
+  EventStats,
 } from "../sdk/types";
 import type {
   BackendFetchMethod,
@@ -79,6 +81,110 @@ function storageKey(extensionId: string, key: string): string {
 }
 
 /**
+ * Upper bound on events scanned when computing stats, so a very long trajectory
+ * can't spin the UI forever. At 100/page this is 50 requests; beyond it the
+ * returned stats are flagged `truncated`.
+ */
+const EVENT_STATS_MAX_EVENTS = 5000;
+const EVENT_STATS_PAGE_SIZE = 100;
+
+/** Coerce an event's timestamp to epoch ms, or null if unparseable. */
+function eventTimeMs(timestamp: unknown): number | null {
+  if (typeof timestamp !== "string") return null;
+  const ms = Date.parse(timestamp);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Page through a conversation's event stream via {@link EventService} (which
+ * transparently targets the cloud App API or the local agent-server) and fold
+ * the events into aggregate counts + a first/last duration. The extension host
+ * exposes this so a sandboxed webview — which has no network of its own — can
+ * show trajectory stats on both backends without ever seeing the runtime key.
+ */
+async function computeEventStats(
+  conversationId: string,
+  conversationUrl: string | null,
+  sessionApiKey: string | null,
+): Promise<EventStats> {
+  const byKind: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
+  let total = 0;
+  let minMs: number | null = null;
+  let maxMs: number | null = null;
+  let firstTimestamp: string | null = null;
+  let lastTimestamp: string | null = null;
+  let truncated = false;
+
+  let pageId: string | undefined;
+  // Ascending scan keeps memory flat; we only track running aggregates.
+  while (total < EVENT_STATS_MAX_EVENTS) {
+    const page = await withRetry(
+      () =>
+        EventService.searchEvents(
+          conversationId,
+          conversationUrl,
+          sessionApiKey,
+          {
+            limit: EVENT_STATS_PAGE_SIZE,
+            sortOrder: "TIMESTAMP",
+            ...(pageId ? { pageId } : {}),
+          },
+        ),
+      `getEventStats ${conversationId}`,
+    );
+
+    const items = Array.isArray(page.items) ? page.items : [];
+    for (const event of items) {
+      const record = event as {
+        kind?: unknown;
+        source?: unknown;
+        timestamp?: unknown;
+      };
+      total += 1;
+
+      const kind = typeof record.kind === "string" ? record.kind : "Unknown";
+      byKind[kind] = (byKind[kind] ?? 0) + 1;
+
+      const source =
+        typeof record.source === "string" ? record.source : "unknown";
+      bySource[source] = (bySource[source] ?? 0) + 1;
+
+      const ms = eventTimeMs(record.timestamp);
+      if (ms !== null) {
+        if (minMs === null || ms < minMs) {
+          minMs = ms;
+          firstTimestamp = record.timestamp as string;
+        }
+        if (maxMs === null || ms > maxMs) {
+          maxMs = ms;
+          lastTimestamp = record.timestamp as string;
+        }
+      }
+    }
+
+    const nextPageId = page.next_page_id ?? null;
+    if (!nextPageId || items.length === 0) break;
+    pageId = nextPageId;
+
+    if (total >= EVENT_STATS_MAX_EVENTS) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return {
+    total,
+    byKind,
+    bySource,
+    firstTimestamp,
+    lastTimestamp,
+    durationMs: minMs !== null && maxMs !== null ? maxMs - minMs : null,
+    truncated,
+  };
+}
+
+/**
  * Build the real {@link HostApiDeps} wiring the extension host to live app services:
  * the active conversation, toast notifications, contributed-command dispatch, and
  * namespaced `localStorage`. This is the production seam between the (app-agnostic)
@@ -89,6 +195,7 @@ export function createAppHostDeps(): HostApiDeps {
     getActiveConversation: (): ConversationSummary | null => {
       const conversation = ConversationService.getCurrentConversation();
       if (!conversation) return null;
+      const backendKind = getActiveBackend().backend.kind;
       return {
         id: conversation.id,
         title: conversation.title,
@@ -99,7 +206,23 @@ export function createAppHostDeps(): HostApiDeps {
         updatedAt: conversation.updated_at ?? null,
         selectedRepository: conversation.selected_repository ?? null,
         workingDir: conversation.workspace?.working_dir ?? null,
+        backend: backendKind === "cloud" ? "cloud" : "local",
+        sandboxId: conversation.sandbox_id ?? null,
+        sandboxStatus: conversation.sandbox_status ?? null,
       };
+    },
+
+    getEventStats: async (conversationId?: string): Promise<EventStats> => {
+      const conversation = ConversationService.getCurrentConversation();
+      const targetId = conversationId ?? conversation?.id;
+      if (!targetId) {
+        throw new Error("No conversation available for event stats");
+      }
+      return computeEventStats(
+        targetId,
+        conversation?.conversation_url ?? null,
+        conversation?.session_api_key ?? null,
+      );
     },
 
     showInformationMessage: (message: string) => {

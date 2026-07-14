@@ -35,6 +35,8 @@ describe("createAppHostDeps", () => {
       updated_at: "2024-01-01T00:00:00Z",
       selected_repository: "owner/repo",
       workspace: { working_dir: "/workspace/project" },
+      sandbox_id: "sb-123",
+      sandbox_status: "RUNNING",
     } as unknown as AppConversation);
 
     expect(deps.getActiveConversation()).toEqual({
@@ -47,6 +49,9 @@ describe("createAppHostDeps", () => {
       updatedAt: "2024-01-01T00:00:00Z",
       selectedRepository: "owner/repo",
       workingDir: "/workspace/project",
+      backend: "local",
+      sandboxId: "sb-123",
+      sandboxStatus: "RUNNING",
     });
   });
 

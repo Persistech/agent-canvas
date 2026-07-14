@@ -49,7 +49,19 @@ function makeDeps(overrides: Partial<HostApiDeps> = {}): HostApiDeps {
       updatedAt: "2024-01-01T00:00:00Z",
       selectedRepository: null,
       workingDir: "/workspace",
+      backend: "local",
+      sandboxId: null,
+      sandboxStatus: null,
     }),
+    getEventStats: vi.fn(async () => ({
+      total: 0,
+      byKind: {},
+      bySource: {},
+      firstTimestamp: null,
+      lastTimestamp: null,
+      durationMs: null,
+      truncated: false,
+    })),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(),
     storageGet: vi.fn(),
@@ -160,6 +172,9 @@ describe("ExtensionHost", () => {
           updatedAt: "2024-01-01T00:00:00Z",
           selectedRepository: null,
           workingDir: "/workspace",
+          backend: "local",
+          sandboxId: null,
+          sandboxStatus: null,
         }),
       }),
     );
@@ -182,6 +197,9 @@ describe("ExtensionHost", () => {
       updatedAt: "2024-01-01T00:00:00Z",
       selectedRepository: null,
       workingDir: "/workspace",
+      backend: "local",
+      sandboxId: null,
+      sandboxStatus: null,
     });
   });
 

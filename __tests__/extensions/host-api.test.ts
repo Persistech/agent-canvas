@@ -17,7 +17,19 @@ function makeDeps(overrides: Partial<HostApiDeps> = {}): HostApiDeps {
       updatedAt: "2024-01-01T00:00:00Z",
       selectedRepository: null,
       workingDir: "/workspace",
+      backend: "local",
+      sandboxId: null,
+      sandboxStatus: null,
     }),
+    getEventStats: vi.fn(async () => ({
+      total: 3,
+      byKind: { MessageEvent: 1, ActionEvent: 2 },
+      bySource: { user: 1, agent: 2 },
+      firstTimestamp: "2024-01-01T00:00:00Z",
+      lastTimestamp: "2024-01-01T00:05:00Z",
+      durationMs: 300000,
+      truncated: false,
+    })),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(async () => "executed"),
     storageGet: vi.fn(() => "stored"),
@@ -55,12 +67,31 @@ describe("createHostMethods (capability gating)", () => {
       updatedAt: "2024-01-01T00:00:00Z",
       selectedRepository: null,
       workingDir: "/workspace",
+      backend: "local",
+      sandboxId: null,
+      sandboxStatus: null,
     });
   });
 
   it("throws conversation.getActive without the capability", () => {
     const methods = methodsFor([]);
     expect(() => methods["conversation.getActive"](undefined)).toThrow(
+      /missing capability: conversation:read/,
+    );
+  });
+
+  it("allows conversation.getEventStats when conversation:read is granted", async () => {
+    const deps = makeDeps();
+    const methods = methodsFor(["conversation:read"], deps);
+    await expect(
+      methods["conversation.getEventStats"]({ conversationId: "c9" }),
+    ).resolves.toMatchObject({ total: 3, durationMs: 300000 });
+    expect(deps.getEventStats).toHaveBeenCalledWith("c9");
+  });
+
+  it("throws conversation.getEventStats without the capability", () => {
+    const methods = methodsFor([]);
+    expect(() => methods["conversation.getEventStats"]({})).toThrow(
       /missing capability: conversation:read/,
     );
   });

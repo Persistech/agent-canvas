@@ -2,6 +2,7 @@ import type { Capability } from "../manifest";
 import type {
   ConversationSummary,
   CreateConversationOptions,
+  EventStats,
 } from "../sdk/types";
 import type { RpcMethodMap } from "./rpc";
 
@@ -32,6 +33,12 @@ export interface BackendFetchResponse {
 export interface HostApiDeps {
   /** Resolve the currently active conversation (or null). */
   getActiveConversation(): ConversationSummary | null;
+  /**
+   * Compute aggregate event statistics for a conversation. When `conversationId`
+   * is omitted, the active conversation is used. Backend-agnostic: the host
+   * resolves the runtime host/key internally (local or cloud).
+   */
+  getEventStats(conversationId?: string): Promise<EventStats>;
   /** Show an informational message in the host UI. */
   showInformationMessage(message: string): void;
   /** Execute a host command by id (built-in or contributed). */
@@ -110,6 +117,12 @@ export function createHostMethods(
     "conversation.getActive": () => {
       requireCapability(granted, "conversation:read");
       return deps.getActiveConversation();
+    },
+
+    "conversation.getEventStats": (params) => {
+      requireCapability(granted, "conversation:read");
+      const { conversationId } = (params as { conversationId?: string }) || {};
+      return deps.getEventStats(conversationId);
     },
 
     "storage.get": (params) => {

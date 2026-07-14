@@ -6,6 +6,15 @@ import type { HostApiDeps } from "#/extensions/host/host-api";
 function makeDeps(): HostApiDeps {
   return {
     getActiveConversation: () => null,
+    getEventStats: vi.fn(async () => ({
+      total: 0,
+      byKind: {},
+      bySource: {},
+      firstTimestamp: null,
+      lastTimestamp: null,
+      durationMs: null,
+      truncated: false,
+    })),
     showInformationMessage: vi.fn(),
     executeCommand: vi.fn(),
     storageGet: vi.fn(),

@@ -601,6 +601,7 @@ export function createHostMethods(
 | `window.showInformationMessage` | None | `deps.showInformationMessage(msg)` |
 | `commands.execute` | None | `deps.executeCommand(cmd, args)` |
 | `conversation.getActive` | `conversation:read` | `deps.getCurrentConversation()` |
+| `conversation.getEventStats` | `conversation:read` | `deps.getEventStats(conversationId)` — aggregates the event stream host-side (cloud + local) |
 | `storage.get` | `storage` | `deps.storage.get(key)` |
 | `storage.set` | `storage` | `deps.storage.set(key, value)` |
 | `backend.cloudFetch` | `backend:cloud:read` (GET) or `backend:cloud:write` (POST/PUT/PATCH/DELETE) | `deps.cloudFetch(params)` |

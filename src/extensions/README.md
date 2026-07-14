@@ -136,7 +136,7 @@ Users see these at install time and must consent before the extension is registe
 
 | Capability | Grants access to |
 |------------|------------------|
-| `conversation:read` | Read the active conversation (`agentCanvas.conversation.getActive()`) |
+| `conversation:read` | Read the active conversation (`agentCanvas.conversation.getActive()`) and compute event statistics (`agentCanvas.conversation.getEventStats()`) |
 | `storage` | Per-extension key/value storage (`agentCanvas.storage.get/set()`) |
 | `backend:cloud:read` | Read from the active cloud backend API (`agentCanvas.backend.cloudFetch()` with GET) |
 | `backend:cloud:write` | Write to the active cloud backend API (`agentCanvas.backend.cloudFetch()` with POST/PUT/PATCH/DELETE) |

@@ -355,7 +355,21 @@ await ctx.agentCanvas.commands.execute(commandId, ...args);
 ```javascript
 // Get active conversation summary
 const convo = await ctx.agentCanvas.conversation.getActive();
-// Returns: { id, title, created_at, updated_at } or null
+// Returns: { id, title, created_at, updated_at, backend, sandboxId, sandboxStatus } or null
+
+// Get aggregate event statistics for a conversation (defaults to the active one).
+// Computed host-side via the event stream, so it works on both cloud and local
+// backends without the webview touching runtime credentials.
+const stats = await ctx.agentCanvas.conversation.getEventStats(convo?.id);
+// Returns: {
+//   total,                 // number of events scanned
+//   byKind,                // { [eventKind]: count }
+//   bySource,              // { [source]: count }
+//   firstTimestamp,        // ISO string | null
+//   lastTimestamp,         // ISO string | null
+//   durationMs,            // last - first, in ms | null
+//   truncated,             // true if the scan hit the max-events cap
+// }
 ```
 
 #### Storage API (requires `storage` capability)
@@ -540,7 +554,7 @@ Declare required capabilities in your manifest:
 
 | Capability | Grants access to | Use case |
 |------------|------------------|----------|
-| `conversation:read` | `agentCanvas.conversation.getActive()` | Read conversation metadata |
+| `conversation:read` | `agentCanvas.conversation.getActive()`, `agentCanvas.conversation.getEventStats()` | Read conversation metadata and aggregate event statistics |
 | `storage` | `agentCanvas.storage.get/set()` | Persist extension data |
 | `backend:cloud:read` | `agentCanvas.backend.cloudFetch()` (GET) | Read from cloud backend API |
 | `backend:cloud:write` | `agentCanvas.backend.cloudFetch()` (POST/PUT/PATCH/DELETE) | Write to cloud backend API |

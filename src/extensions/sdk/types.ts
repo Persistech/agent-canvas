@@ -24,6 +24,47 @@ export interface ConversationSummary {
   selectedRepository: string | null;
   /** Working directory path (if available). */
   workingDir: string | null;
+  /**
+   * The active backend kind this conversation lives on: `"cloud"` | `"local"`.
+   * Lets extensions gate cloud-only affordances (e.g. runtime/sandbox controls)
+   * without a separate capability — it mirrors the host UI-context `backend` fact.
+   */
+  backend: "cloud" | "local" | null;
+  /**
+   * Cloud sandbox (runtime) id backing this conversation, or null. Only populated
+   * for cloud conversations; always null on local backends. Non-secret identifier
+   * suitable for querying `/api/v1/sandboxes/{id}` via `backend.cloudFetch`.
+   */
+  sandboxId: string | null;
+  /**
+   * Cloud sandbox lifecycle status (e.g. `RUNNING`, `PAUSED`, `STARTING`), or null.
+   * Only meaningful for cloud conversations.
+   */
+  sandboxStatus: string | null;
+}
+
+/** Aggregate statistics computed from a conversation's event stream. */
+export interface EventStats {
+  /** Total number of events in the conversation. */
+  total: number;
+  /** Count of events grouped by their `kind` (e.g. ActionEvent, MessageEvent). */
+  byKind: Record<string, number>;
+  /** Count of events grouped by their `source` (agent, user, environment). */
+  bySource: Record<string, number>;
+  /** ISO timestamp of the earliest event, or null when there are no events. */
+  firstTimestamp: string | null;
+  /** ISO timestamp of the latest event, or null when there are no events. */
+  lastTimestamp: string | null;
+  /**
+   * Wall-clock duration in milliseconds from the first to the last event, or null
+   * when fewer than two events exist.
+   */
+  durationMs: number | null;
+  /**
+   * True when the stats were computed from a truncated scan (the event stream was
+   * larger than the scan budget), so counts/duration are lower bounds.
+   */
+  truncated: boolean;
 }
 
 /** Returned by registrations/subscriptions so callers can clean up. */
@@ -68,6 +109,15 @@ export interface AgentCanvasApi {
     getActive(): Promise<ConversationSummary | null>;
     /** Create a new conversation and navigate to it. Returns the task/conversation ID. */
     create(options?: CreateConversationOptions): Promise<string>;
+    /**
+     * Compute aggregate statistics (event counts by kind/source and duration)
+     * for a conversation's event stream. Works on both cloud and local backends —
+     * the host resolves the conversation's runtime host/key internally, so the
+     * extension never handles credentials. Requires `conversation:read`.
+     *
+     * @param conversationId - Conversation to analyze. Defaults to the active one.
+     */
+    getEventStats(conversationId?: string): Promise<EventStats>;
   };
   sandbox: {
     /** Create a new cloud sandbox (without a conversation). Returns sandbox info. Requires `backend:cloud:write`. */

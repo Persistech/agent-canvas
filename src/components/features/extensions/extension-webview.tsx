@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { getAssetLoader } from "#/extensions/asset-loader";
 import {
   createHostMethods,
@@ -87,6 +88,9 @@ interface ConversationUpdate {
   updatedAt: string | null;
   selectedRepository: string | null;
   workingDir: string | null;
+  backend: "cloud" | "local" | null;
+  sandboxId: string | null;
+  sandboxStatus: string | null;
 }
 
 /** Raw conversation object from the query (AppConversation). */
@@ -100,6 +104,8 @@ interface RawConversation {
   updated_at?: string | null;
   selected_repository?: string | null;
   workspace?: { working_dir?: string | null } | null;
+  sandbox_id?: string | null;
+  sandbox_status?: string | null;
 }
 
 /** Transform raw conversation to the update format. */
@@ -107,6 +113,10 @@ function toConversationUpdate(
   conversation: RawConversation | null | undefined,
 ): ConversationUpdate | null {
   if (!conversation) return null;
+  // The `id`-only fallback (from the route before the list/websocket data lands)
+  // has no sandbox/backend info; resolve the backend kind from the active store so
+  // even the minimal push tells the webview whether cloud affordances apply.
+  const backendKind = getActiveBackend().backend.kind;
   return {
     id: conversation.id,
     title: conversation.title ?? null,
@@ -117,6 +127,9 @@ function toConversationUpdate(
     updatedAt: conversation.updated_at ?? null,
     selectedRepository: conversation.selected_repository ?? null,
     workingDir: conversation.workspace?.working_dir ?? null,
+    backend: backendKind === "cloud" ? "cloud" : "local",
+    sandboxId: conversation.sandbox_id ?? null,
+    sandboxStatus: conversation.sandbox_status ?? null,
   };
 }
 

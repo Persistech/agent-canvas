@@ -99,7 +99,7 @@ Extension installation uses **two-step, all-or-nothing consent** (like VS Code):
 
 | Permission | What it means | Example use case |
 |------------|---------------|------------------|
-| `conversation:read` | Read the active conversation's title and metadata | Show conversation info in a panel |
+| `conversation:read` | Read the active conversation's title and metadata, and compute event statistics | Show conversation info or trajectory stats in a panel |
 | `storage` | Store data in your browser's local storage | Save extension settings or state |
 | `backend:cloud:read` | Read data from the cloud backend API | List sandboxes, fetch conversations |
 | `backend:cloud:write` | Write data to the cloud backend API | Pause/resume sandboxes, create conversations |

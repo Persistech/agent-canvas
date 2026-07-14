@@ -41,6 +41,7 @@ narrow:
    | `window.showInformationMessage` | none | a host toast |
    | `commands.execute` | none | dispatch a contributed command |
    | `conversation.getActive` | `conversation:read` | the active conversation summary |
+   | `conversation.getEventStats` | `conversation:read` | aggregate event counts + duration, computed host-side via `EventService` (works on cloud and local) |
    | `storage.get` / `storage.set` | `storage` | namespaced `localStorage` |
    | `backend.cloudFetch` | `backend:cloud:read` (GET) or `backend:cloud:write` (POST/PUT/PATCH/DELETE) | proxied call to the active cloud backend via `callCloudProxy` |
 

@@ -2,6 +2,7 @@ import type { RpcEndpoint } from "../host/rpc";
 import type {
   AgentCanvasApi,
   CreateConversationOptions,
+  EventStats,
   SandboxInfo,
 } from "./types";
 
@@ -35,6 +36,10 @@ export function createAgentCanvasApi(
       getActive: () => endpoint.request("conversation.getActive"),
       create: (options?: CreateConversationOptions) =>
         endpoint.request<string>("conversation.create", { options }),
+      getEventStats: (conversationId?: string) =>
+        endpoint.request<EventStats>("conversation.getEventStats", {
+          conversationId,
+        }),
     },
     sandbox: {
       create: (sandboxSpecId?: string) =>
