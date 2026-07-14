@@ -347,7 +347,7 @@ describe("GitService", () => {
       });
     });
 
-    it("maps workspace git changes and resolves the conversation working directory", async () => {
+    it("maps workspace git changes using the SDK default revision", async () => {
       workspaceMocks.gitChanges.mockResolvedValue([
         { path: "src/a.ts", status: "M" },
         { path: "src/b.ts", status: 7 },
@@ -363,7 +363,6 @@ describe("GitService", () => {
       });
       expect(workspaceMocks.gitChanges).toHaveBeenCalledWith(
         "/workspace/project",
-        { ref: "HEAD" },
       );
     });
 
@@ -373,15 +372,16 @@ describe("GitService", () => {
         { modified: "new", original: "old" },
       ],
       [{}, { modified: "", original: "" }],
-    ])("normalizes workspace diff content", async (diff, expected) => {
-      workspaceMocks.gitDiff.mockResolvedValue(diff);
-      await expect(
-        GitService.getGitChangeDiff("ignored", "src/a.ts"),
-      ).resolves.toEqual(expected);
-      expect(workspaceMocks.gitDiff).toHaveBeenCalledWith("src/a.ts", {
-        ref: "HEAD",
-      });
-    });
+    ])(
+      "normalizes workspace diff content using the SDK default revision",
+      async (diff, expected) => {
+        workspaceMocks.gitDiff.mockResolvedValue(diff);
+        await expect(
+          GitService.getGitChangeDiff("ignored", "src/a.ts"),
+        ).resolves.toEqual(expected);
+        expect(workspaceMocks.gitDiff).toHaveBeenCalledWith("src/a.ts");
+      },
+    );
 
     it("initializes fresh provider guards and empty result pages", async () => {
       vi.resetModules();
