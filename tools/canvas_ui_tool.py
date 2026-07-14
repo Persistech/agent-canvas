@@ -127,4 +127,4 @@ class CanvasUITool(ToolDefinition[CanvasUIAction, CanvasUIObservation]):
         ]
 
 
-register_tool("canvas_ui", CanvasUITool)
+register_tool("canvas_ui", CanvasUITool, default=True)

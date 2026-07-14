@@ -126,7 +126,6 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 
 # Make Canvas tools importable by the agent-server.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
-export OH_EXTRA_DEFAULT_TOOLS="${OH_EXTRA_DEFAULT_TOOLS:-[\"canvas_ui\"]}"
 
 # Track child PIDs so we can clean up on exit.
 PIDS=()

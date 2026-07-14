@@ -18,7 +18,6 @@ import {
   assertPortsFree,
   buildSafeDevConfig,
   buildSafeDevConfigAsync,
-  buildAgentServerEnv,
   buildNpmScriptCommand,
   buildAgentServerCommand,
   buildRuntimeServicesInfo,
@@ -621,9 +620,6 @@ describe("buildSafeDevConfig", () => {
     );
     expect(config.bashEventsDir).toBe(
       path.join(config.stateDir, "bash_events"),
-    );
-    expect(buildAgentServerEnv(config).OH_EXTRA_DEFAULT_TOOLS).toBe(
-      '["canvas_ui"]',
     );
   });
 

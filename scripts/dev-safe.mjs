@@ -720,7 +720,6 @@ export function buildAgentServerEnv(config) {
     AGENT_SERVER_URL: config.backendBaseUrl,
     // Make the host tools/ directory importable by the agent-server.
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    OH_EXTRA_DEFAULT_TOOLS: '["canvas_ui"]',
   };
 }
 
