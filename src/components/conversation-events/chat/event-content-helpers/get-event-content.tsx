@@ -139,11 +139,6 @@ const getVisionInspectObservationTitle = (
 
 // Action Event Processing
 const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
-  // Early return if not an action event
-  if (!isActionEvent(event)) {
-    return "";
-  }
-
   const visionInspectTitle = getVisionInspectActionTitle(event);
   if (visionInspectTitle) {
     return visionInspectTitle;
@@ -241,11 +236,7 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
       return String(actionType).replace("Action", "").toUpperCase();
   }
 
-  if (actionKey) {
-    return createTitleFromKey(actionKey, actionValues);
-  }
-
-  return actionType;
+  return createTitleFromKey(actionKey, actionValues);
 };
 
 // Observation Event Processing
@@ -253,11 +244,6 @@ const getObservationEventTitle = (
   event: OpenHandsEvent,
   correspondingAction?: ActionEvent,
 ): React.ReactNode => {
-  // Early return if not an observation event
-  if (!isObservationEvent(event)) {
-    return "";
-  }
-
   const visionInspectObservationTitle = getVisionInspectObservationTitle(
     event,
     correspondingAction,
@@ -267,11 +253,6 @@ const getObservationEventTitle = (
   }
 
   if (correspondingAction) {
-    const visionInspectTitle = getVisionInspectActionTitle(correspondingAction);
-    if (visionInspectTitle) {
-      return visionInspectTitle;
-    }
-
     const summaryTitle = getSummaryTitleForActionEvent(correspondingAction);
     if (summaryTitle) {
       return summaryTitle;
@@ -369,11 +350,7 @@ const getObservationEventTitle = (
       return observationType.replace("Observation", "").toUpperCase();
   }
 
-  if (observationKey) {
-    return createTitleFromKey(observationKey, observationValues);
-  }
-
-  return observationType;
+  return createTitleFromKey(observationKey, observationValues);
 };
 
 export const getEventContent = (
