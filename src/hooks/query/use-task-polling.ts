@@ -1,6 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import type { AppConversationStartTask } from "#/api/conversation-service/agent-server-conversation-service.types";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+  toPluginCoordinates,
+} from "#/api/conversation-metadata-store";
 import { useNavigation } from "#/context/navigation-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
@@ -18,6 +24,25 @@ import {
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { buildConversationUrl } from "#/api/backend-registry/url-selection";
 import { isNoBackend } from "#/api/backend-registry/active-store";
+
+const storeTaskPlugins = (
+  task: AppConversationStartTask,
+  conversationId: string,
+) => {
+  const plugins = task.request.plugins?.map(toPluginCoordinates);
+  if (!plugins?.length) return;
+
+  const metadata = getStoredConversationMetadata(conversationId);
+  setStoredConversationMetadata(conversationId, {
+    ...metadata,
+    selected_repository:
+      metadata?.selected_repository ?? task.request.selected_repository ?? null,
+    selected_branch:
+      metadata?.selected_branch ?? task.request.selected_branch ?? null,
+    git_provider: metadata?.git_provider ?? task.request.git_provider ?? null,
+    plugins,
+  });
+};
 
 /**
  * Hook that polls V1 conversation start tasks and navigates when ready.
@@ -96,37 +121,36 @@ export const useTaskPolling = () => {
   // Navigate to conversation ID when task is ready
   useEffect(() => {
     const task = taskQuery.data;
+    const appConversationId = task?.app_conversation_id;
     if (
       !taskId ||
       task?.status !== "READY" ||
-      !task.app_conversation_id ||
+      !appConversationId ||
       handledReadyTaskIdRef.current === taskId
     ) {
       return;
     }
 
     handledReadyTaskIdRef.current = taskId;
+    storeTaskPlugins(task, appConversationId);
 
     void (async () => {
-      await flushPendingTaskAttachments(taskId, task.app_conversation_id!);
+      await flushPendingTaskAttachments(taskId, appConversationId);
 
       const taskConversationId = `task-${taskId}`;
-      linkPendingTaskMessages(task.app_conversation_id!, taskConversationId);
-      schedulePendingTaskMessageReassign(
-        taskConversationId,
-        task.app_conversation_id!,
-      );
+      linkPendingTaskMessages(appConversationId, taskConversationId);
+      schedulePendingTaskMessageReassign(taskConversationId, appConversationId);
 
       const pendingDraft = consumePendingTaskDraft(taskId);
       if (pendingDraft) {
-        setConversationState(task.app_conversation_id!, {
+        setConversationState(appConversationId, {
           draftMessage: pendingDraft,
         });
       }
 
       navigate(
         buildConversationUrl(
-          task.app_conversation_id!,
+          appConversationId,
           isNoBackend(activeBackend)
             ? null
             : {
