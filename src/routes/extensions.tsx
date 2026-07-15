@@ -36,17 +36,15 @@ export default function ExtensionsScreen() {
               </div>
             </div>
             {context ? (
-              <div className="flex flex-shrink-0 gap-2">
-                <BrandButton
-                  type="button"
-                  variant="primary"
-                  testId="extensions-add-button"
-                  className="whitespace-nowrap"
-                  onClick={() => setShowAddModal(true)}
-                >
-                  {t(I18nKey.EXTENSIONS$ADD_BUTTON)}
-                </BrandButton>
-              </div>
+              <BrandButton
+                type="button"
+                variant="secondary"
+                testId="extensions-add-button"
+                className="flex-shrink-0 whitespace-nowrap"
+                onClick={() => setShowAddModal(true)}
+              >
+                {t(I18nKey.EXTENSIONS$ADD_BUTTON)}
+              </BrandButton>
             ) : null}
           </div>
 
