@@ -24,6 +24,12 @@ import {
 } from "#/extensions/sources/resolve";
 import { splitGithubScheme } from "#/extensions/sources/ref";
 import {
+  isLocalPathInput,
+  localExtensionBaseUrl,
+  toRegisterableLocalPath,
+  LOCAL_EXTENSION_REGISTER_PATH,
+} from "#/extensions/sources/local-path";
+import {
   githubUrlPath,
   githubUrlToSource,
   rawGithubUrl,
@@ -80,8 +86,65 @@ interface ExtensionContextValue {
    * granted — the caller should then re-run the consent flow with the source ref.
    */
   updateExtension: (id: string) => Promise<InstalledExtension>;
+  /**
+   * Re-fetch and re-install a **local** dev extension from its raw path (mutable /
+   * unpinned): re-register the directory, re-read the manifest with `no-cache`, and swap
+   * in the current bytes. Like {@link updateExtension} it refuses (non-destructively) a
+   * reload that is host-incompatible or requests newly-granted capabilities — dev
+   * convenience must not widen the trust boundary. Throws if the extension is not local.
+   */
+  reloadExtension: (id: string) => Promise<InstalledExtension>;
   /** Remove an extension and forget any persisted user install. */
   uninstall: (id: string) => void;
+}
+
+/**
+ * Register a raw local path with the dev middleware and return its stable id. The `~`
+ * expansion, realpath, and directory confinement all happen **server-side** (the browser
+ * never touches disk or resolves `$HOME`). Dev-only: the endpoint exists solely in the
+ * Vite dev server. Throws with the server's actionable message on a bad path.
+ */
+async function registerLocalPath(rawPath: string): Promise<string> {
+  const response = await fetch(LOCAL_EXTENSION_REGISTER_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: rawPath }),
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    id?: string;
+    error?: string;
+  };
+  if (!response.ok || !data.id) {
+    throw new Error(
+      data.error ??
+        `failed to register local extension path (HTTP ${response.status})`,
+    );
+  }
+  return data.id;
+}
+
+/**
+ * Build a `url`-kind descriptor for a local extension directory. A local dev source is
+ * mutable / unpinned (no version, no SHA): the descriptor's `sourceRef` is the **raw
+ * local path** (so a restart or a Reload re-registers and re-fetches the current bytes),
+ * while `baseUrl` is the localhost dev URL served by the middleware. The `no-cache`
+ * middleware headers make every Reload re-fetch fresh.
+ */
+async function resolveLocalDescriptor(
+  rawInput: string,
+): Promise<ArtifactDescriptor> {
+  // `toRegisterableLocalPath` rejects the structurally invalid `file://~/…` form here,
+  // before any network call, with an actionable message.
+  const rawPath = toRegisterableLocalPath(rawInput);
+  const id = await registerLocalPath(rawPath);
+  return {
+    sourceRef: rawPath,
+    kind: "url",
+    version: undefined,
+    baseUrl: localExtensionBaseUrl(window.location.origin, id),
+    format: "dir",
+    requiresProxy: false,
+  };
 }
 
 /**
@@ -96,8 +159,17 @@ function normalizeLegacyInput(input: string): string {
   return trimmed;
 }
 
-/** Parse + resolve any supported source string to a pinned artifact descriptor. */
+/**
+ * Parse + resolve any supported source string to a pinned artifact descriptor. A local
+ * filesystem path (`~/…`, `/abs`, `file:///abs`) is registered with the dev middleware
+ * and represented as a `url`-kind descriptor pointing at the localhost dev URL; every
+ * other input flows through the standard source-ref resolver.
+ */
 function resolveDescriptor(input: string): Promise<ArtifactDescriptor> {
+  const trimmed = input.trim();
+  if (isLocalPathInput(trimmed)) {
+    return resolveLocalDescriptor(trimmed);
+  }
   return resolveSource(normalizeLegacyInput(input));
 }
 
@@ -329,6 +401,58 @@ export function ExtensionManagerProviderInner({
     [manager],
   );
 
+  const reloadExtension = React.useCallback(
+    async (id: string): Promise<InstalledExtension> => {
+      const installed = useInstalledExtensionsStore
+        .getState()
+        .installed.find((e) => e.id === id);
+      if (!installed?.sourceRef || !isLocalPathInput(installed.sourceRef)) {
+        throw new Error(
+          `extension "${id}" is not a reloadable local extension`,
+        );
+      }
+      // Re-register (idempotent) + re-resolve to the localhost dev URL, then re-read the
+      // manifest through the `no-cache` middleware so we get the current bytes.
+      const descriptor = await resolveDescriptor(installed.sourceRef);
+      const raw = await toBundleSource(descriptor).readManifest();
+      const parsed = parseManifest(raw);
+      if (!parsed.ok) throw new Error(parsed.errors.join("; "));
+      const next = parsed.manifest;
+      // Non-destructive guards: a reload must not silently widen the trust boundary.
+      assertHostCompatible(next.engines.agentCanvas);
+      const grantsNewCapability = (next.capabilities ?? []).some(
+        (cap) => !installed.capabilities.includes(cap),
+      );
+      if (grantsNewCapability) {
+        throw new Error(
+          `reload of ${next.name} requests new permissions; reinstall to grant them`,
+        );
+      }
+
+      // Swap: uninstall terminates the old worker, install replaces the id-keyed bundle.
+      manager.uninstall(id);
+      const result = await manager.install(toBundleSource(descriptor), {});
+      if (!result.ok) throw new Error(result.errors.join("; "));
+
+      const extension = toInstalledExtension(
+        result.manifest,
+        descriptor.baseUrl,
+        "user",
+        descriptor.sourceRef,
+      );
+      useInstalledExtensionsStore.getState().add(extension);
+      addPersistedInstall({
+        id: extension.id,
+        sourceUrl: extension.sourceUrl,
+        sourceRef: descriptor.sourceRef,
+        version: extension.version,
+        capabilities: extension.capabilities,
+      });
+      return extension;
+    },
+    [manager],
+  );
+
   const uninstall = React.useCallback(
     (id: string): void => {
       manager.uninstall(id);
@@ -385,12 +509,36 @@ export function ExtensionManagerProviderInner({
       store.add(toInstalledExtension(result.manifest, url, origin, sourceRef));
     };
 
+    /**
+     * Restore a local dev extension by **re-resolving its raw path** (not its persisted
+     * URL): re-register with the dev middleware — idempotent, same resolved path → same
+     * id — so the URL is rebuilt against the current origin/port and the current bytes are
+     * fetched. If the directory is gone the server drops it and register returns an error,
+     * which we swallow so a stale entry doesn't break startup.
+     */
+    const restoreLocal = async (sourceRef: string) => {
+      try {
+        const descriptor = await resolveDescriptor(sourceRef);
+        await installFrom(descriptor.baseUrl, "user", descriptor.sourceRef);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn(`[extensions] skipped local ${sourceRef}:`, error);
+        }
+      }
+    };
+
     (async () => {
       for (const url of DEV_EXTENSION_BUNDLE_URLS) {
         await installFrom(url, "dev");
       }
       for (const persisted of loadPersistedInstalls()) {
-        await installFrom(persisted.sourceUrl, "user", persisted.sourceRef);
+        // Local dev sources are mutable: re-resolve from the raw path so a restarted dev
+        // server on a new port still loads them without re-adding.
+        if (persisted.sourceRef && isLocalPathInput(persisted.sourceRef)) {
+          await restoreLocal(persisted.sourceRef);
+        } else {
+          await installFrom(persisted.sourceUrl, "user", persisted.sourceRef);
+        }
       }
     })();
 
@@ -415,6 +563,7 @@ export function ExtensionManagerProviderInner({
       fetchMarketplace: loadMarketplaceResult,
       checkForUpdate,
       updateExtension,
+      reloadExtension,
       uninstall,
     }),
     [
@@ -426,6 +575,7 @@ export function ExtensionManagerProviderInner({
       loadMarketplaceResult,
       checkForUpdate,
       updateExtension,
+      reloadExtension,
       uninstall,
     ],
   );

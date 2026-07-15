@@ -19,6 +19,10 @@ import type {
   ExtensionSourceRef,
   GithubSourceRef,
 } from "#/extensions/sources/ref";
+import {
+  isLocalPathInput,
+  isFileTildeHost,
+} from "#/extensions/sources/local-path";
 import { capabilityLabelKey } from "./capability-labels";
 
 interface AddExtensionModalProps {
@@ -69,6 +73,16 @@ function tryParse(input: string): ExtensionSourceRef | null {
   }
 }
 
+/**
+ * A local filesystem path is a valid submittable input even though it is not a
+ * {@link parseSourceRef} kind — it is registered with the dev middleware and rewritten to
+ * a `url` source. The structurally invalid `file://~` form is recognized as a local input
+ * but is NOT valid: the register step surfaces an actionable error on submit.
+ */
+function isValidLocalInput(input: string): boolean {
+  return isLocalPathInput(input) && !isFileTildeHost(input);
+}
+
 export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
   const { t } = useTranslation("openhands");
   const context = useExtensionContext();
@@ -79,6 +93,12 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
 
   const trimmedSource = source.trim();
   const parsed = React.useMemo(() => tryParse(source), [source]);
+  // A local path is submittable but has no parsed ref kind; it gets the "Local" badge.
+  const isLocal = React.useMemo(
+    () => isValidLocalInput(trimmedSource),
+    [trimmedSource],
+  );
+  const isSubmittable = parsed !== null || isLocal;
 
   if (!context) return null;
   const { detectSource, previewManifest, installFromUrl } = context;
@@ -162,14 +182,19 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
 
   const renderTypeBadge = () => {
     if (!trimmedSource) return null;
-    if (!parsed) {
+    if (!parsed && !isLocal) {
+      // `file://~/…` is recognized as a local input but is structurally invalid; give the
+      // actionable message inline rather than the generic "invalid source" copy.
+      const invalidMessage = isFileTildeHost(trimmedSource)
+        ? t(I18nKey.EXTENSIONS$LOCAL_FILE_TILDE_INVALID)
+        : t(I18nKey.EXTENSIONS$SOURCE_INVALID);
       return (
         <div
           data-testid="source-validation-invalid"
           className="mt-1 flex items-center gap-1.5 text-xs text-danger"
         >
           <span className="inline-block h-2 w-2 rounded-full bg-danger" />
-          <span>{t(I18nKey.EXTENSIONS$SOURCE_INVALID)}</span>
+          <span>{invalidMessage}</span>
         </div>
       );
     }
@@ -179,8 +204,12 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
         className="mt-1 flex items-center gap-1.5 text-xs text-success"
       >
         <span className="inline-block h-2 w-2 rounded-full bg-success" />
-        <span>{t(getRefTypeI18nKey(parsed.kind))}</span>
-        {parsed.kind === "gh" && (
+        <span>
+          {parsed
+            ? t(getRefTypeI18nKey(parsed.kind))
+            : t(I18nKey.EXTENSIONS$LOCAL_BADGE)}
+        </span>
+        {parsed?.kind === "gh" && (
           <span className="text-tertiary-alt">
             {(parsed as GithubSourceRef).owner}/
             {(parsed as GithubSourceRef).repo}
@@ -403,7 +432,7 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
                 variant="primary"
                 testId="add-extension-submit"
                 isDisabled={
-                  trimmedSource.length === 0 || parsed === null || isBusy
+                  trimmedSource.length === 0 || !isSubmittable || isBusy
                 }
               >
                 {t(

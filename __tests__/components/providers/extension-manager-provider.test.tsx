@@ -297,3 +297,111 @@ describe("ExtensionManagerProvider update detection", () => {
     expect(await ctx.checkForUpdate("acme.test")).toBeNull();
   });
 });
+
+describe("ExtensionManagerProvider local dev source", () => {
+  const origin = window.location.origin;
+  const localBase = `${origin}/__ext-local/localid123`;
+
+  beforeEach(() => {
+    localStorage.clear();
+    contributionRegistry.clear();
+    useInstalledExtensionsStore.getState().clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+    contributionRegistry.clear();
+    useInstalledExtensionsStore.getState().clear();
+  });
+
+  /**
+   * fetch mock for the local flow: the register endpoint returns a fixed id, and the
+   * resulting `/__ext-local/<id>/extension.json` serves a manifest. Records the register
+   * body so tests can assert the raw `~` path was forwarded (NOT expanded in the browser).
+   */
+  function localFetch(registerCalls: string[]) {
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/__ext-local/register")) {
+        registerCalls.push(String(init?.body));
+        return jsonResponse({ id: "localid123" });
+      }
+      if (url === `${localBase}/extension.json`) {
+        return jsonResponse(manifest({ id: "acme.local", version: "0.1.0" }));
+      }
+      return jsonResponse(null, 404);
+    }) as unknown as typeof fetch;
+  }
+
+  it("registers a ~/ path server-side (browser never expands ~) and installs it as a url source", async () => {
+    const registerCalls: string[] = [];
+    vi.stubGlobal("fetch", localFetch(registerCalls));
+    const ctx = await mountProvider();
+
+    await act(async () => {
+      await ctx.installFromUrl("~/code/my-ext");
+    });
+
+    // The raw ~ path was forwarded to the server verbatim, not expanded in the browser.
+    expect(registerCalls).toHaveLength(1);
+    expect(JSON.parse(registerCalls[0])).toEqual({ path: "~/code/my-ext" });
+
+    const installed = useInstalledExtensionsStore
+      .getState()
+      .installed.find((e) => e.id === "acme.local");
+    expect(installed?.sourceUrl).toBe(localBase);
+    // The raw path is kept as the sourceRef so reload/restart re-resolves it.
+    expect(installed?.sourceRef).toBe("~/code/my-ext");
+  });
+
+  it("rejects file://~ before any network call with an actionable message", async () => {
+    const registerCalls: string[] = [];
+    vi.stubGlobal("fetch", localFetch(registerCalls));
+    const ctx = await mountProvider();
+
+    await expect(ctx.installFromUrl("file://~/code/my-ext")).rejects.toThrow(
+      /file:\/\/~/,
+    );
+    // No register attempt was made for the invalid form.
+    expect(registerCalls).toHaveLength(0);
+  });
+
+  it("reloads a local extension by re-registering and re-fetching", async () => {
+    const registerCalls: string[] = [];
+    vi.stubGlobal("fetch", localFetch(registerCalls));
+    const ctx = await mountProvider();
+
+    await act(async () => {
+      await ctx.installFromUrl("~/code/my-ext");
+    });
+    await act(async () => {
+      await ctx.reloadExtension("acme.local");
+    });
+
+    // Registered once for install, once for reload.
+    expect(registerCalls).toHaveLength(2);
+    const installed = useInstalledExtensionsStore
+      .getState()
+      .installed.find((e) => e.id === "acme.local");
+    expect(installed?.sourceUrl).toBe(localBase);
+  });
+
+  it("refuses to reload a non-local extension", async () => {
+    const state: FetchState = {
+      latestVersion: "1.0.0",
+      manifests: {
+        "https://cdn.example.com/ext": manifest({ version: "1.0.0" }),
+      },
+    };
+    vi.stubGlobal("fetch", installFetch(state));
+    const ctx = await mountProvider();
+
+    await act(async () => {
+      await ctx.installFromUrl("https://cdn.example.com/ext");
+    });
+    await expect(ctx.reloadExtension("acme.test")).rejects.toThrow(
+      /not a reloadable local extension/,
+    );
+  });
+});

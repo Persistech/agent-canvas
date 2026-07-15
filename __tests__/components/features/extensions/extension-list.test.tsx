@@ -63,9 +63,7 @@ describe("ExtensionList", () => {
 
       renderWithProviders(<ExtensionList />);
 
-      expect(
-        screen.getByTestId("extension-list-disabled"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("extension-list-disabled")).toBeInTheDocument();
     });
   });
 
@@ -312,6 +310,51 @@ describe("ExtensionList", () => {
       expect(
         screen.getByTestId("extension-source-test-extension"),
       ).toHaveTextContent("https://example.com/extension");
+    });
+  });
+
+  describe("local dev extensions", () => {
+    const localExtension = {
+      ...mockExtension,
+      sourceRef: "~/code/my-ext",
+      sourceUrl: "http://localhost:3001/__ext-local/abc123",
+    };
+
+    it("exposes a Reload button that re-fetches the current bytes", async () => {
+      const mockReload = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(ExtensionContext.useExtensionContext).mockReturnValue({
+        ...mockContext,
+        reloadExtension: mockReload,
+      } as unknown as ReturnType<typeof ExtensionContext.useExtensionContext>);
+      vi.mocked(InstalledStore.useInstalledExtensionsStore).mockReturnValue([
+        localExtension,
+      ]);
+
+      renderWithProviders(<ExtensionList />);
+
+      const reload = screen.getByTestId("extension-reload-test-extension");
+      expect(reload).toBeInTheDocument();
+      await userEvent.click(reload);
+      await waitFor(() =>
+        expect(mockReload).toHaveBeenCalledWith("test-extension"),
+      );
+    });
+
+    it("does not show a Reload button for remote sources", () => {
+      const mockReload = vi.fn();
+      vi.mocked(ExtensionContext.useExtensionContext).mockReturnValue({
+        ...mockContext,
+        reloadExtension: mockReload,
+      } as unknown as ReturnType<typeof ExtensionContext.useExtensionContext>);
+      vi.mocked(InstalledStore.useInstalledExtensionsStore).mockReturnValue([
+        mockExtension,
+      ]);
+
+      renderWithProviders(<ExtensionList />);
+
+      expect(
+        screen.queryByTestId("extension-reload-test-extension"),
+      ).not.toBeInTheDocument();
     });
   });
 });

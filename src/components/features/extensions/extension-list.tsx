@@ -17,6 +17,7 @@ import {
 } from "#/extensions/installed-store";
 import { useExtensionContext } from "#/components/providers/extension-manager-provider";
 import { splitGithubScheme } from "#/extensions/sources/ref";
+import { isLocalPathInput } from "#/extensions/sources/local-path";
 import { capabilityLabelKey } from "./capability-labels";
 import {
   displayErrorToast,
@@ -31,6 +32,8 @@ interface ExtensionCardProps {
   update?: ExtensionUpdate | null;
   onUpdate?: () => void;
   isUpdating?: boolean;
+  onReload?: () => void;
+  isReloading?: boolean;
   isBusy?: boolean;
 }
 
@@ -42,11 +45,19 @@ function ExtensionCard({
   update,
   onUpdate,
   isUpdating = false,
+  onReload,
+  isReloading = false,
   isBusy = false,
 }: ExtensionCardProps) {
   const { t } = useTranslation("openhands");
   const isDev = extension.origin === "dev";
   const canUpdate = !isDev && update != null && onUpdate != null;
+  // Local dev sources are mutable: expose a Reload that re-fetches the current bytes.
+  const isLocal =
+    !isDev &&
+    extension.sourceRef != null &&
+    isLocalPathInput(extension.sourceRef);
+  const canReload = isLocal && onReload != null;
 
   const refTypeLabel = React.useMemo(() => {
     if (!extension.sourceRef) return null;
@@ -55,6 +66,9 @@ function ExtensionCard({
     }
     if (splitGithubScheme(extension.sourceRef) !== null) {
       return t(I18nKey.EXTENSIONS$REF_TYPE_GH, { defaultValue: "GitHub" });
+    }
+    if (isLocalPathInput(extension.sourceRef)) {
+      return t(I18nKey.EXTENSIONS$LOCAL_BADGE, { defaultValue: "Local" });
     }
     if (
       extension.sourceRef.startsWith("http://") ||
@@ -210,6 +224,21 @@ function ExtensionCard({
       {/* Action buttons */}
       {!isDev && (
         <div className="mt-1 flex justify-end gap-2 border-t border-[var(--oh-border)] pt-3">
+          {canReload && (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId={`extension-reload-${extension.id}`}
+              className="whitespace-nowrap text-xs"
+              isDisabled={isReloading || isBusy}
+              aria-busy={isReloading}
+              onClick={onReload}
+            >
+              {isReloading
+                ? t(I18nKey.EXTENSIONS$RELOADING)
+                : t(I18nKey.EXTENSIONS$RELOAD_BUTTON)}
+            </BrandButton>
+          )}
           {canUpdate && (
             <BrandButton
               type="button"
@@ -272,6 +301,7 @@ export function ExtensionList({ className }: ExtensionListProps) {
     {},
   );
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  const [reloadingId, setReloadingId] = React.useState<string | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
   // Persist enabled state changes
@@ -358,6 +388,19 @@ export function ExtensionList({ className }: ExtensionListProps) {
     }
   };
 
+  const handleReload = async (id: string) => {
+    if (!context) return;
+    setReloadingId(id);
+    try {
+      await context.reloadExtension(id);
+      displaySuccessToast(t(I18nKey.EXTENSIONS$RELOAD_SUCCESS));
+    } catch (error) {
+      displayErrorToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      setReloadingId(null);
+    }
+  };
+
   if (!context) {
     return (
       <div
@@ -404,6 +447,8 @@ export function ExtensionList({ className }: ExtensionListProps) {
             update={updates[extension.id]}
             onUpdate={() => handleUpdate(extension.id)}
             isUpdating={updatingId === extension.id}
+            onReload={() => handleReload(extension.id)}
+            isReloading={reloadingId === extension.id}
             isBusy={busyId === extension.id}
           />
         ))}

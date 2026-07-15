@@ -66,6 +66,33 @@ describe("AddExtensionModal (auto-detect)", () => {
     expect(screen.getByTestId("add-extension-submit")).toBeEnabled();
   });
 
+  it("accepts a local ~/ path as a submittable local source", async () => {
+    const user = userEvent.setup();
+    render(<AddExtensionModal onClose={vi.fn()} />);
+
+    await user.type(
+      screen.getByTestId("add-extension-source-input"),
+      "~/code/my-ext",
+    );
+    expect(screen.getByTestId("source-validation-valid")).toBeInTheDocument();
+    expect(screen.getByTestId("add-extension-submit")).toBeEnabled();
+  });
+
+  it("rejects file://~ with an actionable badge and keeps submit disabled", async () => {
+    const user = userEvent.setup();
+    render(<AddExtensionModal onClose={vi.fn()} />);
+
+    await user.type(
+      screen.getByTestId("add-extension-source-input"),
+      "file://~/code/my-ext",
+    );
+    const badge = screen.getByTestId("source-validation-invalid");
+    expect(badge).toBeInTheDocument();
+    // i18n returns the raw key in tests; assert the actionable key (not the generic one).
+    expect(badge).toHaveTextContent("EXTENSIONS$LOCAL_FILE_TILDE_INVALID");
+    expect(screen.getByTestId("add-extension-submit")).toBeDisabled();
+  });
+
   it("routes a detected manifest straight to the consent card, then installs", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
