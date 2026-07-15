@@ -146,13 +146,11 @@ if command -v openhands-agent-server >/dev/null 2>&1; then
   # Binary build (production image)
   openhands-agent-server \
     --extra-python-path "$CANVAS_TOOLS_DIR" \
-    --import-modules canvas_ui_tool \
     --port "$AGENT_SERVER_PORT" &
 elif [ -x /agent-server/.venv/bin/python ]; then
   # Source build (development image)
   /agent-server/.venv/bin/python -m openhands.agent_server \
     --extra-python-path "$CANVAS_TOOLS_DIR" \
-    --import-modules canvas_ui_tool \
     --port "$AGENT_SERVER_PORT" &
 else
   log_error "Cannot find agent-server binary or source venv."

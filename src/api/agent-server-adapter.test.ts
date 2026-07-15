@@ -1,12 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import type { Settings } from "#/types/settings";
 import { buildStartConversationRequest } from "./agent-server-adapter";
-
-vi.mock("./agent-server-compatibility", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./agent-server-compatibility")>()),
-  isAgentServerToolAvailable: vi.fn(() => true),
-}));
 
 const encryptedValue = "gAAAAAencrypted-mcp-header";
 
@@ -125,12 +121,15 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     const payload = buildStartConversationRequest({
       settings,
       agentProfileId: "profile-xyz",
+      agentProfileKind: "openhands",
     });
 
     expect(payload.agent_profile_id).toBe("profile-xyz");
     expect(payload.agent_settings).toBeUndefined();
     expect(payload.agent_launch_additions).toBeUndefined();
-    expect(payload.tool_module_qualnames).toBeUndefined();
+    expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+      CANVAS_UI_CLIENT_TOOL_NAME,
+    ]);
   });
 
   it("suppresses the ACP server tag when launching from a profile", () => {

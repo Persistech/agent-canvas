@@ -126,7 +126,9 @@ COPY --from=frontend-build /build/node_modules/totalist /opt/agent-canvas/node_m
 # emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
 COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
-# Copy Canvas tools for agent-server startup.
+# Persisted conversations created before the client_tools migration still
+# import canvas_ui_tool by qualname. Keep the compatibility module available;
+# new conversations define canvas_ui_control through a JSON client tool.
 COPY tools/ /opt/agent-canvas/tools/
 
 # Copy generated defaults.env (from config/defaults.json via config-gen stage)

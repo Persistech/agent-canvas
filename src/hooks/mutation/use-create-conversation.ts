@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
-import { Provider } from "#/types/settings";
+import { AgentKind, Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
@@ -29,10 +29,11 @@ import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
+  toPluginCoordinates,
   type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
 
-interface CreateConversationVariables {
+export interface CreateConversationVariables {
   query?: string;
   repository?: {
     name: string;
@@ -52,6 +53,8 @@ interface CreateConversationVariables {
   agentProfileId?: string;
   entryPoint?: string; // analytics only; not forwarded to the service
 }
+
+export const CREATE_CONVERSATION_MUTATION_KEY = ["create-conversation"];
 
 interface CreateConversationResponse {
   conversation_id: string;
@@ -77,7 +80,7 @@ export const useCreateConversation = () => {
   useAgentProfiles();
 
   return useMutation({
-    mutationKey: ["create-conversation"],
+    mutationKey: CREATE_CONVERSATION_MUTATION_KEY,
     mutationFn: async (
       variables: CreateConversationVariables,
     ): Promise<CreateConversationResponse> => {
@@ -142,7 +145,7 @@ export const useCreateConversation = () => {
           AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION,
         )
       ) {
-        // TODO: Remove when agent-server versions before 1.36.0 are unsupported.
+        // TODO: Remove after agent-server versions before 1.37.0 are unsupported.
         effectiveAgentProfileId = undefined;
       } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&
@@ -178,15 +181,20 @@ export const useCreateConversation = () => {
         }
       }
 
-      // Only extend the call with the [sandboxId, agentProfileId] tail when
-      // launching from a profile, so a plain create stays byte-identical to
-      // the legacy agent_settings path (#3727). sandboxId is unused here.
-      // TODO(#1587): createConversation has grown to 10 positional params;
+      // Only extend the call with the profile tail when launching from a
+      // profile, so a plain create stays byte-identical to the legacy
+      // agent_settings path (#3727). sandboxId is unused here.
+      // TODO(#1587): createConversation has grown to 11 positional params;
       // refactor it to an options object so this position-skipping tail isn't
       // needed.
-      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
-        ? [undefined, effectiveAgentProfileId]
-        : [];
+      const profileArgs: [undefined, string, AgentKind | undefined] | [] =
+        effectiveAgentProfileId
+          ? [
+              undefined,
+              effectiveAgentProfileId,
+              resolvedAgentProfile?.agent_kind,
+            ]
+          : [];
 
       const conversation =
         await AgentServerConversationService.createConversation(
@@ -221,12 +229,7 @@ export const useCreateConversation = () => {
       //   1. plugins explicitly attached at creation (e.g. the /launch flow);
       //   2. enabled installed plugins, which the SDK auto-loads into every new
       //      local conversation (see use-set-plugin-enabled).
-      const explicitPlugins =
-        plugins?.map((plugin) => ({
-          source: plugin.source,
-          ref: plugin.ref ?? null,
-          repo_path: plugin.repo_path ?? null,
-        })) ?? [];
+      const explicitPlugins = plugins?.map(toPluginCoordinates) ?? [];
       let attachedPlugins: PluginSpec[] = explicitPlugins;
       if (localConversationId) {
         let installed: InstalledPluginInfo[] = [];

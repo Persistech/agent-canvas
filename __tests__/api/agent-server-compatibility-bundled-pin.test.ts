@@ -83,17 +83,17 @@ describe("loadAgentServerInfo", () => {
     expect(isCachedAgentServerVersionAtLeast("1.34.0")).toBe(true);
   });
 
-  it("keeps unreleased profile launch features disabled on agent-server 1.35.0", async () => {
+  it("keeps profile launch additions disabled until agent-server 1.37.0", async () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
-    getServerInfoMock.mockResolvedValue({ version: "1.35.0" });
+    getServerInfoMock.mockResolvedValue({ version: "1.36.1" });
     await loadAgentServerInfo();
 
     expect(
       isCachedAgentServerVersionAtLeast(AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION),
     ).toBe(false);
 
-    getServerInfoMock.mockResolvedValue({ version: "1.36.0" });
+    getServerInfoMock.mockResolvedValue({ version: "1.37.0" });
     await loadAgentServerInfo();
 
     expect(

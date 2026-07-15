@@ -2,17 +2,14 @@ import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
-import { Settings, SettingsValue } from "#/types/settings";
+import { AgentKind, Settings, SettingsValue } from "#/types/settings";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
-import {
-  getAgentServerDefaultTools,
-  isAgentServerToolAvailable,
-} from "./agent-server-compatibility";
+import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
@@ -31,6 +28,12 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
+import {
+  CANVAS_UI_CLIENT_TOOL,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+  type ClientToolSpec,
+} from "./canvas-ui-client-tool";
 
 export interface DirectConversationInfo {
   id: string;
@@ -85,16 +88,13 @@ export interface DirectConversationInfo {
    * values are opaque strings.
    */
   tags?: Record<string, string> | null;
+  launched_agent_profile?: {
+    agent_profile_id: string;
+    revision: number;
+  } | null;
 }
 
-const CANVAS_UI_TOOL_NAME = "canvas_ui";
-
-const DEFAULT_TOOL_NAMES = [
-  "terminal",
-  "file_editor",
-  "task_tracker",
-  CANVAS_UI_TOOL_NAME,
-];
+const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
 const TASK_TOOL_SET_NAME = "task_tool_set";
 
@@ -328,6 +328,7 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    launched_agent_profile: info.launched_agent_profile ?? null,
     // Chip path: omit ``providerDefault`` so that when no concrete model
     // resolves, the chip falls back to the provider display name in
     // ConversationCardFooter rather than a registry default the session may
@@ -512,10 +513,6 @@ function isToolRecord(
 }
 
 function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
-  if (name === CANVAS_UI_TOOL_NAME) {
-    return isAgentServerToolAvailable(name);
-  }
-
   if (name === BROWSER_TOOL_SET_NAME) {
     return browserToolsEnabled() && isAgentServerToolAvailable(name);
   }
@@ -532,18 +529,14 @@ function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
 
 function getAgentTools(agentSettings: SettingsRecord): AgentToolSpec[] {
   const tools = new Map<string, AgentToolSpec>();
-  const runtimeDefaults = getAgentServerDefaultTools();
 
-  for (const name of runtimeDefaults ?? DEFAULT_TOOL_NAMES) {
+  for (const name of DEFAULT_TOOL_NAMES) {
     if (shouldIncludeTool(name, agentSettings)) {
       tools.set(name, { name, params: {} });
     }
   }
 
-  const conditionalTools = runtimeDefaults
-    ? [TASK_TOOL_SET_NAME]
-    : [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME];
-  for (const name of conditionalTools) {
+  for (const name of [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME]) {
     if (shouldIncludeTool(name, agentSettings)) {
       tools.set(name, { name, params: {} });
     }
@@ -887,6 +880,7 @@ type StartConversationPayload = Record<string, unknown> & {
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
   tags?: Record<string, string>;
+  client_tools: ClientToolSpec[];
   tool_module_qualnames?: Record<string, string>;
   agent_launch_additions?: {
     system_message_suffix_append?: string;
@@ -908,6 +902,7 @@ export interface StartConversationOptions {
   // When set, the conversation launches from this AgentProfile (resolved
   // server-side) instead of an inline ``agent_settings`` dump (#3727).
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }
 
 export function buildStartConversationRequest(
@@ -918,6 +913,11 @@ export function buildStartConversationRequest(
     : options.settings;
 
   const acpMode = isAcpAgent(sourceAgentSettings);
+  const launchAgentKind = options.agentProfileId
+    ? options.agentProfileKind
+    : acpMode
+      ? "acp"
+      : "openhands";
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
@@ -940,10 +940,13 @@ export function buildStartConversationRequest(
   const payload: StartConversationPayload = {
     // ``agent_profile_id`` and ``agent_settings`` are mutually exclusive agent
     // sources; the profile path lets the server resolve the profile (#3727).
+    //
     ...(options.agentProfileId
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),
     workspace: conversationSettings.workspace,
+    client_tools:
+      launchAgentKind === "openhands" ? [CANVAS_UI_CLIENT_TOOL] : [],
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
     max_iterations:
@@ -1011,6 +1014,8 @@ export function buildStartConversationRequest(
       | Record<string, string>
       | undefined) ?? {}),
   };
+  delete toolModuleQualnames[LEGACY_CANVAS_UI_TOOL_NAME];
+  delete toolModuleQualnames[CANVAS_UI_CLIENT_TOOL_NAME];
   if (Object.keys(toolModuleQualnames).length > 0) {
     payload.tool_module_qualnames = toolModuleQualnames;
   }
@@ -1079,6 +1084,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   workingDir?: string;
   worktree?: boolean;
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

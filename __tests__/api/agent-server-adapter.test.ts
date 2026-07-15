@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 
 import {
   ACP_SERVER_TAG_KEY,
@@ -20,12 +21,10 @@ import {
 } from "#/constants/llm-subscription";
 
 const {
-  mockGetAgentServerDefaultTools,
   mockGetAgentServerWorkingDir,
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
-  mockGetAgentServerDefaultTools: vi.fn<() => string[] | null>(() => null),
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
   mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
@@ -46,7 +45,6 @@ vi.mock("#/api/agent-server-config", () => ({
 }));
 
 vi.mock("#/api/agent-server-compatibility", () => ({
-  getAgentServerDefaultTools: mockGetAgentServerDefaultTools,
   isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
 }));
 
@@ -55,7 +53,6 @@ vi.mock("#/api/backend-registry/active-store", () => ({
 }));
 
 beforeEach(() => {
-  mockGetAgentServerDefaultTools.mockReturnValue(null);
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
     id: "default-local",
@@ -121,7 +118,6 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
-      { name: "canvas_ui", params: {} },
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
@@ -595,62 +591,88 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  describe("server default tools", () => {
-    it("uses the runtime's resolved default tool list", () => {
-      mockGetAgentServerDefaultTools.mockReturnValue([
-        "terminal",
-        "canvas_ui",
-        "deployment_tool",
-      ]);
-
+  describe("canvas_ui client tool injection", () => {
+    it("sends canvas_ui as a client-defined JSON tool", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
-      }) as { agent_settings: { tools: Array<{ name: string }> } };
+      });
 
-      expect(payload.agent_settings.tools.map((tool) => tool.name)).toEqual([
-        "terminal",
-        "canvas_ui",
-        "deployment_tool",
-      ]);
-    });
-
-    it("selects canvas_ui when the runtime advertises it", () => {
-      const payload = buildStartConversationRequest({
-        settings: DEFAULT_SETTINGS,
-      }) as {
-        agent_settings: { tools: Array<{ name: string }> };
-        tool_module_qualnames?: Record<string, string>;
-      };
-
-      expect(payload.agent_settings.tools.map((tool) => tool.name)).toContain(
-        "canvas_ui",
-      );
-      expect(payload.tool_module_qualnames).toBeUndefined();
-    });
-
-    it("omits canvas_ui when the runtime does not advertise it", () => {
-      mockIsAgentServerToolAvailable.mockImplementation(
-        (toolName: string) => toolName !== "canvas_ui",
-      );
-
-      const payload = buildStartConversationRequest({
-        settings: DEFAULT_SETTINGS,
-      }) as {
-        agent_settings: { tools: Array<{ name: string }> };
-        tool_module_qualnames?: Record<string, string>;
-      };
-
+      expect(payload.client_tools).toHaveLength(1);
+      expect(payload.client_tools[0]).toMatchObject({
+        name: CANVAS_UI_CLIENT_TOOL_NAME,
+        parameters: {
+          type: "object",
+          properties: {
+            command: {
+              enum: ["navigate_to_file", "open_tab", "show_preview"],
+            },
+          },
+          required: ["command"],
+        },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      });
       expect(
-        payload.agent_settings.tools.map((tool) => tool.name),
+        payload.agent_settings?.tools?.map((tool) => tool.name) ?? [],
       ).not.toContain("canvas_ui");
       expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
-    it("preserves configured tool module qualnames", () => {
-      mockIsAgentServerToolAvailable.mockImplementation(
-        (toolName: string) => toolName !== "canvas_ui",
-      );
+    it("omits the client tool for an inline ACP agent", () => {
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          agent_settings: {
+            ...DEFAULT_SETTINGS.agent_settings,
+            agent_kind: "acp",
+            acp_server: "custom",
+            acp_command: ["custom-acp"],
+          },
+        },
+      });
 
+      expect(payload.client_tools).toEqual([]);
+    });
+
+    it("omits the client tool for an ACP profile when global settings are stale", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-acp",
+        agentProfileKind: "acp",
+      });
+
+      expect(payload.client_tools).toEqual([]);
+    });
+
+    it("sends the client tool for an OpenHands profile", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-openhands",
+        agentProfileKind: "openhands",
+      });
+
+      expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+        CANVAS_UI_CLIENT_TOOL_NAME,
+      ]);
+    });
+
+    it("sends the client tool when resuming a conversation", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        conversationId: "legacy-conversation-id",
+      }) as { conversation_id: string; client_tools: Array<{ name: string }> };
+
+      expect(payload.conversation_id).toBe("legacy-conversation-id");
+      expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+        CANVAS_UI_CLIENT_TOOL_NAME,
+      ]);
+    });
+
+    it("drops conflicting user-supplied Canvas module qualnames", () => {
       const payload = buildStartConversationRequest({
         settings: {
           ...DEFAULT_SETTINGS,
@@ -658,6 +680,7 @@ describe("buildStartConversationRequest", () => {
             ...DEFAULT_SETTINGS.conversation_settings,
             tool_module_qualnames: {
               canvas_ui: "custom_canvas_ui_tool",
+              [CANVAS_UI_CLIENT_TOOL_NAME]: "custom_canvas_ui_control_tool",
               my_tool: "my_package.my_tool",
             },
           },
@@ -665,7 +688,22 @@ describe("buildStartConversationRequest", () => {
       }) as { tool_module_qualnames: Record<string, string> };
 
       expect(payload.tool_module_qualnames).toEqual({
-        canvas_ui: "custom_canvas_ui_tool",
+        my_tool: "my_package.my_tool",
+      });
+    });
+
+    it("preserves non-Canvas custom tool modules", () => {
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          conversation_settings: {
+            ...DEFAULT_SETTINGS.conversation_settings,
+            tool_module_qualnames: { my_tool: "my_package.my_tool" },
+          },
+        },
+      }) as { tool_module_qualnames: Record<string, string> };
+
+      expect(payload.tool_module_qualnames).toEqual({
         my_tool: "my_package.my_tool",
       });
     });
@@ -1174,6 +1212,7 @@ describe("agent_settings runtime services suffix", () => {
     expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
       true,
     );
+    expect(payload.agent_launch_additions).toBeUndefined();
   });
 
   it("sets system_message_suffix when runtime info is provided", () => {
@@ -1220,6 +1259,7 @@ describe("agent_settings runtime services suffix", () => {
     const payload = buildStartConversationRequest({
       settings: DEFAULT_SETTINGS,
       agentProfileId: "profile-xyz",
+      agentProfileKind: "openhands",
     });
 
     expect(payload.agent_launch_additions).toEqual({
@@ -1227,6 +1267,9 @@ describe("agent_settings runtime services suffix", () => {
         "* Automation backend: http://automation:8000",
       ),
     });
+    expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+      CANVAS_UI_CLIENT_TOOL_NAME,
+    ]);
   });
 });
 

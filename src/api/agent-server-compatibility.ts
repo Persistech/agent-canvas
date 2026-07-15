@@ -17,7 +17,7 @@ const UNKNOWN_AGENT_SERVER_VERSION = "unknown";
 
 export const MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION =
   defaults.compatibility.minimumAgentServer;
-export const AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION = "1.36.0";
+export const AGENT_LAUNCH_ADDITIONS_MINIMUM_VERSION = "1.37.0";
 export const AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE =
   "AGENT_SERVER_UNSUPPORTED_VERSION";
 export const AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE =
@@ -25,7 +25,6 @@ export const AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE =
 
 export interface AgentServerInfo extends BaseServerInfo {
   usable_tools?: string[] | null;
-  default_tools?: string[] | null;
 }
 
 let cachedAgentServerInfo: AgentServerInfo | null = null;
@@ -139,13 +138,6 @@ export function isAgentServerToolAvailable(toolName: string) {
     return true;
   }
   return availableTools.includes(toolName);
-}
-
-export function getAgentServerDefaultTools(): string[] | null {
-  if (!Array.isArray(cachedAgentServerInfo?.default_tools)) {
-    return null;
-  }
-  return [...cachedAgentServerInfo.default_tools];
 }
 
 export function isCachedAgentServerVersionAtLeast(requiredVersion: string) {

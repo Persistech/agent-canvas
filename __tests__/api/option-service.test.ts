@@ -5,7 +5,6 @@ import {
   AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
-  getAgentServerDefaultTools,
   isAgentServerToolAvailable,
   MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
@@ -73,9 +72,7 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
-      message: expect.stringContaining(
-        "Could not connect to the configured agent server",
-      ),
+      message: expect.stringContaining("Could not connect to the configured agent server"),
       details: expect.stringContaining("Request failed"),
     });
   });
@@ -96,23 +93,6 @@ describe("OptionService", () => {
 
     expect(isAgentServerToolAvailable("browser_tool_set")).toBe(false);
     expect(isAgentServerToolAvailable("terminal")).toBe(true);
-  });
-
-  it("caches the server's resolved default tools", async () => {
-    server.use(
-      http.get("*/server_info", () =>
-        HttpResponse.json({
-          uptime: 0,
-          idle_time: 0,
-          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
-          default_tools: ["terminal", "canvas_ui"],
-        }),
-      ),
-    );
-
-    await OptionService.getConfig();
-
-    expect(getAgentServerDefaultTools()).toEqual(["terminal", "canvas_ui"]);
   });
 
   it("allows all tools when the server does not advertise tool metadata", async () => {
