@@ -1,9 +1,4 @@
 import { CloudClient } from "@openhands/typescript-client/clients";
-import {
-  getAgentServerBaseUrl,
-  getAgentServerHeaders,
-} from "../agent-server-config";
-import { NoBackendAvailableError } from "../agent-server-client-options";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 
@@ -32,32 +27,11 @@ function activeOrgForBackend(backend: Backend): string | null {
 
 export function createCloudClient(backend?: Backend): CloudClient {
   const target = requireCloudBackend(backend);
-  const proxyBaseUrl = getAgentServerBaseUrl();
-  const proxyHeaders = proxyBaseUrl ? getAgentServerHeaders() : {};
 
   return new CloudClient({
     host: target.host,
     apiKey: target.apiKey,
     orgId: activeOrgForBackend(target),
-    // Default request timeout in ms, matching the 30s the previous axios
-    // transport used for direct and proxied calls. Per-request
-    // `timeoutSeconds` still overrides it for direct calls.
     timeout: 30_000,
-    ...(proxyBaseUrl
-      ? {
-          proxy: {
-            host: proxyBaseUrl,
-            headers: proxyHeaders,
-          },
-        }
-      : {}),
   });
-}
-
-export function createCloudClientForRuntime(backend?: Backend): CloudClient {
-  const client = createCloudClient(backend);
-  if (!client.proxy) {
-    throw new NoBackendAvailableError();
-  }
-  return client;
 }

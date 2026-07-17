@@ -8,7 +8,6 @@ import {
 } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import AgentServerGitService from "../../src/api/git-service/agent-server-git-service.api";
 
 const { mockGitChanges, mockGitDiff, mockClientGet } = vi.hoisted(() => ({
@@ -191,6 +190,7 @@ describe("AgentServerGitService", () => {
 
       // Act
       const page = await AgentServerGitService.getGitCommits(
+        "123",
         "http://localhost:3000/api/conversations/123",
         "test-api-key",
         "/workspace/project",
@@ -225,6 +225,7 @@ describe("AgentServerGitService", () => {
 
       // Act
       const page = await AgentServerGitService.getGitCommits(
+        "123",
         "http://localhost:3000/api/conversations/123",
         "test-api-key",
         "/workspace/project",
@@ -245,6 +246,7 @@ describe("AgentServerGitService", () => {
 
       // Act
       const changes = await AgentServerGitService.getCommitChanges(
+        "123",
         "http://localhost:3000/api/conversations/123",
         "test-api-key",
         "/workspace/project",
@@ -389,7 +391,7 @@ describe("AgentServerGitService", () => {
     });
 
     describe("getGitCommits", () => {
-      test("reaches the runtime through the generic cloud-proxy envelope", async () => {
+      test("reaches the runtime through the scoped Cloud endpoint", async () => {
         // Arrange
         vi.mocked(callCloudProxy).mockResolvedValue({
           commits: [],
@@ -398,20 +400,17 @@ describe("AgentServerGitService", () => {
 
         // Act
         await AgentServerGitService.getGitCommits(
+          "conv-1",
           runtimeConversationUrl,
           "session-key",
           "workspace/project",
         );
 
-        // Assert — session-api-key envelope to the conversation's runtime
-        // host, with the git path normalized to an absolute runtime path.
         expect(callCloudProxy).toHaveBeenCalledWith({
           backend: cloudBackend,
           method: "GET",
-          hostOverride: buildHttpBaseUrl(runtimeConversationUrl),
+          conversationId: "conv-1",
           path: "/api/git/commits?path=%2Fworkspace%2Fproject&limit=50",
-          authMode: "session-api-key",
-          sessionApiKey: "session-key",
         });
       });
 
@@ -425,6 +424,7 @@ describe("AgentServerGitService", () => {
 
         // Act
         const page = await AgentServerGitService.getGitCommits(
+          "conv-1",
           runtimeConversationUrl,
           "session-key",
           "workspace/project",

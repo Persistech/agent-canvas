@@ -1,6 +1,10 @@
 import type { CloudRequestOptions } from "@openhands/typescript-client/clients";
 import type { Backend } from "../backend-registry/types";
-import { createCloudClientForRuntime, createCloudClient } from "./client";
+import { createCloudClient } from "./client";
+
+const APP_CONVERSATIONS_API_PATH = "/api/v1/app-conversations";
+const RUNTIME_PROXY_PATH = "/runtime";
+const RUNTIME_PROXY_METHOD = "POST";
 
 export interface CloudProxyRequest {
   backend: Backend;
@@ -9,18 +13,32 @@ export interface CloudProxyRequest {
   body?: unknown;
   headers?: Record<string, string>;
   timeoutSeconds?: number;
-  hostOverride?: string;
-  authMode?: "bearer" | "session-api-key" | "none";
-  sessionApiKey?: string | null;
+  conversationId?: string;
   responseType?: "blob";
+}
+
+function getRuntimeProxyPath(conversationId: string): string {
+  return `${APP_CONVERSATIONS_API_PATH}/${encodeURIComponent(conversationId)}${RUNTIME_PROXY_PATH}`;
 }
 
 export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
-  const client = req.hostOverride
-    ? createCloudClientForRuntime(req.backend)
-    : createCloudClient(req.backend);
+  const client = createCloudClient(req.backend);
+
+  if (req.conversationId) {
+    return client.request<TResponse>({
+      method: RUNTIME_PROXY_METHOD,
+      path: getRuntimeProxyPath(req.conversationId),
+      body: {
+        method: req.method,
+        path: req.path,
+        ...(req.body === undefined ? {} : { body: req.body }),
+      },
+      timeoutSeconds: req.timeoutSeconds,
+      responseType: req.responseType,
+    });
+  }
 
   return client.request<TResponse>({
     method: req.method,
@@ -28,12 +46,6 @@ export async function callCloudProxy<TResponse = unknown>(
     body: req.body,
     headers: req.headers,
     timeoutSeconds: req.timeoutSeconds,
-    hostOverride: req.hostOverride,
-    authMode:
-      req.authMode === undefined || req.authMode === "bearer"
-        ? "bearer"
-        : req.authMode,
-    sessionApiKey: req.sessionApiKey,
     responseType: req.responseType,
   });
 }

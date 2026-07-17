@@ -70,30 +70,26 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       vi.stubGlobal("fetch", fetchMock);
     });
 
-    it("routes through /api/cloud-proxy targeting the conversation runtime host", async () => {
-      // Arrange
+    it("routes through the scoped Cloud runtime endpoint", async () => {
       fetchMock.mockResolvedValue(mockJsonResponse(runtimeResponse));
-      const conversationUrl =
-        "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc";
 
-      // Act
       const result =
         await AgentServerConversationService.getRuntimeConversation(
           "conv-abc",
-          conversationUrl,
+          null,
           "session-xyz",
         );
 
-      // Assert
       expect(fetchMock).toHaveBeenCalledOnce();
       const [url, init] = getFetchCall(fetchMock);
       const body = getJsonBody(init);
-      expect(url).toMatch(/\/api\/cloud-proxy$/);
-      expect(body).toMatchObject({
-        host: "http://abc123.runtime.all-hands.dev",
+      expect(url).toBe(
+        `${cloudBackend.host}/api/v1/app-conversations/conv-abc/runtime`,
+      );
+      expect(init).toMatchObject({ method: "POST" });
+      expect(body).toEqual({
         method: "GET",
         path: "/api/conversations/conv-abc",
-        headers: { "X-Session-API-Key": "session-xyz" },
       });
       expect(result.stats.usage_to_metrics.agent?.accumulated_cost).toBe(1.23);
     });

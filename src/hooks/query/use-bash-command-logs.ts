@@ -140,25 +140,21 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
     if (!conversation) {
       conversationMissing = true;
     } else {
-      preflightIssue =
-        sandboxIssueFromStatus(conversation.sandbox_status) ??
-        (!conversation.conversation_url ? "missing" : null);
+      preflightIssue = sandboxIssueFromStatus(conversation.sandbox_status);
     }
   }
 
-  // Cloud needs the conversation URL before it can talk to the
-  // runtime; local does not.
-  const hasRequiredAuth = isCloud ? !!conversationUrl : true;
   const canFire =
     enabled &&
+    !!conversationId &&
     !!bashCommandId &&
-    hasRequiredAuth &&
     !preflightIssue &&
     !conversationMissing;
 
   const query = useQuery({
     queryKey: [
       ...BASH_COMMAND_LOGS_QUERY_KEY,
+      conversationId,
       bashCommandId,
       conversationUrl,
       sessionApiKey,
@@ -167,6 +163,7 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
     ],
     queryFn: () =>
       BashService.listOutputs(
+        conversationId as string,
         conversationUrl,
         sessionApiKey,
         bashCommandId as string,

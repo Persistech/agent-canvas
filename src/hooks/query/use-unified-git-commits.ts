@@ -35,6 +35,7 @@ export const useUnifiedGitCommits = () => {
       if (!conversationId) throw new Error("No conversation ID");
 
       return AgentServerGitService.getGitCommits(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         gitPath,

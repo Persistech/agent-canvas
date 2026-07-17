@@ -1,7 +1,6 @@
 import { isAxiosError } from "axios";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import type {
   GitChange,
   GitChangeDiff,
@@ -56,16 +55,8 @@ function toAbsoluteRuntimePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-/**
- * GET an arbitrary runtime git endpoint in both backend modes. Local mode
- * uses the SDK's public `HttpClient` (the typed `gitChanges`/`gitDiff`
- * wrappers don't know the newer endpoints/params, and they re-wrap errors,
- * dropping the `.status` needed for 404 feature-detection). Cloud mode goes
- * through the generic cloud-proxy envelope with the sandbox's session API
- * key — the same hop `executeCommand`/`downloadFile` use — so no dedicated
- * cloud API endpoints are required.
- */
 async function getFromRuntime<T>(
+  conversationId: string | null | undefined,
   conversationUrl: string | null | undefined,
   sessionApiKey: string | null | undefined,
   apiPath: string,
@@ -73,7 +64,7 @@ async function getFromRuntime<T>(
 ): Promise<T> {
   const active = getActiveBackend().backend;
 
-  if (active.kind === "cloud" && conversationUrl) {
+  if (active.kind === "cloud" && conversationId) {
     const search = new URLSearchParams({
       ...params,
       path: toAbsoluteRuntimePath(params.path),
@@ -81,10 +72,8 @@ async function getFromRuntime<T>(
     return callCloudProxy<T>({
       backend: active,
       method: "GET",
-      hostOverride: buildHttpBaseUrl(conversationUrl),
+      conversationId,
       path: `${apiPath}?${search.toString()}`,
-      authMode: "session-api-key",
-      sessionApiKey: sessionApiKey ?? undefined,
     });
   }
 
@@ -170,6 +159,7 @@ class AgentServerGitService {
    * so callers can hide the commits section instead of erroring.
    */
   static async getGitCommits(
+    conversationId: string | null | undefined,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     path: string,
@@ -177,6 +167,7 @@ class AgentServerGitService {
   ): Promise<GitCommitsPage | null> {
     try {
       const page = await getFromRuntime<AgentServerGitCommitsPage>(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         "/api/git/commits",
@@ -200,12 +191,14 @@ class AgentServerGitService {
 
   /** Files changed by a single commit (vs its first parent). */
   static async getCommitChanges(
+    conversationId: string | null | undefined,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     path: string,
     sha: string,
   ): Promise<GitChange[]> {
     const changes = await getFromRuntime<AgentServerGitChange[]>(
+      conversationId,
       conversationUrl,
       sessionApiKey,
       `/api/git/commits/${encodeURIComponent(sha)}/changes`,
@@ -240,7 +233,10 @@ class AgentServerGitService {
       // so files the commit deleted still render.
       const commitDiff = await getFromRuntime<
         GitChangeDiff & { diff?: string }
-      >(conversationUrl, sessionApiKey, "/api/git/diff", { path, commit });
+      >(conversationId, conversationUrl, sessionApiKey, "/api/git/diff", {
+        path,
+        commit,
+      });
       return {
         modified: commitDiff?.modified ?? "",
         original: commitDiff?.original ?? "",

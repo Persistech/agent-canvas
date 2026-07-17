@@ -12,7 +12,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { AgentKind, Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
@@ -321,32 +320,16 @@ class AgentServerConversationService {
     runtime?: ConversationRuntimeContext | null,
   ): Promise<SendMessageResponse> {
     const active = getActiveBackend().backend;
-    let conversationUrl = runtime?.conversationUrl ?? null;
-    let sessionApiKey = runtime?.sessionApiKey ?? null;
+    const conversationUrl = runtime?.conversationUrl ?? null;
+    const sessionApiKey = runtime?.sessionApiKey ?? null;
 
     if (active.kind === "cloud") {
-      if (!conversationUrl || !sessionApiKey) {
-        const [conversation] = await batchGetCloudConversations([
-          conversationId,
-        ]);
-        conversationUrl = conversation?.conversation_url?.trim() ?? null;
-        sessionApiKey = conversation?.session_api_key?.trim() ?? null;
-      }
-
-      if (!conversationUrl || !sessionApiKey) {
-        throw new Error(
-          "Conversation sandbox is still starting. Wait for it to finish, then try again.",
-        );
-      }
-
       await callCloudProxy({
         backend: active,
         method: "POST",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        conversationId,
         path: `/api/conversations/${conversationId}/events`,
         body: { ...message, run: true },
-        authMode: "session-api-key",
-        sessionApiKey,
       });
 
       return message;
@@ -624,19 +607,13 @@ class AgentServerConversationService {
       stats?: RuntimeConversationInfo["stats"];
     };
 
-    // Cloud mode: route through the cloud-proxy to the runtime sandbox at
-    // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
-    // mode forwards conversationUrl so the host explicitly resolves to the
-    // conversation's runtime instead of falling back to the active backend.
     const response =
-      active.kind === "cloud" && conversationUrl
+      active.kind === "cloud"
         ? await callCloudProxy<RawRuntime>({
             backend: active,
             method: "GET",
-            hostOverride: buildHttpBaseUrl(conversationUrl),
+            conversationId,
             path: `/api/conversations/${conversationId}`,
-            authMode: "session-api-key",
-            sessionApiKey,
           })
         : await new ConversationClient(
             getAgentServerClientOptions({

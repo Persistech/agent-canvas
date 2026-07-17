@@ -101,6 +101,7 @@ describe("BashService.listOutputs — local backend", () => {
       .mockResolvedValueOnce({ items: [OUTPUT_2] });
 
     const outputs = await BashService.listOutputs(
+      "conv-1",
       CONVERSATION_URL,
       SESSION_KEY,
       BASH_CMD_ID,
@@ -123,7 +124,12 @@ describe("BashService.listOutputs — local backend", () => {
   it("works without a conversation URL (falls back to backend host)", async () => {
     searchEventsMock.mockResolvedValueOnce({ items: [OUTPUT_1] });
 
-    const outputs = await BashService.listOutputs(null, null, BASH_CMD_ID);
+    const outputs = await BashService.listOutputs(
+      "conv-1",
+      null,
+      null,
+      BASH_CMD_ID,
+    );
 
     expect(BashClient).toHaveBeenCalled();
     expect(callCloudProxy).not.toHaveBeenCalled();
@@ -137,12 +143,13 @@ describe("BashService.listOutputs — cloud backend", () => {
     setActiveSelection({ backendId: cloudBackend.id, orgId: null });
   });
 
-  it("routes through callCloudProxy with hostOverride and session-api-key", async () => {
+  it("routes through the scoped Cloud runtime endpoint", async () => {
     vi.mocked(callCloudProxy).mockResolvedValueOnce({
       items: [OUTPUT_1, OUTPUT_2],
     });
 
     const outputs = await BashService.listOutputs(
+      "conv-1",
       CONVERSATION_URL,
       SESSION_KEY,
       BASH_CMD_ID,
@@ -152,9 +159,7 @@ describe("BashService.listOutputs — cloud backend", () => {
     const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
     expect(proxyCall.method).toBe("GET");
     expect(proxyCall.path).toMatch(/^\/api\/bash\/bash_events\/search\?/);
-    expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
-    expect(proxyCall.authMode).toBe("session-api-key");
-    expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
+    expect(proxyCall.conversationId).toBe("conv-1");
 
     const searchUrl = new URL(
       `http://x.example.com${proxyCall.path as string}`,
@@ -166,10 +171,14 @@ describe("BashService.listOutputs — cloud backend", () => {
     expect(outputs).toEqual([OUTPUT_1, OUTPUT_2]);
   });
 
-  it("throws when no conversation URL is provided on cloud backends", async () => {
+  it("does not require a conversation URL on cloud backends", async () => {
+    vi.mocked(callCloudProxy).mockResolvedValueOnce({ items: [OUTPUT_1] });
+
     await expect(
-      BashService.listOutputs(null, SESSION_KEY, BASH_CMD_ID),
-    ).rejects.toThrow(/requires a conversation URL/);
-    expect(callCloudProxy).not.toHaveBeenCalled();
+      BashService.listOutputs("conv-1", null, SESSION_KEY, BASH_CMD_ID),
+    ).resolves.toEqual([OUTPUT_1]);
+    expect(callCloudProxy).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1" }),
+    );
   });
 });

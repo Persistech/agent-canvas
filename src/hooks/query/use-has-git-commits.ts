@@ -64,6 +64,7 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
       // (see `useHasAttachedSource`) so we don't shell out for the
       // unattached-conversation case where the answer is moot.
       const result = await AgentServerRuntimeService.executeCommand(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         "git rev-parse --verify HEAD",

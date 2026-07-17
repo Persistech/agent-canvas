@@ -41,6 +41,7 @@ export const useCommitChanges = (
       if (!conversationId) throw new Error("No conversation ID");
 
       return AgentServerGitService.getCommitChanges(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         gitPath,

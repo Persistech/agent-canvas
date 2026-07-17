@@ -133,7 +133,7 @@ describe("callCloudProxy cookie auth", () => {
     ).not.toHaveProperty("Authorization");
   });
 
-  it("omits bearer auth in runtime proxy envelope requests", async () => {
+  it("omits bearer auth for cookie-backed runtime requests", async () => {
     setRegisteredBackends([cookieCloud]);
     setActiveSelection({ backendId: cookieCloud.id, orgId: null });
 
@@ -141,13 +141,15 @@ describe("callCloudProxy cookie auth", () => {
       backend: cookieCloud,
       method: "GET",
       path: "/api/bash/bash_events/search",
-      hostOverride: "https://abc123.prod-runtime.all-hands.dev",
+      conversationId: "conv-1",
     });
 
-    const [, init] = fetchMock.mock.calls[0]!;
-    const envelope = JSON.parse((init as { body: string }).body);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      `${cookieCloud.host}/api/v1/app-conversations/conv-1/runtime`,
+    );
     expect(
-      (envelope as { headers: Record<string, string> }).headers,
+      (init as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("Authorization");
   });
 });
@@ -208,43 +210,32 @@ describe("callCloudProxy automation direct routing", () => {
   });
 });
 
-describe("callCloudProxy hostOverride routing", () => {
-  const runtimeHost = "https://abc123.prod-runtime.all-hands.dev";
-
-  it("routes through the local /api/cloud-proxy instead of the upstream host when hostOverride is set", async () => {
-    // Arrange — runtime-sandbox endpoints need the proxy hop because the
-    // per-conversation runtime hosts reject browser requests from the
-    // local GUI origin.
+describe("callCloudProxy runtime routing", () => {
+  it("routes runtime requests through the scoped Cloud endpoint", async () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
     fetchMock.mockResolvedValueOnce(mockJsonResponse({ items: [] }));
 
-    // Act
     const result = await callCloudProxy({
       backend: cloudPersonal,
       method: "GET",
       path: "/api/bash/bash_events/search",
-      hostOverride: runtimeHost,
+      conversationId: "conv-1",
     });
 
-    // Assert — the browser only makes a same-origin POST to the bundled
-    // agent-server's proxy endpoint carrying the upstream call as an
-    // envelope, and the upstream payload is unwrapped for the caller.
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    const envelope = JSON.parse((init as { body: string }).body);
-    expect(envelope).toMatchObject({
-      host: runtimeHost,
+    expect(url).toBe(
+      `${cloudPersonal.host}/api/v1/app-conversations/conv-1/runtime`,
+    );
+    expect(init).toMatchObject({ method: "POST" });
+    expect(JSON.parse((init as { body: string }).body)).toEqual({
       method: "GET",
       path: "/api/bash/bash_events/search",
     });
     expect(result).toEqual({ items: [] });
   });
 
-  it("carries bearer auth and X-Org-Id inside the proxy envelope", async () => {
-    // Arrange — org scoping must survive the server-side hop: the envelope
-    // headers are what the agent-server attaches to the upstream call in
-    // place of the headers a direct browser request would have sent.
+  it("carries bearer auth and X-Org-Id to the Cloud endpoint", async () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({
       backendId: cloudPersonal.id,
@@ -256,17 +247,15 @@ describe("callCloudProxy hostOverride routing", () => {
       backend: cloudPersonal,
       method: "GET",
       path: "/api/bash/bash_events/search",
-      hostOverride: runtimeHost,
+      conversationId: "conv-1",
     });
 
-    // Assert
     const [, init] = fetchMock.mock.calls[0]!;
-    const envelope = JSON.parse((init as { body: string }).body);
-    expect(
-      (envelope as { headers: Record<string, string> }).headers,
-    ).toMatchObject({
-      Authorization: `Bearer ${cloudPersonal.apiKey}`,
-      "X-Org-Id": "org-personal-uuid",
-    });
+    expect((init as { headers: Record<string, string> }).headers).toMatchObject(
+      {
+        Authorization: `Bearer ${cloudPersonal.apiKey}`,
+        "X-Org-Id": "org-personal-uuid",
+      },
+    );
   });
 });

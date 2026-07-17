@@ -75,6 +75,7 @@ function useLocalWorkspaceFiles(enabled: boolean): WorkspaceFilesResult {
     ],
     queryFn: async () => {
       const result = await AgentServerRuntimeService.executeCommand(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         buildListCommand(),

@@ -3,7 +3,6 @@ import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-w
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 
 export interface CommandResult {
   exit_code: number;
@@ -11,18 +10,9 @@ export interface CommandResult {
   stderr: string;
 }
 
-/**
- * Cloud-aware runtime operations for agent-server conversations.
- *
- * In **local** mode the runtime is reachable directly from the browser
- * (e.g. `127.0.0.1:18000`) so the SDK's typed clients work fine.
- * In **cloud** mode the runtime lives at `*.prod-runtime.all-hands.dev`,
- * which doesn't allow CORS from `localhost`, so all calls go through
- * `callCloudProxy` with the runtime URL as `hostOverride` and the
- * conversation's `session_api_key` as auth — server-side hop, no CORS.
- */
 class AgentServerRuntimeService {
   static async executeCommand(
+    conversationId: string | null | undefined,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     command: string,
@@ -31,7 +21,7 @@ class AgentServerRuntimeService {
   ): Promise<CommandResult> {
     const active = getActiveBackend().backend;
 
-    if (active.kind === "cloud" && conversationUrl) {
+    if (active.kind === "cloud" && conversationId) {
       const output = await callCloudProxy<{
         exit_code?: number;
         stdout?: string;
@@ -39,15 +29,13 @@ class AgentServerRuntimeService {
       }>({
         backend: active,
         method: "POST",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        conversationId,
         path: "/api/bash/execute_bash_command",
         body: {
           command,
           ...(cwd ? { cwd } : {}),
           timeout: Math.floor(timeout),
         },
-        authMode: "session-api-key",
-        sessionApiKey,
         timeoutSeconds: timeout + 10,
       });
       return {
@@ -68,20 +56,19 @@ class AgentServerRuntimeService {
   }
 
   static async downloadFile(
+    conversationId: string | null | undefined,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     path: string,
   ): Promise<ArrayBuffer> {
     const active = getActiveBackend().backend;
 
-    if (active.kind === "cloud" && conversationUrl) {
+    if (active.kind === "cloud" && conversationId) {
       const blob = await callCloudProxy<Blob>({
         backend: active,
         method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        conversationId,
         path: `/api/file/download?path=${encodeURIComponent(path)}`,
-        authMode: "session-api-key",
-        sessionApiKey,
         responseType: "blob",
       });
       return blob.arrayBuffer();
