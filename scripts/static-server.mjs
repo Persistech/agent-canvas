@@ -71,6 +71,11 @@ const ASSET_LIKE_EXTENSIONS = new Set([
   ".xml",
 ]);
 
+const WEBSOCKET_NOT_FOUND_RESPONSE =
+  "HTTP/1.1 404 Not Found\r\n" +
+  "Connection: close\r\n" +
+  "Content-Length: 0\r\n\r\n";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Args
 // ─────────────────────────────────────────────────────────────────────────────
@@ -584,7 +589,7 @@ export function startStaticServer(config) {
       proxy.proxyWebSocket(req, socket, head, backend);
       return;
     }
-    socket.destroy();
+    socket.end(WEBSOCKET_NOT_FOUND_RESPONSE);
   });
   server.on("close", uninstallDiagnostics);
 

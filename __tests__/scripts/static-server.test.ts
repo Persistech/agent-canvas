@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -506,5 +507,38 @@ describe("static-server.mjs", () => {
 
     expect(response.status).not.toBe(200);
     await expect(response.text()).resolves.not.toContain("secret");
+  });
+
+  it("rejects unmatched WebSocket upgrades with a 404 response", async () => {
+    const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+    tempDirs.push(buildDir);
+    writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+    const origin = await startServer(buildDir);
+    const url = new URL(origin);
+    const response = await new Promise<string>((resolve, reject) => {
+      const socket = createConnection({
+        host: url.hostname,
+        port: Number(url.port),
+      });
+      let data = "";
+
+      socket.setEncoding("utf8");
+      socket.on("connect", () => {
+        socket.write(
+          "GET /conversations/test HTTP/1.1\r\n" +
+            `Host: ${url.host}\r\n` +
+            "Connection: Upgrade\r\n" +
+            "Upgrade: websocket\r\n\r\n",
+        );
+      });
+      socket.on("data", (chunk) => {
+        data += chunk;
+      });
+      socket.on("end", () => resolve(data));
+      socket.on("error", reject);
+    });
+
+    expect(response).toMatch(/^HTTP\/1\.1 404 Not Found\r\n/);
   });
 });
