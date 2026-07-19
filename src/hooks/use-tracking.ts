@@ -3,6 +3,7 @@ import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -178,6 +179,10 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackConversationExported = (format: "markdown" | "html") => {
+    track("conversation_exported", { format });
+  };
+
   const trackAutomationCreated = ({
     backendKind,
   }: {
@@ -218,6 +223,22 @@ export const useTracking = () => {
     track("automation_edited", { backend_kind: backendKind });
   };
 
+  const trackAutomationExported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_exported", { backend_kind: backendKind });
+  };
+
+  const trackAutomationImported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_imported", { backend_kind: backendKind });
+  };
+
   const trackBackendAdded = ({
     backendKind,
     connectionMethod,
@@ -231,7 +252,7 @@ export const useTracking = () => {
     isOpenhandsCloud: boolean;
     isCustomHost: boolean;
     hasApiKey: boolean;
-    source?: "add_backend_modal" | "manage_backends_modal";
+    source?: CloudConnectionSource;
   }) => {
     track("backend_added", {
       backend_kind: backendKind,
@@ -303,11 +324,14 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackConversationExported,
     trackAutomationCreated,
     trackAutomationExecuted,
     trackAutomationDeleted,
     trackAutomationDeactivated,
     trackAutomationEdited,
+    trackAutomationExported,
+    trackAutomationImported,
     trackBackendAdded,
     trackOnboardingStarted,
     trackOnboardingStepViewed,

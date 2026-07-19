@@ -16,6 +16,10 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
+import {
+  trackCanvasBackendAdded,
+  type CloudConnectionSource,
+} from "#/services/cloud-funnel-analytics";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
 import { isOpenHandsCloudHost } from "#/api/device-flow-client";
@@ -45,6 +49,8 @@ interface BackendFormModalProps {
   onClose: () => void;
   /** Analytics surface for the `backend_added` event (add mode only). */
   source?: BackendAddedSource;
+  /** Hide the close button and disable backdrop/escape dismissal. Used for locked Cloud first-run. */
+  hideCloseButton?: boolean;
 }
 
 /**
@@ -138,7 +144,7 @@ const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 export type BackendConnectionMethod = "manual" | "cloud_login";
 
-export type BackendAddedSource = "add_backend_modal" | "manage_backends_modal";
+export type BackendAddedSource = CloudConnectionSource;
 
 function getConnectionTestFailedTitle(
   t: ReturnType<typeof useTranslation>["t"],
@@ -698,6 +704,7 @@ interface BackendConnectionOptionsProps {
   manualSubmitLabel?: React.ReactNode;
   manualSubmittingLabel?: React.ReactNode;
   manualSubmitTestId?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -713,6 +720,7 @@ export function BackendConnectionOptions({
   manualSubmitLabel,
   manualSubmittingLabel,
   manualSubmitTestId,
+  analyticsSource,
 }: BackendConnectionOptionsProps) {
   const { t } = useTranslation("openhands");
   const lockedCloudHost = getLockedCloudHost();
@@ -728,6 +736,7 @@ export function BackendConnectionOptions({
             onConnected={onConnected}
             testIdRoot={testIdRoot}
             lockedHost={lockedCloudHost}
+            analyticsSource={analyticsSource}
           />
         </div>
       </div>
@@ -755,7 +764,11 @@ export function BackendConnectionOptions({
       </div>
 
       <div className="flex-1 min-w-0">
-        <CloudLoginColumn onConnected={onConnected} testIdRoot={testIdRoot} />
+        <CloudLoginColumn
+          onConnected={onConnected}
+          testIdRoot={testIdRoot}
+          analyticsSource={analyticsSource}
+        />
       </div>
     </div>
   );
@@ -932,6 +945,7 @@ interface CloudLoginColumnProps {
   ) => void;
   testIdRoot: string;
   lockedHost?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -943,6 +957,7 @@ function CloudLoginColumn({
   onConnected,
   testIdRoot,
   lockedHost,
+  analyticsSource,
 }: CloudLoginColumnProps) {
   const { t } = useTranslation("openhands");
 
@@ -965,7 +980,7 @@ function CloudLoginColumn({
   };
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-7">
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-8">
       <div className="flex flex-col items-center gap-1">
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
@@ -985,6 +1000,7 @@ function CloudLoginColumn({
         host={effectiveHost}
         onSuccess={handleLoginSuccess}
         testIdRoot={testIdRoot}
+        analyticsSource={analyticsSource}
       />
 
       {lockedHost ? null : (
@@ -1050,22 +1066,36 @@ function AddBackendConnectionOptions({
     ) => {
       addBackend(payload);
       // Coarse, non-sensitive host classification — never emit the raw host.
-      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
-      trackBackendAdded({
+      const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
+      const trackedByCanvas = trackCanvasBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        isOpenhandsCloud: isOpenHandsCloud,
-        isCustomHost: !isOpenHandsCloud,
+        host: payload.host,
         hasApiKey: Boolean(payload.apiKey),
         source,
       });
+      if (!trackedByCanvas) {
+        trackBackendAdded({
+          backendKind: payload.kind,
+          connectionMethod,
+          isOpenhandsCloud: isOpenHandsCloud,
+          isCustomHost: !isOpenHandsCloud,
+          hasApiKey: Boolean(payload.apiKey),
+          source,
+        });
+      }
       redirectAfterAdd();
       onClose();
     },
     [addBackend, redirectAfterAdd, onClose, trackBackendAdded, source],
   );
 
-  return <BackendConnectionOptions onConnected={handleConnected} />;
+  return (
+    <BackendConnectionOptions
+      onConnected={handleConnected}
+      analyticsSource={source}
+    />
+  );
 }
 
 // ── Modal wrappers ──────────────────────────────────────────────────
@@ -1080,33 +1110,41 @@ export function BackendFormModal({
   backend,
   onClose,
   source = "add_backend_modal",
+  hideCloseButton = false,
 }: BackendFormModalProps) {
   const { t } = useTranslation("openhands");
 
   if (mode === "add") {
     return (
       <ModalBackdrop
-        onClose={onClose}
+        onClose={hideCloseButton ? undefined : onClose}
         closeOnEscape={false}
+        closeOnBackdropClick={!hideCloseButton}
         aria-label={t(I18nKey.BACKEND$ADD_TITLE)}
       >
         <div
-          data-testid="add-backend-modal"
+          data-testid={
+            hideCloseButton ? "onboarding-modal" : "add-backend-modal"
+          }
           className={cn(
             "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
             modalWidthClassName("xl"),
             MODAL_MAX_WIDTH_VIEWPORT,
           )}
         >
-          <ModalCloseButton onClose={onClose} testId="add-backend-close" />
-          {/* Header */}
-          <div className="px-6 pt-6 pb-2 pr-12">
-            <h2 className={modalTitleLgClassName}>
-              {t(I18nKey.BACKEND$ADD_TITLE)}
-            </h2>
-          </div>
+          {hideCloseButton ? null : (
+            <ModalCloseButton onClose={onClose} testId="add-backend-close" />
+          )}
+          {/* Header - hide in locked Cloud first-run mode for cleaner UX */}
+          {hideCloseButton ? null : (
+            <div className="px-6 pt-6 pb-2 pr-12">
+              <h2 className={modalTitleLgClassName}>
+                {t(I18nKey.BACKEND$ADD_TITLE)}
+              </h2>
+            </div>
+          )}
 
-          <div className="px-6 pb-6 pt-2">
+          <div className={cn("px-6 pb-6", hideCloseButton ? "pt-6" : "pt-2")}>
             <AddBackendConnectionOptions onClose={onClose} source={source} />
           </div>
         </div>
