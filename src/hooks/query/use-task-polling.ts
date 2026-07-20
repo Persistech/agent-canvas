@@ -46,26 +46,24 @@ const storeTaskPlugins = (
 };
 
 /**
- * Hook that polls V1 conversation start tasks and navigates when ready.
+ * Read the shared polling state for a V1 conversation start task.
  *
  * This hook:
  * - Detects if the conversationId URL param is a task ID (format: "task-{uuid}")
  * - Polls the V1 start task API every 3 seconds until status is READY or ERROR
- * - Automatically navigates to the conversation URL when the task becomes READY
  * - Exposes task status and details for UI components to show loading states and errors
  *
  * URL patterns:
  * - /conversations/task-{uuid} → Polls start task, then navigates to /conversations/{conversation-id}
  * - /conversations/{uuid or hex} → No polling (handled by useActiveConversation)
  *
- * Note: This hook does NOT fetch conversation data. It only handles task polling and navigation.
+ * The conversation route mounts useTaskPollingController once to own READY
+ * side effects; other components can consume this hook without repeating them.
  */
 export const useTaskPolling = () => {
   // Optional: the chat input shell renders on the home page too; polling
   // simply no-ops when there's no conversation id yet.
   const { conversationId } = useOptionalConversationId();
-  const { navigate } = useNavigation();
-  const { backend: activeBackend, orgId: activeOrgId } = useActiveBackend();
 
   // Check if this is a task ID (format: "task-{uuid}")
   const isTask = !!conversationId && conversationId.startsWith("task-");
@@ -94,6 +92,31 @@ export const useTaskPolling = () => {
     retry: false,
   });
 
+  return {
+    isTask,
+    taskId,
+    conversationId: isTask ? null : (conversationId ?? null),
+    task: taskQuery.data,
+    taskStatus: taskQuery.data?.status,
+    taskDetail: taskQuery.data?.detail,
+    taskError: taskQuery.error,
+    isLoadingTask: taskQuery.isLoading,
+    // Repository information from task request
+    repositoryInfo: {
+      selectedRepository: taskQuery.data?.request?.selected_repository,
+      selectedBranch: taskQuery.data?.request?.selected_branch,
+      gitProvider: taskQuery.data?.request?.git_provider,
+    },
+  };
+};
+
+/** Own the task lifecycle side effects once at the conversation route. */
+export const useTaskPollingController = () => {
+  const polling = useTaskPolling();
+  const { task, taskId } = polling;
+  const { conversationId } = useOptionalConversationId();
+  const { navigate } = useNavigation();
+  const { backend: activeBackend, orgId: activeOrgId } = useActiveBackend();
   const handledReadyTaskIdRef = useRef<string | null>(null);
 
   // Reassign optimistic pending messages before paint on the real conversation
@@ -121,7 +144,6 @@ export const useTaskPolling = () => {
 
   // Navigate to conversation ID when task is ready
   useEffect(() => {
-    const task = taskQuery.data;
     const appConversationId = task?.app_conversation_id;
     if (
       !taskId ||
@@ -163,26 +185,7 @@ export const useTaskPolling = () => {
         { replace: true },
       );
     })();
-  }, [activeBackend.id, activeOrgId, taskQuery.data, navigate, taskId]);
+  }, [activeBackend.id, activeOrgId, task, taskId, navigate]);
 
-  useEffect(() => {
-    handledReadyTaskIdRef.current = null;
-  }, [taskId]);
-
-  return {
-    isTask,
-    taskId,
-    conversationId: isTask ? null : (conversationId ?? null),
-    task: taskQuery.data,
-    taskStatus: taskQuery.data?.status,
-    taskDetail: taskQuery.data?.detail,
-    taskError: taskQuery.error,
-    isLoadingTask: taskQuery.isLoading,
-    // Repository information from task request
-    repositoryInfo: {
-      selectedRepository: taskQuery.data?.request?.selected_repository,
-      selectedBranch: taskQuery.data?.request?.selected_branch,
-      gitProvider: taskQuery.data?.request?.git_provider,
-    },
-  };
+  return polling;
 };
