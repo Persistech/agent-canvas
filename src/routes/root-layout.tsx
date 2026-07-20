@@ -13,10 +13,9 @@ import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
 import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useEnsureActiveProfile } from "#/hooks/use-ensure-active-profile";
-import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
+import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
+import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
@@ -80,7 +79,6 @@ export default function MainApp() {
   const location = useLocation();
   const appTitle = useAppTitle();
   const { data: settings } = useSettings();
-  const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
   const {
     isOpen: isConversationLimitModalOpen,
@@ -88,8 +86,8 @@ export default function MainApp() {
     closeLimitModal,
   } = useConversationLimitStore();
 
-  useSyncPostHogConsent();
-  usePostHogIdentify();
+  useSyncTelemetryConsent();
+  useTelemetryIdentity();
   // Local-mode policy: keep a profile active so a usable LLM is always selected.
   useEnsureActiveProfile();
 
@@ -98,10 +96,6 @@ export default function MainApp() {
       i18n.changeLanguage(settings.language);
     }
   }, [settings?.language]);
-
-  React.useEffect(() => {
-    migrateUserConsent();
-  }, [migrateUserConsent]);
 
   if (config.isLoading) {
     return (

@@ -68,6 +68,7 @@ import {
   createShutdownHookRegistry,
   getProcessTreeSpawnOptions,
   isProcessRunning,
+  resolveWindowsCommand,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 import { fileLog, stripAnsi } from "./logger.mjs";
@@ -551,13 +552,12 @@ function registerShutdownHook(hook) {
 
 function spawnService(name, command, args, options = {}) {
   const proc = spawn(
-    command,
+    resolveWindowsCommand(command),
     args,
     getProcessTreeSpawnOptions({
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
       cwd: options.cwd,
-      shell: process.platform === "win32",
     }),
   );
 
@@ -1376,6 +1376,9 @@ function startStaticFrontend(config, staticDir) {
       staticDir,
       "--port",
       String(config.vitePort),
+      ...(process.env.VITE_BASE_PATH
+        ? ["--base-path", process.env.VITE_BASE_PATH]
+        : []),
       // In local mode, inject the API key so the pre-built frontend can
       // authenticate transparently. In public mode, pass --auth-required
       // so the frontend shows the API key entry screen instead.
