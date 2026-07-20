@@ -12,6 +12,16 @@ import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-pr
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
+const { trackLlmProfileRenamedMock } = vi.hoisted(() => ({
+  trackLlmProfileRenamedMock: vi.fn(),
+}));
+
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackLlmProfileRenamed: trackLlmProfileRenamedMock,
+  }),
+}));
+
 vi.mock("#/routes/llm-settings", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
   return {
@@ -524,6 +534,8 @@ describe("LlmSettingsLocalView", () => {
           "my-renamed-profile",
         );
       });
+
+      expect(trackLlmProfileRenamedMock).toHaveBeenCalledTimes(1);
 
       // Verify save was called with the new name
       expect(mockSaveMutateAsync).toHaveBeenCalledWith(

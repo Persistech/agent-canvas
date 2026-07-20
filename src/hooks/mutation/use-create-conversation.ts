@@ -6,6 +6,7 @@ import { AgentKind, Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { useSettings } from "#/hooks/query/use-settings";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import AgentProfilesService, {
@@ -28,6 +29,11 @@ import {
   toPluginCoordinates,
   type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
+import {
+  buildLlmTelemetryProperties,
+  LLM_AUTH_TYPE_UNKNOWN,
+  type LlmTelemetryProperties,
+} from "#/utils/llm-telemetry";
 
 export interface CreateConversationVariables {
   query?: string;
@@ -52,16 +58,35 @@ export interface CreateConversationVariables {
 
 export const CREATE_CONVERSATION_MUTATION_KEY = ["create-conversation"];
 
+interface ConversationTelemetryMetadata {
+  agentKind?: AgentKind;
+  llm?: LlmTelemetryProperties;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getAgentSettingsLlm(
+  agentSettings: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  return getRecord(agentSettings?.llm);
+}
+
 interface CreateConversationResponse {
   conversation_id: string;
   session_api_key: string | null;
   url: string | null;
   task_id?: string;
+  telemetry: ConversationTelemetryMetadata;
 }
 
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
   const { trackConversationCreated } = useTracking();
+  const { data: settings } = useSettings();
   // Cache-warm on the home page (the profile picker reads the same query).
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
@@ -300,6 +325,38 @@ export const useCreateConversation = () => {
         });
       }
 
+      const agentSettings = getRecord(settings?.agent_settings);
+      const settingsLlm = getAgentSettingsLlm(agentSettings);
+      const agentKind =
+        resolvedAgentProfile?.agent_kind ??
+        (agentSettings?.agent_kind === "acp" ? "acp" : "openhands");
+      const activeProfileInfo = llmProfiles?.profiles?.find(
+        (profile) => profile.name === activeProfile,
+      );
+      const isActiveProfileApplied =
+        !!activeProfile && activeProfile === llmProfiles?.active_profile;
+      const profileTelemetrySource = activeProfileInfo
+        ? {
+            ...(isActiveProfileApplied && settingsLlm ? settingsLlm : {}),
+            ...(activeProfileInfo as unknown as Record<string, unknown>),
+          }
+        : null;
+      const telemetry: ConversationTelemetryMetadata = {
+        agentKind,
+        llm:
+          agentKind === "openhands"
+            ? buildLlmTelemetryProperties(
+                profileTelemetrySource ?? settingsLlm,
+                {
+                  defaultAuthType:
+                    activeProfileInfo && !isActiveProfileApplied
+                      ? LLM_AUTH_TYPE_UNKNOWN
+                      : undefined,
+                },
+              )
+            : undefined,
+      };
+
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),
       // app_conversation_id is null. We return a `task-{id}` URL so the
@@ -314,6 +371,7 @@ export const useCreateConversation = () => {
         session_api_key: null,
         url: conversation.agent_server_url,
         task_id: conversation.id,
+        telemetry,
       };
     },
     onSuccess: async (data, variables) => {
@@ -326,8 +384,10 @@ export const useCreateConversation = () => {
         workspaceMode: variables.workspaceMode,
         hasInitialQuery: !!variables.query,
         agentType: variables.agentType,
+        agentKind: data.telemetry.agentKind,
         hasParentConversation: !!variables.parentConversationId,
         entryPoint: variables.entryPoint,
+        llm: data.telemetry.llm,
       });
 
       // Invalidate (rather than remove) so the existing paginated list stays

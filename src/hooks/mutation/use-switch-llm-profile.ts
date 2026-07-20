@@ -16,6 +16,12 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { I18nKey } from "#/i18n/declaration";
 import { invalidateConversationQueries } from "./conversation-mutation-utils";
+import { useTracking } from "#/hooks/use-tracking";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import {
+  buildLlmTelemetryProperties,
+  LLM_AUTH_TYPE_UNKNOWN,
+} from "#/utils/llm-telemetry";
 
 interface SwitchLlmProfileVars {
   /**
@@ -51,6 +57,9 @@ export const SWITCH_LLM_PROFILE_MUTATION_KEY = ["switch-llm-profile"];
 export const useSwitchLlmProfile = () => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const { trackConversationLlmSwitched, trackLlmProfileActivated } =
+    useTracking();
+  const { data: profilesData } = useLlmProfiles();
 
   return useMutation({
     mutationKey: SWITCH_LLM_PROFILE_MUTATION_KEY,
@@ -67,10 +76,24 @@ export const useSwitchLlmProfile = () => {
       displayErrorToast(retrieveAxiosErrorMessage(error) || fallback);
     },
     onSuccess: (_data, { conversationId, profileName }, context) => {
+      const profile = profilesData?.profiles?.find(
+        (item) => item.name === profileName,
+      );
+      const llmProperties = profile
+        ? buildLlmTelemetryProperties(
+            profile as unknown as Record<string, unknown>,
+            { defaultAuthType: LLM_AUTH_TYPE_UNKNOWN },
+          )
+        : {};
+
       queryClient.invalidateQueries({
         queryKey: LLM_PROFILES_QUERY_KEYS.all,
       });
       if (conversationId) {
+        trackConversationLlmSwitched({
+          conversationId,
+          ...llmProperties,
+        });
         invalidateConversationQueries(queryClient, conversationId);
         recordModelSwitchMessage(
           conversationId,
@@ -90,6 +113,7 @@ export const useSwitchLlmProfile = () => {
           plugins: prev?.plugins ?? null,
         });
       } else {
+        trackLlmProfileActivated({ ...llmProperties, source: "home" });
         // Home-page activate path (same server endpoint as
         // useActivateLlmProfile): clear the SettingsService cache so the next
         // conversation-start reads the newly activated profile's LLM config

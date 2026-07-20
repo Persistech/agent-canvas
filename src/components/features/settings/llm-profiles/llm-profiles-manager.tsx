@@ -82,6 +82,8 @@ export function LlmProfilesManager({
           llm: detail.config as SaveProfileRequest["llm"],
           include_secrets: true,
         },
+        operation: "duplicated",
+        source: "duplicate",
       });
 
       displaySuccessToast(

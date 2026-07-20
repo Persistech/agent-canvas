@@ -9,10 +9,33 @@ import {
   removeStoredConversationMetadata,
 } from "#/api/conversation-metadata-store";
 
+const { trackConversationCreatedMock } = vi.hoisted(() => ({
+  trackConversationCreatedMock: vi.fn(),
+}));
+
 vi.mock("#/hooks/use-tracking", () => ({
   useTracking: () => ({
-    trackConversationCreated: vi.fn(),
+    trackConversationCreated: trackConversationCreatedMock,
   }),
+}));
+
+const { useSettingsMock } = vi.hoisted(() => ({
+  useSettingsMock: vi.fn(() => ({
+    data: {
+      agent_settings: {
+        agent_kind: "openhands",
+        llm: {
+          model: "openai/gpt-4.1",
+          auth_type: "api_key",
+          api_key: "encrypted-key-present",
+        },
+      },
+    },
+  })),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => useSettingsMock(),
 }));
 
 // The default→agent_settings downgrade is local-only (#1571 review); default
@@ -96,6 +119,20 @@ describe("useCreateConversation", () => {
       active_profile: null,
     });
     useLlmProfilesMock.mockReturnValue({ data: { active_profile: null } });
+    useSettingsMock.mockReset();
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: {
+          agent_kind: "openhands",
+          llm: {
+            model: "openai/gpt-4.1",
+            auth_type: "api_key",
+            api_key: "encrypted-key-present",
+          },
+        },
+      },
+    });
+    trackConversationCreatedMock.mockClear();
     removeStoredConversationMetadata("conv-with-plugins");
     removeStoredConversationMetadata("conv-ref-stamp");
   });
@@ -174,6 +211,20 @@ describe("useCreateConversation", () => {
         undefined,
       );
     });
+
+    expect(trackConversationCreatedMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "task-task-id",
+        agentKind: "openhands",
+        llm: expect.objectContaining({
+          llm_model: "openai/gpt-4.1",
+          llm_model_provider: "openai",
+          llm_model_name: "gpt-4.1",
+          llm_auth_type: "api_key",
+          llm_api_key_set: true,
+        }),
+      }),
+    );
   });
 
   it("launches new local conversations from the active AgentProfile (#3727)", async () => {

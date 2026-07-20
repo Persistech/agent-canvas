@@ -9,6 +9,31 @@ import {
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
 
+const { trackLlmProfileActivatedMock } = vi.hoisted(() => ({
+  trackLlmProfileActivatedMock: vi.fn(),
+}));
+
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackLlmProfileActivated: trackLlmProfileActivatedMock,
+  }),
+}));
+
+vi.mock("#/hooks/query/use-llm-profiles", () => ({
+  useLlmProfiles: () => ({
+    data: {
+      profiles: [
+        {
+          name: "my-profile",
+          model: "openai/gpt-4.1",
+          base_url: null,
+          api_key_set: false,
+        },
+      ],
+    },
+  }),
+}));
+
 vi.mock("#/api/profiles-service/profiles-service.api", () => ({
   default: {
     activateProfile: vi.fn(),
@@ -58,6 +83,15 @@ describe("useActivateLlmProfile", () => {
 
     // Verify activateProfile was called with the correct name
     expect(mockActivateProfile).toHaveBeenCalledWith("my-profile");
+    expect(trackLlmProfileActivatedMock).toHaveBeenCalledWith({
+      llm_model: "openai/gpt-4.1",
+      llm_model_provider: "openai",
+      llm_model_name: "gpt-4.1",
+      llm_auth_type: "unknown",
+      llm_subscription_vendor: null,
+      llm_api_key_set: false,
+      llm_base_url_set: false,
+    });
 
     // Verify all cache invalidations occur on success
     expect(invalidateCacheSpy).toHaveBeenCalled();

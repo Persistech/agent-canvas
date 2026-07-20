@@ -16,6 +16,40 @@ import {
 } from "#/api/conversation-metadata-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
+const { trackConversationLlmSwitchedMock, trackLlmProfileActivatedMock } =
+  vi.hoisted(() => ({
+    trackConversationLlmSwitchedMock: vi.fn(),
+    trackLlmProfileActivatedMock: vi.fn(),
+  }));
+
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackConversationLlmSwitched: trackConversationLlmSwitchedMock,
+    trackLlmProfileActivated: trackLlmProfileActivatedMock,
+  }),
+}));
+
+vi.mock("#/hooks/query/use-llm-profiles", () => ({
+  useLlmProfiles: () => ({
+    data: {
+      profiles: [
+        {
+          name: "Smart",
+          model: "openai/gpt-4.1",
+          base_url: null,
+          api_key_set: false,
+        },
+        {
+          name: "claude-sonnet-4.6",
+          model: "anthropic/claude-sonnet-4.6",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+    },
+  }),
+}));
+
 vi.mock("#/utils/custom-toast-handlers");
 
 vi.mock(
@@ -54,6 +88,8 @@ const renderSwitchHook = () => {
 describe("useSwitchLlmProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    trackConversationLlmSwitchedMock.mockClear();
+    trackLlmProfileActivatedMock.mockClear();
     window.localStorage.clear();
     SettingsService.invalidateCache();
   });
@@ -99,7 +135,7 @@ describe("useSwitchLlmProfile", () => {
 
     result.current.mutate({
       conversationId: "conv-1",
-      profileName: "my-profile",
+      profileName: "Smart",
     });
 
     await waitFor(() => {
@@ -115,6 +151,16 @@ describe("useSwitchLlmProfile", () => {
     });
     expect(invalidateQueriesSpy).not.toHaveBeenCalledWith({
       queryKey: SETTINGS_QUERY_KEYS.personal(),
+    });
+    expect(trackConversationLlmSwitchedMock).toHaveBeenCalledWith({
+      conversationId: "conv-1",
+      llm_model: "openai/gpt-4.1",
+      llm_model_provider: "openai",
+      llm_model_name: "gpt-4.1",
+      llm_auth_type: "unknown",
+      llm_subscription_vendor: null,
+      llm_api_key_set: false,
+      llm_base_url_set: false,
     });
 
     invalidateCacheSpy.mockRestore();

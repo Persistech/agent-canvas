@@ -72,6 +72,7 @@ describe("useTracking", () => {
         workspace_mode: undefined,
         has_initial_query: true,
         agent_type: undefined,
+        agent_kind: undefined,
         has_parent_conversation: false,
         entry_point: "sidebar_cloud_menu",
         ...COMMON,
@@ -101,6 +102,7 @@ describe("useTracking", () => {
         workspace_mode: "local_repo",
         has_initial_query: false,
         agent_type: undefined,
+        agent_kind: undefined,
         has_parent_conversation: false,
         entry_point: "sidebar_local_menu",
         ...COMMON,
@@ -124,6 +126,43 @@ describe("useTracking", () => {
         expect.objectContaining({
           agent_type: "plan",
           has_parent_conversation: true,
+        }),
+      );
+    });
+
+    it("captures agent kind and LLM metadata for a conversation start", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "conv-llm",
+        taskId: "conv-llm",
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: true,
+        agentType: "default",
+        agentKind: "openhands",
+        hasParentConversation: false,
+        entryPoint: "home",
+        llm: {
+          llm_model: "openai/gpt-4.1",
+          llm_model_provider: "openai",
+          llm_model_name: "gpt-4.1",
+          llm_auth_type: "subscription",
+          llm_subscription_vendor: "openai",
+          llm_api_key_set: false,
+          llm_base_url_set: false,
+        },
+      });
+
+      expect(captureMock).toHaveBeenCalledWith(
+        "conversation_created",
+        expect.objectContaining({
+          conversation_id: "conv-llm",
+          agent_type: "default",
+          agent_kind: "openhands",
+          llm_model: "openai/gpt-4.1",
+          llm_model_provider: "openai",
+          llm_model_name: "gpt-4.1",
+          llm_auth_type: "subscription",
+          llm_subscription_vendor: "openai",
         }),
       );
     });
@@ -247,6 +286,82 @@ describe("useTracking", () => {
       expect(captureMock).toHaveBeenCalledWith("user_message_sent", {
         session_message_count: 5,
         current_message_length: 120,
+        ...COMMON,
+      });
+    });
+  });
+
+  describe("LLM profile tracking", () => {
+    const llmMetadata = {
+      llm_model: "anthropic/claude-sonnet-4.5",
+      llm_model_provider: "anthropic",
+      llm_model_name: "claude-sonnet-4.5",
+      llm_auth_type: "api_key" as const,
+      llm_subscription_vendor: null,
+      llm_api_key_set: true,
+      llm_base_url_set: false,
+    };
+
+    it("captures create, update, duplicate, rename, delete, and activate events", () => {
+      const tracking = getTracking();
+
+      tracking.trackLlmProfileCreated({ ...llmMetadata, source: "settings" });
+      tracking.trackLlmProfileUpdated({ ...llmMetadata, source: "settings" });
+      tracking.trackLlmProfileDuplicated({
+        ...llmMetadata,
+        source: "duplicate",
+      });
+      tracking.trackLlmProfileRenamed();
+      tracking.trackLlmProfileDeleted();
+      tracking.trackLlmProfileActivated({ ...llmMetadata, source: "home" });
+
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_created", {
+        ...llmMetadata,
+        source: "settings",
+        ...COMMON,
+      });
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_updated", {
+        ...llmMetadata,
+        source: "settings",
+        ...COMMON,
+      });
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_duplicated", {
+        ...llmMetadata,
+        source: "duplicate",
+        ...COMMON,
+      });
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_renamed", COMMON);
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_deleted", COMMON);
+      expect(captureMock).toHaveBeenCalledWith("llm_profile_activated", {
+        ...llmMetadata,
+        source: "home",
+        ...COMMON,
+      });
+    });
+  });
+
+  describe("trackConversationLlmSwitched", () => {
+    it("captures per-conversation LLM switch metadata", () => {
+      getTracking().trackConversationLlmSwitched({
+        conversationId: "conv-1",
+        llm_model: "openai/gpt-4.1",
+        llm_model_provider: "openai",
+        llm_model_name: "gpt-4.1",
+        llm_auth_type: "subscription",
+        llm_subscription_vendor: "openai",
+        llm_api_key_set: false,
+        llm_base_url_set: false,
+      });
+
+      expect(captureMock).toHaveBeenCalledWith("conversation_llm_switched", {
+        conversation_id: "conv-1",
+        llm_model: "openai/gpt-4.1",
+        llm_model_provider: "openai",
+        llm_model_name: "gpt-4.1",
+        llm_auth_type: "subscription",
+        llm_subscription_vendor: "openai",
+        llm_api_key_set: false,
+        llm_base_url_set: false,
         ...COMMON,
       });
     });

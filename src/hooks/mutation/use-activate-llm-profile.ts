@@ -5,13 +5,32 @@ import {
   LLM_PROFILES_QUERY_KEYS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { useTracking } from "#/hooks/use-tracking";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import {
+  buildLlmTelemetryProperties,
+  LLM_AUTH_TYPE_UNKNOWN,
+} from "#/utils/llm-telemetry";
 
 export function useActivateLlmProfile() {
   const queryClient = useQueryClient();
+  const { trackLlmProfileActivated } = useTracking();
+  const { data: profilesData } = useLlmProfiles();
 
   return useMutation({
     mutationFn: (name: string) => ProfilesService.activateProfile(name),
-    onSuccess: async () => {
+    onSuccess: async (_data, name) => {
+      const profile = profilesData?.profiles?.find(
+        (item) => item.name === name,
+      );
+      trackLlmProfileActivated(
+        profile
+          ? buildLlmTelemetryProperties(
+              profile as unknown as Record<string, unknown>,
+              { defaultAuthType: LLM_AUTH_TYPE_UNKNOWN },
+            )
+          : {},
+      );
       // Invalidate the SettingsService internal cache so getSettingsForConversation
       // fetches fresh settings with the newly activated profile's LLM config
       SettingsService.invalidateCache();

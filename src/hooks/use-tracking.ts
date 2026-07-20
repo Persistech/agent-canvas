@@ -4,6 +4,25 @@ import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { trackEvent } from "#/services/telemetry";
+import type { LlmTelemetryProperties } from "#/utils/llm-telemetry";
+
+const TRACKING_EVENTS = {
+  llmProfileCreated: "llm_profile_created",
+  llmProfileUpdated: "llm_profile_updated",
+  llmProfileDuplicated: "llm_profile_duplicated",
+  llmProfileDeleted: "llm_profile_deleted",
+  llmProfileRenamed: "llm_profile_renamed",
+  llmProfileActivated: "llm_profile_activated",
+  conversationLlmSwitched: "conversation_llm_switched",
+} as const;
+
+type LlmProfileTelemetryProperties = Partial<LlmTelemetryProperties> & {
+  source?: "settings" | "onboarding" | "duplicate" | "home";
+};
+
+type ConversationLlmTelemetryProperties = Partial<LlmTelemetryProperties> & {
+  conversationId: string;
+};
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -44,8 +63,10 @@ export const useTracking = () => {
     workspaceMode,
     hasInitialQuery,
     agentType,
+    agentKind,
     hasParentConversation,
     entryPoint,
+    llm,
   }: {
     conversationId: string;
     taskId?: string;
@@ -55,8 +76,10 @@ export const useTracking = () => {
     workspaceMode?: WorkspaceMode;
     hasInitialQuery: boolean;
     agentType?: "default" | "plan";
+    agentKind?: "openhands" | "acp";
     hasParentConversation: boolean;
     entryPoint?: string;
+    llm?: Partial<LlmTelemetryProperties>;
   }) => {
     track("conversation_created", {
       conversation_id: conversationId,
@@ -68,8 +91,10 @@ export const useTracking = () => {
       workspace_mode: workspaceMode,
       has_initial_query: hasInitialQuery,
       agent_type: agentType,
+      agent_kind: agentKind,
       has_parent_conversation: hasParentConversation,
       entry_point: entryPoint,
+      ...llm,
     });
   };
 
@@ -156,6 +181,48 @@ export const useTracking = () => {
       LLM_API_KEY_SET: llmApiKeySet,
       SEARCH_API_KEY_SET: searchApiKeySet,
       REMOTE_RUNTIME_RESOURCE_FACTOR: remoteRuntimeResourceFactor,
+    });
+  };
+
+  const trackLlmProfileCreated = (
+    properties: LlmProfileTelemetryProperties,
+  ) => {
+    track(TRACKING_EVENTS.llmProfileCreated, properties);
+  };
+
+  const trackLlmProfileUpdated = (
+    properties: LlmProfileTelemetryProperties,
+  ) => {
+    track(TRACKING_EVENTS.llmProfileUpdated, properties);
+  };
+
+  const trackLlmProfileDuplicated = (
+    properties: LlmProfileTelemetryProperties,
+  ) => {
+    track(TRACKING_EVENTS.llmProfileDuplicated, properties);
+  };
+
+  const trackLlmProfileDeleted = () => {
+    track(TRACKING_EVENTS.llmProfileDeleted);
+  };
+
+  const trackLlmProfileRenamed = () => {
+    track(TRACKING_EVENTS.llmProfileRenamed);
+  };
+
+  const trackLlmProfileActivated = (
+    properties: LlmProfileTelemetryProperties = {},
+  ) => {
+    track(TRACKING_EVENTS.llmProfileActivated, properties);
+  };
+
+  const trackConversationLlmSwitched = ({
+    conversationId,
+    ...properties
+  }: ConversationLlmTelemetryProperties) => {
+    track(TRACKING_EVENTS.conversationLlmSwitched, {
+      conversation_id: conversationId,
+      ...properties,
     });
   };
 
@@ -320,6 +387,13 @@ export const useTracking = () => {
     trackUserMessageSent,
     trackDownloadVsCodeButtonClicked,
     trackSettingsSaved,
+    trackLlmProfileCreated,
+    trackLlmProfileUpdated,
+    trackLlmProfileDuplicated,
+    trackLlmProfileDeleted,
+    trackLlmProfileRenamed,
+    trackLlmProfileActivated,
+    trackConversationLlmSwitched,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
     trackConversationExported,

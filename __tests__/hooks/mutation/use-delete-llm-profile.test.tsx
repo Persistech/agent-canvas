@@ -5,14 +5,31 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { LLM_PROFILES_QUERY_KEYS, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  LLM_PROFILES_QUERY_KEYS,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
+
+const { trackLlmProfileDeletedMock } = vi.hoisted(() => ({
+  trackLlmProfileDeletedMock: vi.fn(),
+}));
+
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackLlmProfileDeleted: trackLlmProfileDeletedMock,
+  }),
+}));
 
 vi.mock("#/api/profiles-service/profiles-service.api");
 vi.mock("#/api/settings-service/settings-service.api");
 
 describe("useDeleteLlmProfile", () => {
   let queryClient: QueryClient;
-  let wrapper: ({ children }: { children: React.ReactNode }) => React.ReactElement;
+  let wrapper: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => React.ReactElement;
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -47,6 +64,7 @@ describe("useDeleteLlmProfile", () => {
     });
 
     expect(ProfilesService.deleteProfile).toHaveBeenCalledWith("old-profile");
+    expect(trackLlmProfileDeletedMock).toHaveBeenCalledTimes(1);
   });
 
   it("invalidates LLM_PROFILES_QUERY_KEYS.all on success", async () => {
@@ -56,7 +74,14 @@ describe("useDeleteLlmProfile", () => {
     });
 
     queryClient.setQueryData(LLM_PROFILES_QUERY_KEYS.all, {
-      profiles: [{ name: "deleted-profile", model: "gpt-4", base_url: null, api_key_set: true }],
+      profiles: [
+        {
+          name: "deleted-profile",
+          model: "gpt-4",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const invalidateCacheSpy = vi.spyOn(SettingsService, "invalidateCache");

@@ -44,6 +44,7 @@ import {
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
+import { useTracking } from "#/hooks/use-tracking";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -88,6 +89,7 @@ export function LlmSettingsLocalView() {
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
+  const { trackLlmProfileRenamed } = useTracking();
   const { data: profilesData } = useLlmProfiles();
   const { data: settings } = useSettings();
   const { data: agentSchema } = useAgentSettingsSchema(
@@ -324,6 +326,7 @@ export function LlmSettingsLocalView() {
       // If editing and name changed, rename the profile first
       if (isRename) {
         await ProfilesService.renameProfile(originalName, trimmedName);
+        trackLlmProfileRenamed();
       }
 
       await saveProfile.mutateAsync({
@@ -332,6 +335,8 @@ export function LlmSettingsLocalView() {
           llm: llmConfig as SaveProfileRequest["llm"],
           include_secrets: true,
         },
+        operation: viewMode === "create" ? "created" : "updated",
+        source: "settings",
       });
 
       // Conversation start uses agent_settings.llm, not the profile row
@@ -362,6 +367,7 @@ export function LlmSettingsLocalView() {
     profilesData?.active_profile,
     saveProfile,
     activateProfile,
+    trackLlmProfileRenamed,
     t,
     handleBackToList,
   ]);

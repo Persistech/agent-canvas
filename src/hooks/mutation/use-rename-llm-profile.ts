@@ -5,6 +5,7 @@ import {
   LLM_PROFILES_QUERY_KEYS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { useTracking } from "#/hooks/use-tracking";
 
 interface RenameLlmProfileVariables {
   name: string;
@@ -13,11 +14,13 @@ interface RenameLlmProfileVariables {
 
 export function useRenameLlmProfile() {
   const queryClient = useQueryClient();
+  const { trackLlmProfileRenamed } = useTracking();
 
   return useMutation({
     mutationFn: ({ name, newName }: RenameLlmProfileVariables) =>
       ProfilesService.renameProfile(name, newName),
     onSuccess: async () => {
+      trackLlmProfileRenamed();
       // Invalidate SettingsService internal cache to ensure fresh settings
       // (backend references in agent_settings may change when renaming active profile)
       SettingsService.invalidateCache();

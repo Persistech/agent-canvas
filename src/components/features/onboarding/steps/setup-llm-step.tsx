@@ -82,6 +82,8 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
       await saveProfile.mutateAsync({
         name,
         request: { llm: llmConfig, include_secrets: true },
+        operation: "created",
+        source: "onboarding",
       });
       await activateProfile.mutateAsync(name);
       return name;
