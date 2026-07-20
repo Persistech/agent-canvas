@@ -2,10 +2,13 @@
  * Tests that WebSocketProviderWrapper correctly gates the conversationUrl
  * it passes down to ConversationWebSocketProvider based on sandbox_status.
  *
- * Regression: when a cloud sandbox is PAUSED the API does NOT clear
- * conversation_url — the stale URL persists. We must suppress it until the
- * sandbox has fully resumed, otherwise the WS provider immediately tries to
- * connect to a dead host and the browser console fills with connection errors.
+ * Regression: when a cloud sandbox is not RUNNING (PAUSED, STARTING, MISSING,
+ * ERROR) the API does NOT clear conversation_url — the stale URL persists, and
+ * when the agent-server host is unresolved it can even be a relative path that
+ * buildWebSocketUrl retargets at the current origin (the static canvas host).
+ * We must suppress it until the sandbox is RUNNING, otherwise the WS provider
+ * immediately tries to connect to a host that can't serve the socket and the
+ * browser hammers it with a tight 502 reconnect loop.
  */
 import React from "react";
 import { render } from "@testing-library/react";
@@ -111,7 +114,8 @@ describe("WebSocketProviderWrapper — conversationUrl gating", () => {
       data: makeConversation({
         sandbox_status: "PAUSED",
         // The API keeps the stale URL even while paused — this is the regression.
-        conversation_url: "https://sandbox.example.com/api/conversations/conv-1",
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
       }),
     });
 
@@ -119,6 +123,24 @@ describe("WebSocketProviderWrapper — conversationUrl gating", () => {
 
     expect(capturedUrlPerRender.at(-1)).toBeNull();
   });
+
+  it.each(["STARTING", "MISSING", "ERROR"] as const)(
+    "suppresses conversation_url (returns null) when sandbox_status is %s",
+    (sandboxStatus) => {
+      mockUseActiveConversation.mockReturnValue({
+        data: makeConversation({
+          sandbox_status: sandboxStatus,
+          // The API keeps the stale URL for every not-ready state, not just PAUSED.
+          conversation_url:
+            "https://sandbox.example.com/api/conversations/conv-1",
+        }),
+      });
+
+      renderWrapper();
+
+      expect(capturedUrlPerRender.at(-1)).toBeNull();
+    },
+  );
 
   it("passes null through when conversation data has no url (sandbox still starting)", () => {
     mockUseActiveConversation.mockReturnValue({

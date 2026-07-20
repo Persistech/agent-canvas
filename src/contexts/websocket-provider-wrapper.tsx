@@ -21,16 +21,28 @@ export function WebSocketProviderWrapper({
     (subConversation) => subConversation !== null,
   );
 
-  // Don't pass a conversation URL to the WebSocket provider while the cloud
-  // sandbox is PAUSED. The URL still points to the old sandbox host, which
-  // rejects connections until the sandbox has fully resumed. Treating the URL
-  // as absent here keeps wsUrl === null in ConversationWebSocketProvider, so
-  // no connection is attempted until useActiveConversation detects the
-  // transition out of PAUSED (via fast 3-second polling).
-  const conversationUrl =
-    conversation?.sandbox_status === "PAUSED"
-      ? null
-      : conversation?.conversation_url;
+  // Only pass a conversation URL to the WebSocket provider when the backing
+  // host is actually reachable. For a cloud conversation that means the sandbox
+  // must be RUNNING — PAUSED, STARTING, MISSING and ERROR all leave
+  // `conversation_url` pointing at a host that cannot serve the socket (the API
+  // keeps the stale URL across these states). Worse, when the agent-server host
+  // is unresolved the URL collapses to a relative path, which buildWebSocketUrl
+  // silently retargets at the current page origin (the static canvas host) —
+  // producing a tight reconnect loop of 502s against canvas that can never
+  // succeed. Gating on RUNNING (rather than only excluding PAUSED) keeps
+  // wsUrl === null in ConversationWebSocketProvider for every not-ready state.
+  //
+  // Local conversations carry no sandbox_status (null/undefined) and are always
+  // allowed. useActiveConversation polls every ~3s, so the socket opens as soon
+  // as the sandbox transitions to RUNNING.
+  const sandboxStatus = conversation?.sandbox_status;
+  const sandboxReachable =
+    sandboxStatus === undefined ||
+    sandboxStatus === null ||
+    sandboxStatus === "RUNNING";
+  const conversationUrl = sandboxReachable
+    ? conversation?.conversation_url
+    : null;
 
   return (
     <ConversationWebSocketProvider
