@@ -1,10 +1,46 @@
+import http from "node:http";
 import type { Server } from "node:http";
+import type { Socket } from "node:net";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { parseArgs, startStaticServer } from "../../scripts/static-server.mjs";
+
+// Issue an HTTP request carrying WebSocket upgrade headers and report whether
+// the server actually switched protocols (101) or answered with a normal HTTP
+// status instead. Used to assert we refuse un-proxyable upgrades with a 4xx
+// rather than aborting the socket (which an upstream proxy would log as 502).
+function requestWebSocketUpgrade(
+  origin: string,
+  pathname: string,
+): Promise<{ upgraded: boolean; status: number | undefined }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(pathname, origin);
+    const req = http.request({
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      headers: {
+        Connection: "Upgrade",
+        Upgrade: "websocket",
+        "Sec-WebSocket-Version": "13",
+        "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+      },
+    });
+    req.on("upgrade", (res: http.IncomingMessage, socket: Socket) => {
+      socket.destroy();
+      resolve({ upgraded: true, status: res.statusCode });
+    });
+    req.on("response", (res: http.IncomingMessage) => {
+      res.resume();
+      resolve({ upgraded: false, status: res.statusCode });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 describe("static-server.mjs", () => {
   const servers: Server[] = [];
@@ -506,5 +542,33 @@ describe("static-server.mjs", () => {
 
     expect(response.status).not.toBe(200);
     await expect(response.text()).resolves.not.toContain("secret");
+  });
+
+  describe("error semantics for requests this host does not serve", () => {
+    it("returns 404 (not 503) for a rejected prefix", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServer(buildDir, { rejectPrefixes: ["/api"] });
+      const response = await fetch(`${origin}/api/cloud-proxy`);
+
+      expect(response.status).toBe(404);
+    });
+
+    it("refuses a WebSocket upgrade with 404 instead of aborting the socket", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServer(buildDir);
+      const result = await requestWebSocketUpgrade(
+        origin,
+        "/sockets/events/abc?resend_mode=all",
+      );
+
+      expect(result.upgraded).toBe(false);
+      expect(result.status).toBe(404);
+    });
   });
 });

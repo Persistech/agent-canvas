@@ -209,7 +209,7 @@ OPTIONS:
   --base-path <path>           Mount the SPA under <path> (default: /).
                                For example, --base-path /canvas serves
                                index.html and assets under /canvas.
-  --reject-prefix <prefix>     Return 503 for requests matching <prefix>
+  --reject-prefix <prefix>     Return 404 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
                                mode to cleanly reject API paths.
@@ -218,7 +218,7 @@ OPTIONS:
 ROUTING:
   • Routes are matched by longest prefix first (most-specific wins).
   • Reject prefixes are checked before SPA fallback — matching requests
-    get 503 immediately.
+    get 404 immediately.
   • Anything that does not match a route or reject prefix is served
     from --dir.
   • Unknown paths fall back to index.html (SPA mode), unless they look
@@ -417,14 +417,37 @@ function matchesAnyPrefix(urlPath, prefixes) {
   return prefixes.some((prefix) => matchesPathPrefix(urlPath, prefix));
 }
 
-function rejectUnavailable(res) {
-  res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("Service Unavailable (no backend configured for this route)");
+function rejectNotServed(res) {
+  // Paths under a --reject-prefix are intentionally not served by this host
+  // (e.g. API/socket routes that belong to the cloud app). A client that hits
+  // one here is misdirected, which is a client error — answer 404 rather than a
+  // 5xx that would trip server-error alarms and page us for a client mistake.
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Not Found (path not served on this host)");
 }
 
 function notFound(res) {
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("Not Found");
+}
+
+function refuseUpgrade(socket) {
+  // A WebSocket upgrade reached a host with no backend to proxy it to (e.g. a
+  // frontend-only cloud deployment). Reply with a real HTTP 404 status line
+  // before closing rather than aborting the socket: an upstream proxy reports a
+  // bare TCP abort as a 502 (Bad Gateway) and alarms on it, but a client that
+  // opens a socket against the wrong host is a client error. Sending the status
+  // line makes the proxy log a 404 instead.
+  if (!socket.writable) {
+    socket.destroy();
+    return;
+  }
+  socket.end(
+    "HTTP/1.1 404 Not Found\r\n" +
+      "Connection: close\r\n" +
+      "Content-Length: 0\r\n" +
+      "\r\n",
+  );
 }
 
 function isMountedPath(urlPath, basePath) {
@@ -492,7 +515,7 @@ async function handleStatic(
 
   if (!isMountedPath(urlPath, basePath)) {
     if (matchesAnyPrefix(urlPath, rejectPrefixes)) {
-      rejectUnavailable(res);
+      rejectNotServed(res);
       return;
     }
     if (!redirectToMountedPath(req, res, urlPath, basePath)) notFound(res);
@@ -520,7 +543,7 @@ async function handleStatic(
 
   staticMiddleware(mountedReq, res, async () => {
     if (matchesAnyPrefix(mountedPath, rejectPrefixes)) {
-      rejectUnavailable(res);
+      rejectNotServed(res);
       return;
     }
 
@@ -584,7 +607,7 @@ export function startStaticServer(config) {
       proxy.proxyWebSocket(req, socket, head, backend);
       return;
     }
-    socket.destroy();
+    refuseUpgrade(socket);
   });
   server.on("close", uninstallDiagnostics);
 
