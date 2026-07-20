@@ -89,23 +89,26 @@ export interface EventState {
 }
 
 const appendEvent = (state: EventState, event: OHEvent): EventState => {
-  // Deduplicate: skip if event with same id already exists (O(1) lookup)
   const eventId = getEventId(event);
-  if (eventId !== undefined && state.eventIds.has(eventId)) {
+  // Transient deltas merge by position and are never persisted/resent, so skip
+  // id tracking for them — copying the growing `eventIds` Set per token would
+  // otherwise be O(n^2).
+  const isDelta = isStreamingDeltaEvent(event);
+
+  // Deduplicate: skip if event with same id already exists (O(1) lookup)
+  if (!isDelta && eventId !== undefined && state.eventIds.has(eventId)) {
     return state;
   }
 
   const newEventIds =
-    eventId !== undefined
+    !isDelta && eventId !== undefined
       ? new Set(state.eventIds).add(eventId)
       : state.eventIds;
 
   const lastEventIndex = state.events.length - 1;
   const lastEvent = state.events[lastEventIndex];
   const shouldMergeStreamingDelta =
-    lastEvent &&
-    isStreamingDeltaEvent(event) &&
-    isStreamingDeltaEvent(lastEvent);
+    lastEvent && isDelta && isStreamingDeltaEvent(lastEvent);
   const events = [...state.events];
   if (shouldMergeStreamingDelta) {
     events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
@@ -160,11 +163,14 @@ export const useEventStore = create<EventState>()((set) => ({
 
       for (const event of incoming) {
         const eventId = getEventId(event);
-        const isDuplicate = eventId !== undefined && eventIds.has(eventId);
+        // See `appendEvent`: transient deltas are not tracked in `eventIds`.
+        const isDelta = isStreamingDeltaEvent(event);
+        const isDuplicate =
+          !isDelta && eventId !== undefined && eventIds.has(eventId);
 
         if (!isDuplicate) {
           added = true;
-          if (eventId !== undefined) {
+          if (!isDelta && eventId !== undefined) {
             eventIds.add(eventId);
           }
 
