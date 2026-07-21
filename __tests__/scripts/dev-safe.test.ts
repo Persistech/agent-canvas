@@ -28,6 +28,7 @@ import {
   validateLocalAgentServerPath,
   findFreePort,
   findFreePorts,
+  isPortFree,
   getOrCreatePersistedSessionApiKey,
   resetPersistedSessionApiKeyCache,
 } from "../../scripts/dev-safe.mjs";
@@ -296,6 +297,64 @@ describe("assertPortsFree", () => {
         { name: "vite", port: portB },
       ]),
     ).rejects.toThrow(/ingress.*vite|vite.*ingress/is);
+  });
+
+  // Regression for #899: the ingress proxy binds host-less (wildcard
+  // `::`/`0.0.0.0`), so a conflict there must be reported busy even though the
+  // pre-flight probes the loopback host. A loopback-only probe reported the
+  // port free on macOS and the success banner printed over a crashed ingress.
+  it("throws when the port is held by a host-less (all-interfaces) listener", async () => {
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      // No host argument -> wildcard bind, exactly like scripts/ingress.mjs.
+      server.listen(0, () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get address"));
+        }
+      });
+    });
+
+    await expect(
+      assertPortsFree([{ name: "ingress", port: busyPort }]),
+    ).rejects.toThrow(/ingress.*port/i);
+  });
+});
+
+describe("isPortFree", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("returns true for a port nobody is listening on", async () => {
+    await expect(isPortFree(19710)).resolves.toBe(true);
+  });
+
+  it("returns false when the port is held by a host-less listener", async () => {
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get address"));
+        }
+      });
+    });
+
+    await expect(isPortFree(busyPort)).resolves.toBe(false);
   });
 });
 

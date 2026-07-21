@@ -228,18 +228,53 @@ export async function findFreePort(preferredPort, host = "127.0.0.1") {
 /**
  * Check if a port is available by attempting to bind to it.
  *
+ * Pass a falsy `host` (e.g. `null`) to bind host-less, i.e. to the wildcard
+ * all-interfaces address (`::`/`0.0.0.0`) exactly the way the ingress proxy
+ * and other services do with a bare `server.listen(port)`. This matters
+ * because a loopback-only probe (`127.0.0.1`) can report a port as free even
+ * when another process holds it on the IPv6 / all-interfaces side — the
+ * precise conflict seen on macOS in issue #899 (`EADDRINUSE ... address: '::'`).
+ *
+ * An `EADDRNOTAVAIL` error means the requested host family isn't configured on
+ * this machine (e.g. IPv6 loopback in a stripped-down container); that is not a
+ * conflict, so the port is treated as available for that probe.
+ *
  * @param {number} port - The port to check
- * @param {string} host - The host to bind to
+ * @param {string|null} [host] - Host to bind to; falsy means all-interfaces
  * @returns {Promise<boolean>} True if the port is available
  */
 function tryPort(port, host = "127.0.0.1") {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.listen(port, host, () => {
-      server.close(() => resolve(true));
+    server.once("error", (err) => {
+      resolve(err && err.code === "EADDRNOTAVAIL");
     });
+    const onListening = () => server.close(() => resolve(true));
+    if (host) {
+      server.listen(port, host, onListening);
+    } else {
+      server.listen(port, onListening);
+    }
   });
+}
+
+/**
+ * Determine whether a port can actually be claimed by a service.
+ *
+ * Probes both the loopback host and the wildcard all-interfaces bind so a
+ * conflict is detected regardless of which address family the occupying
+ * process used. A port is only considered free when every probe succeeds.
+ *
+ * @param {number} port - The port to check
+ * @param {string} [host] - Loopback host to probe (default: "127.0.0.1")
+ * @returns {Promise<boolean>} True if the port is free on all probed binds
+ */
+export async function isPortFree(port, host = "127.0.0.1") {
+  // Probe sequentially, not in parallel: a loopback bind (127.0.0.1:port) and a
+  // wildcard bind (:::port) for the same port conflict with each other, so
+  // running them concurrently would race and spuriously report the port busy.
+  if (!(await tryPort(port, host))) return false;
+  return tryPort(port, null);
 }
 
 /**
@@ -258,7 +293,7 @@ export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
     portConfigs.map(async ({ name, port }) => ({
       name,
       port,
-      free: await tryPort(port, host),
+      free: await isPortFree(port, host),
     })),
   );
   const busy = results.filter(({ free }) => !free);
