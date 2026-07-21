@@ -650,6 +650,7 @@ const AGENT_SERVER_ROUTE_PREFIXES = [
   "/docs",
   "/redoc",
   "/openapi.json",
+  "/tts-control",
 ];
 
 function getLocalServiceRoutes(config) {

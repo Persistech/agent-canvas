@@ -416,6 +416,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: !INSECURE_SKIP_VERIFY,
         },
+        "/tts-control": {
+          target: API_URL,
+          changeOrigin: true,
+          secure: !INSECURE_SKIP_VERIFY,
+        },
       },
       watch: {
         ignored: ["**/node_modules/**", "**/.git/**"],

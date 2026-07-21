@@ -99,7 +99,6 @@ function logError(message) {
   console.error(`${c.red}✗${c.reset} ${message}`);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // CLI parsing
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -401,6 +400,9 @@ function startStaticServer(config) {
       "--route",
       `/sockets=http://localhost:${config.agentServerPort}`,
       "--route",
+      `/tts-control=http://localhost:${config.agentServerPort}`,
+
+      "--route",
       `/server_info=http://localhost:${config.agentServerPort}`,
       "--route",
       `/health=http://localhost:${config.agentServerPort}`,
@@ -454,6 +456,8 @@ function startIngress(config) {
       `/redoc=http://localhost:${config.agentServerPort}`,
       "--route",
       `/openapi.json=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/tts-control=http://localhost:${config.agentServerPort}`,
       "--default",
       `http://localhost:${config.vitePort}`,
     ],
