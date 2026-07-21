@@ -126,6 +126,11 @@ describe("buildStartConversationRequest", () => {
       load_user_skills: true,
       load_project_skills: true,
     });
+    // Persistent memory is opt-in: the key must be absent (not false) so the
+    // wire payload for un-opted users stays byte-identical to before.
+    expect(payload.agent_settings.agent_context).not.toHaveProperty(
+      "load_memory",
+    );
     // Bundled public skills are injected into agent_context.skills so the
     // SDK can perform trigger matching without cloning the extensions repo.
     expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
@@ -467,6 +472,35 @@ describe("buildStartConversationRequest", () => {
         headers: { "X-Session-API-Key": "session-key" },
       },
     });
+  });
+
+  it("sets agent_context.load_memory when the persistent-memory preference is enabled", () => {
+    const payload = buildStartConversationRequest({
+      settings: { ...DEFAULT_SETTINGS, enable_persistent_memory: true },
+    }) as {
+      agent_settings: { agent_context: Record<string, unknown> };
+    };
+
+    expect(payload.agent_settings.agent_context.load_memory).toBe(true);
+  });
+
+  it("sets agent_context.load_memory for ACP agents when the preference is enabled", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        enable_persistent_memory: true,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+        },
+      },
+    }) as {
+      agent_settings: { agent_context: Record<string, unknown> };
+    };
+
+    expect(payload.agent_settings.agent_context.load_memory).toBe(true);
   });
 
   it("does NOT mirror conversation secrets onto agent_context for ACP — request.secrets is the sole channel", () => {
