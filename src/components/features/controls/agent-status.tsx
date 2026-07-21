@@ -16,6 +16,7 @@ import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status"
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";
 import { useAgentNotification } from "#/hooks/use-agent-notification";
+import { useAgentTts } from "#/hooks/use-agent-tts";
 import { I18nKey } from "#/i18n/declaration";
 
 export interface AgentStatusProps {
@@ -36,6 +37,8 @@ export function AgentStatus({
   const { t } = useTranslation("openhands");
   const { setShouldShownAgentLoading } = useConversationStore();
   const { curAgentState, executionStatus } = useAgentState();
+
+  useAgentTts(curAgentState);
 
   // Trigger browser tab flash and notification sound on state changes
   useAgentNotification(curAgentState);
