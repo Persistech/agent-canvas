@@ -145,7 +145,7 @@ function resetPostHogIdentity(posthog: PostHog, resetDeviceId = false): void {
 }
 
 function clearLegacyIdentifiedUser(posthog: PostHog): void {
-  if (posthog.get_property("$user_id") != null) {
+  if (posthog.get_property?.("$user_id") != null) {
     resetPostHogIdentity(posthog);
   }
 }
