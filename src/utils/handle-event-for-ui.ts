@@ -1,12 +1,17 @@
 import {
   ActionEvent,
+  ExecutionStatus,
   ImageContent,
   OpenHandsEvent,
   TextContent,
 } from "#/types/agent-server/core";
+import { ConversationStateUpdateEvent } from "#/types/agent-server/core/events/conversation-state-event";
 import {
   isACPToolCallEvent,
   isActionEvent,
+  isAgentStatusConversationStateUpdateEvent,
+  isConversationStateUpdateEvent,
+  isFullStateConversationStateUpdateEvent,
   isMessageEvent,
   isObservationEvent,
   isStreamingDeltaEvent,
@@ -39,19 +44,49 @@ export const isSameStreamingSender = (
 const isUserMessage = (event: OpenHandsEvent): boolean =>
   isMessageEvent(event) && event.source === "user";
 
-// A message the user sends mid-stream is *interleaved* into the agent's run, it
-// does not start a new turn: the deltas either side of it belong to the same
-// bubble and to the same final event. So every scan of a streaming run treats a
-// user message as transparent (#1899). Any other event — an observation, an
-// action, a conversation-state update — does end the run, which is what still
-// separates this from a genuinely new turn after an interrupted one.
+// Whether a conversation-state snapshot reports the agent has left RUNNING.
+// The server publishes a snapshot on every state change, including right after
+// it accepts a message sent mid-stream, so only the status carries meaning here.
+const reportsAgentLeftRunning = (
+  event: ConversationStateUpdateEvent,
+): boolean => {
+  if (isFullStateConversationStateUpdateEvent(event)) {
+    return event.value.execution_status !== ExecutionStatus.RUNNING;
+  }
+  if (isAgentStatusConversationStateUpdateEvent(event)) {
+    return event.value !== ExecutionStatus.RUNNING;
+  }
+  // stats / goal snapshots are pure bookkeeping.
+  return false;
+};
+
+// Whether an event terminates the agent's streaming run.
+//
+// A message the user sends mid-stream is *interleaved* into the run, it does not
+// start a new turn: the deltas either side of it belong to the same bubble and
+// to the same final event, so it is transparent (#1899). So is a state snapshot
+// that still reports RUNNING — the server emits one immediately after accepting
+// that message, and treating it as a boundary re-splits the reply.
+//
+// A snapshot reporting the agent has left RUNNING *is* a boundary, and it is
+// what keeps an interrupted turn's dangling deltas out of the next turn's reach.
+const endsStreamingRun = (event: OpenHandsEvent): boolean => {
+  if (isUserMessage(event)) {
+    return false;
+  }
+  if (isConversationStateUpdateEvent(event)) {
+    return reportsAgentLeftRunning(event);
+  }
+  return true;
+};
+
 const findTrailingStreamStart = (events: OpenHandsEvent[]): number => {
   let start = events.length;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (isStreamingDeltaEvent(event)) {
       start = index;
-    } else if (!isUserMessage(event)) {
+    } else if (endsStreamingRun(event)) {
       break;
     }
   }
@@ -65,7 +100,7 @@ const findTrailingStreamLastDeltaIndex = (events: OpenHandsEvent[]): number => {
     if (isStreamingDeltaEvent(event)) {
       return index;
     }
-    if (!isUserMessage(event)) {
+    if (endsStreamingRun(event)) {
       break;
     }
   }
@@ -173,8 +208,8 @@ const getTrailingDeltas = (
   for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
     const event = uiEvents[index];
     if (!isStreamingDeltaEvent(event)) {
-      // A mid-stream user message doesn't end the run (#1899).
-      if (isUserMessage(event)) {
+      // A mid-stream user message / RUNNING snapshot doesn't end the run (#1899).
+      if (!endsStreamingRun(event)) {
         continue;
       }
       break;

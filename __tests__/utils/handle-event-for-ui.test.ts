@@ -567,6 +567,19 @@ describe("handleEventForUI", () => {
           [],
         );
 
+      // The agent-server publishes a state snapshot whenever state changes,
+      // including immediately after it accepts the mid-stream message. Captured
+      // live: delta -> user MessageEvent -> this -> delta, ~13ms apart, with the
+      // agent still RUNNING.
+      const runningStateSnapshot = {
+        id: "state-running",
+        timestamp: Date.now().toString(),
+        source: "environment",
+        kind: "ConversationStateUpdateEvent",
+        key: "full_state",
+        value: { execution_status: "running" },
+      } as unknown as OpenHandsEvent;
+
       it("keeps the reply in one bubble, with the message below it", () => {
         const result = replay([
           mockMessageEvent,
@@ -604,6 +617,55 @@ describe("handleEventForUI", () => {
           mockMessageEvent,
           mockAgentMessageEvent,
           midStreamUserMessage,
+        ]);
+      });
+
+      it("survives the state snapshot the server emits after the message", () => {
+        // The exact frame order captured against a real agent-server. Without
+        // treating a still-RUNNING snapshot as transparent, it breaks the run
+        // and the reply re-splits exactly as it did before the fix.
+        const result = replay([
+          mockMessageEvent,
+          makeStreamingDelta("delta-1", "I'll start working on that. "),
+          midStreamUserMessage,
+          runningStateSnapshot,
+          makeStreamingDelta("delta-2", "Done."),
+          mockAgentMessageEvent,
+        ]);
+
+        expect(result).toEqual([
+          mockMessageEvent,
+          mockAgentMessageEvent,
+          midStreamUserMessage,
+          runningStateSnapshot,
+        ]);
+      });
+
+      it("still treats a snapshot that leaves RUNNING as a turn boundary", () => {
+        // The agent was interrupted mid-stream, so its dangling delta belongs to
+        // the old turn and must survive the next turn's final message.
+        const idleStateSnapshot = {
+          ...(runningStateSnapshot as unknown as Record<string, unknown>),
+          id: "state-idle",
+          value: { execution_status: "idle" },
+        } as unknown as OpenHandsEvent;
+        const danglingDelta = makeStreamingDelta("delta-old", "Interrupted...");
+
+        const result = replay([
+          mockMessageEvent,
+          danglingDelta,
+          idleStateSnapshot,
+          midStreamUserMessage,
+          makeStreamingDelta("delta-2", "I'll start working on that. Done."),
+          mockAgentMessageEvent,
+        ]);
+
+        expect(result).toEqual([
+          mockMessageEvent,
+          danglingDelta,
+          idleStateSnapshot,
+          midStreamUserMessage,
+          mockAgentMessageEvent,
         ]);
       });
 

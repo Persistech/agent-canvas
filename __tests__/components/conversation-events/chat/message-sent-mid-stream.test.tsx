@@ -4,6 +4,7 @@ import { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
 import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 import { Messages } from "#/components/conversation-events/chat/messages";
+import { shouldRenderEvent } from "#/components/conversation-events/chat/event-content-helpers/should-render-event";
 
 // Regression for issue #1899. A message sent while the agent is streaming used
 // to land on top of the live delta, so the next delta could not merge and
@@ -64,16 +65,36 @@ const finalMessage: MessageEvent = {
 const reduce = (events: OpenHandsEvent[]): OpenHandsEvent[] =>
   events.reduce<OpenHandsEvent[]>((ui, ev) => handleEventForUI(ev, ui), []);
 
+// Mirrors the real pipeline in `use-filtered-events.ts`: the reducer's output is
+// passed through `shouldRenderEvent` before it reaches <Messages>, which is what
+// drops non-visual events like conversation-state snapshots.
 const render = (allEvents: OpenHandsEvent[]) =>
   renderWithProviders(
-    <Messages messages={reduce(allEvents)} allEvents={allEvents} />,
+    <Messages
+      messages={reduce(allEvents).filter(shouldRenderEvent)}
+      allEvents={allEvents}
+    />,
   );
+
+// The agent-server publishes a state snapshot right after it accepts the
+// mid-stream message. Captured live: delta -> user MessageEvent -> this ->
+// delta, ~13ms apart, with the agent still RUNNING. It sits between the two
+// halves, so the reducer must see past it too.
+const runningStateSnapshot = {
+  id: "state-running",
+  timestamp: "2026-06-12T12:00:02.5Z",
+  source: "environment",
+  kind: "ConversationStateUpdateEvent",
+  key: "full_state",
+  value: { execution_status: "running" },
+} as unknown as OpenHandsEvent;
 
 describe("issue #1899 — message sent mid-stream splits the reply", () => {
   const streaming = [
     openingMessage,
     makeDelta("delta-1", FIRST_HALF),
     midStreamMessage,
+    runningStateSnapshot,
     makeDelta("delta-2", SECOND_HALF),
   ];
 
