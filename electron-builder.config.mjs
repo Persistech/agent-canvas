@@ -70,6 +70,15 @@ const RUNTIME_PACKAGES = ["sirv", "httpxy"];
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
 
+// Root package.json is the single source of truth for the app version
+// (release-please bumps it). electron/package.json is a minimal manifest
+// stub pinned at 1.0.0 — `extraMetadata` below overrides its version at
+// pack time so artifact names and app.getVersion() carry the released
+// version instead.
+const rootPackageJson = JSON.parse(
+  readFileSync(join(repoRoot, "package.json"), "utf8"),
+);
+
 /**
  * Strip the auto-bundled node_modules from the packaged app, then restore
  * the small runtime closure of RUNTIME_PACKAGES.
@@ -203,6 +212,10 @@ const config = {
   productName: "Agent Canvas",
   copyright: "Copyright © 2025 All Hands AI",
 
+  // Stamp the packaged app with the released version (see rootPackageJson
+  // note above).
+  extraMetadata: { version: rootPackageJson.version },
+
   // Treat electron/ as the app root. electron/package.json provides the
   // Electron entry point without touching the npm-published root package.json.
   // `buildResources` points at electron/build-resources so electron-builder
@@ -311,6 +324,10 @@ const config = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
+    // The default artifact name is "Agent Canvas Setup <version>.exe";
+    // GitHub release assets mangle spaces, so ship a space-free name.
+    // ${version}/${ext} are electron-builder macros, not JS interpolation.
+    artifactName: "Agent-Canvas-Setup-${version}.${ext}",
   },
 
   // ── Linux ──────────────────────────────────────────────────────────────────
