@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { AgentState } from "#/types/agent-state";
 import { useSettings } from "#/hooks/query/use-settings";
+import ttsCueSound from "#/assets/notification.mp3";
 import { useEventStore } from "#/stores/use-event-store";
 import {
   isActionEvent,
@@ -37,8 +38,13 @@ const MAX_TTS_CHUNKS = 6;
 const MAX_TTS_STEP_WORDS = 20;
 const HOLD_MUSIC_URL = "https://assets.mixkit.co/music/443/443.mp3";
 const HOLD_MUSIC_VOLUME = 0.2;
-const HOLD_MUSIC_MAX_MS = 15000;
+const TTS_CUE_VOLUME = 0.35;
 const DEBUG_TTS = true;
+
+type TtsQueueStatus = {
+  pending: number;
+  isPlaying: boolean;
+};
 
 const logTts = (...args: unknown[]) => {
   if (DEBUG_TTS) {
@@ -457,6 +463,7 @@ type TtsRequest = {
 
 const createTtsQueue = () => {
   let isBusy = false;
+  let isPlaying = false;
   let pending: {
     request: TtsRequest;
     controller: AbortController;
@@ -464,6 +471,20 @@ const createTtsQueue = () => {
   }[] = [];
   let activeController: AbortController | null = null;
   let generation = 0;
+  const listeners = new Set<(status: TtsQueueStatus) => void>();
+
+  const notify = () => {
+    const status = { pending: pending.length, isPlaying };
+    listeners.forEach((listener) => listener(status));
+  };
+
+  const setIsPlaying = (value: boolean) => {
+    if (isPlaying === value) {
+      return;
+    }
+    isPlaying = value;
+    notify();
+  };
 
   const run = async (runGeneration: number) => {
     if (isBusy) {
@@ -513,13 +534,20 @@ const createTtsQueue = () => {
         item.request.audio,
         resolved,
         item.controller.signal,
-        item.request.onPlaybackStart,
-        item.request.onPlaybackEnd,
+        () => {
+          setIsPlaying(true);
+          item.request.onPlaybackStart?.();
+        },
+        () => {
+          setIsPlaying(false);
+          item.request.onPlaybackEnd?.();
+        },
       );
       if (generation !== runGeneration) {
         break;
       }
       pending.shift();
+      notify();
       logTts("queue: item complete", { remaining: pending.length });
     }
 
@@ -527,6 +555,7 @@ const createTtsQueue = () => {
       activeController = null;
       isBusy = false;
       logTts("queue: run end", { pending: pending.length });
+      notify();
       if (pending.length > 0) {
         void run(generation);
       }
@@ -542,6 +571,7 @@ const createTtsQueue = () => {
     enqueue(request: TtsRequest) {
       const controller = new AbortController();
       pending.push({ request, controller, resolved: null });
+      notify();
       logTts("queue: enqueue", {
         textLength: request.text.length,
         pending: pending.length,
@@ -561,6 +591,15 @@ const createTtsQueue = () => {
         activeController.abort();
         activeController = null;
       }
+      setIsPlaying(false);
+      notify();
+    },
+    subscribe(listener: (status: TtsQueueStatus) => void) {
+      listeners.add(listener);
+      listener({ pending: pending.length, isPlaying });
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 };
@@ -575,8 +614,13 @@ export function useAgentTts(curAgentState: AgentState) {
   const uiEvents = useEventStore((state) => state.uiEvents);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const holdAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cueAudioRef = useRef<HTMLAudioElement | null>(null);
   const holdPlayingRef = useRef(false);
-  const holdTimeoutRef = useRef<number | null>(null);
+  const queueStatusRef = useRef<TtsQueueStatus>({
+    pending: 0,
+    isPlaying: false,
+  });
+  const lastQueuePendingRef = useRef(0);
   const spokenActionKeysRef = useRef<Set<string | number>>(new Set());
   const pendingActionKeysRef = useRef<Set<string | number>>(new Set());
   const completedActionKeysRef = useRef<Set<string | number>>(new Set());
@@ -584,9 +628,11 @@ export function useAgentTts(curAgentState: AgentState) {
   const lastSpokenKeyRef = useRef<string | number | null>(null);
   const lastUserMessageKeyRef = useRef<string | number | null>(null);
   const shouldSpeakRef = useRef(false);
-  const ttsEndpoint = import.meta.env.VITE_TTS_ENDPOINT;
-  const isEnabled =
-    Boolean(ttsEndpoint) && !!settings?.enable_sound_notifications;
+  const ttsEndpoint = import.meta.env.VITE_TTS_ENDPOINT || "/tts";
+  const isTtsEnabled = true;
+  const shouldSpeakSteps = true;
+  const shouldSpeakResponses = true;
+  const shouldPlayHoldMusic = true;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -603,13 +649,15 @@ export function useAgentTts(curAgentState: AgentState) {
       holdAudio.volume = HOLD_MUSIC_VOLUME;
       holdAudioRef.current = holdAudio;
     }
+    if (!cueAudioRef.current) {
+      const cueAudio = new Audio(ttsCueSound);
+      cueAudio.preload = "auto";
+      cueAudio.volume = TTS_CUE_VOLUME;
+      cueAudioRef.current = cueAudio;
+    }
   }, []);
 
   const stopHoldMusic = useCallback(() => {
-    if (typeof window !== "undefined" && holdTimeoutRef.current !== null) {
-      window.clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
     const audio = holdAudioRef.current;
     if (!audio) {
       logTts("stopHoldMusic: no audio element");
@@ -626,6 +674,10 @@ export function useAgentTts(curAgentState: AgentState) {
   }, []);
 
   const startHoldMusic = useCallback(() => {
+    if (!shouldPlayHoldMusic) {
+      logTts("startHoldMusic: disabled");
+      return;
+    }
     const audio = holdAudioRef.current;
     if (!audio) {
       logTts("startHoldMusic: no audio element");
@@ -647,30 +699,89 @@ export function useAgentTts(curAgentState: AgentState) {
       holdPlayingRef.current = false;
       logTts("startHoldMusic: play failed", error);
     });
-    if (typeof window !== "undefined") {
-      if (holdTimeoutRef.current !== null) {
-        window.clearTimeout(holdTimeoutRef.current);
-      }
-      holdTimeoutRef.current = window.setTimeout(() => {
-        logTts("startHoldMusic: max duration reached");
-        stopHoldMusic();
-      }, HOLD_MUSIC_MAX_MS);
+  }, [shouldPlayHoldMusic, stopHoldMusic]);
+
+  const playTtsCue = useCallback(() => {
+    const cueAudio = cueAudioRef.current;
+    if (!cueAudio) {
+      logTts("cue: no audio element");
+      return;
     }
-  }, [stopHoldMusic]);
+    cueAudio.currentTime = 0;
+    cueAudio.play().catch((error) => {
+      logTts("cue: play failed", error);
+    });
+  }, []);
+
+  const syncHoldMusic = useCallback(() => {
+    const { pending, isPlaying } = queueStatusRef.current;
+    const hasPendingActions =
+      shouldSpeakSteps && pendingActionKeysRef.current.size > 0;
+
+    if (!isTtsEnabled || !shouldPlayHoldMusic) {
+      stopHoldMusic();
+      return;
+    }
+
+    if (!isPlaying && (pending > 0 || hasPendingActions)) {
+      startHoldMusic();
+      return;
+    }
+
+    stopHoldMusic();
+  }, [
+    isTtsEnabled,
+    shouldPlayHoldMusic,
+    shouldSpeakSteps,
+    startHoldMusic,
+    stopHoldMusic,
+  ]);
 
   useEffect(() => {
     logTts("init", {
       endpoint: ttsEndpoint,
-      isEnabled,
+      isEnabled: isTtsEnabled,
       uiEvents: uiEvents.length,
+      ttsSetting: settings?.enable_tts,
+      ttsSteps: settings?.enable_tts_steps,
+      ttsResponses: settings?.enable_tts_responses,
+      holdMusic: settings?.enable_tts_hold_music,
       soundSetting: settings?.enable_sound_notifications,
     });
   }, [
     ttsEndpoint,
-    isEnabled,
+    isTtsEnabled,
     uiEvents.length,
+    settings?.enable_tts,
+    settings?.enable_tts_steps,
+    settings?.enable_tts_responses,
+    settings?.enable_tts_hold_music,
     settings?.enable_sound_notifications,
   ]);
+
+  useEffect(() => {
+    if (!isTtsEnabled) {
+      ttsQueue.stop();
+      queueStatusRef.current = { pending: 0, isPlaying: false };
+      lastQueuePendingRef.current = 0;
+      syncHoldMusic();
+      return undefined;
+    }
+
+    const unsubscribe = ttsQueue.subscribe((status) => {
+      const previousPending = lastQueuePendingRef.current;
+      queueStatusRef.current = status;
+      if (status.pending > 0 && previousPending === 0) {
+        playTtsCue();
+      }
+      lastQueuePendingRef.current = status.pending;
+      syncHoldMusic();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isTtsEnabled, playTtsCue, syncHoldMusic]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -680,7 +791,9 @@ export function useAgentTts(curAgentState: AgentState) {
     const handleStop = () => {
       logTts("sse: stop event");
       ttsQueue.stop();
-      stopHoldMusic();
+      pendingActionKeysRef.current.clear();
+      completedActionKeysRef.current.clear();
+      syncHoldMusic();
     };
     source.addEventListener("stop", handleStop);
     source.onmessage = (event) => {
@@ -691,7 +804,7 @@ export function useAgentTts(curAgentState: AgentState) {
     return () => {
       source.close();
     };
-  }, [stopHoldMusic]);
+  }, [syncHoldMusic]);
 
   useEffect(() => {
     const latestUserKey = findLatestUserMessageKey(uiEvents);
@@ -709,11 +822,12 @@ export function useAgentTts(curAgentState: AgentState) {
       stopHoldMusic();
       pendingActionKeysRef.current.clear();
       completedActionKeysRef.current.clear();
+      syncHoldMusic();
     }
-  }, [uiEvents, stopHoldMusic]);
+  }, [uiEvents, stopHoldMusic, syncHoldMusic]);
 
   useEffect(() => {
-    if (!isEnabled) {
+    if (!isTtsEnabled) {
       return;
     }
     let didChange = false;
@@ -734,14 +848,12 @@ export function useAgentTts(curAgentState: AgentState) {
       logTts("observation: completed", {
         pending: pendingActionKeysRef.current.size,
       });
+      syncHoldMusic();
     }
-    if (didChange && pendingActionKeysRef.current.size === 0) {
-      stopHoldMusic();
-    }
-  }, [uiEvents, isEnabled, stopHoldMusic]);
+  }, [uiEvents, isTtsEnabled, syncHoldMusic]);
 
   useEffect(() => {
-    if (!isEnabled) {
+    if (!isTtsEnabled || !shouldSpeakSteps) {
       return;
     }
     const audio = audioRef.current;
@@ -804,19 +916,20 @@ export function useAgentTts(curAgentState: AgentState) {
         audio,
         endpoint: ttsEndpoint,
         text: sanitizedStep,
-        onPlaybackStart: stopHoldMusic,
-        onPlaybackEnd: () => {
-          if (key && pendingActionKeysRef.current.has(key)) {
-            startHoldMusic();
-          }
-        },
       });
     }
-  }, [uiEvents, isEnabled, ttsEndpoint, startHoldMusic, stopHoldMusic]);
+    syncHoldMusic();
+  }, [uiEvents, isTtsEnabled, shouldSpeakSteps, ttsEndpoint, syncHoldMusic]);
 
   useEffect(() => {
-    if (!isEnabled) {
+    if (!isTtsEnabled) {
       logTts("final: disabled", { endpoint: ttsEndpoint });
+      return;
+    }
+
+    if (!shouldSpeakResponses) {
+      shouldSpeakRef.current = false;
+      logTts("final: responses disabled");
       return;
     }
 
@@ -826,6 +939,15 @@ export function useAgentTts(curAgentState: AgentState) {
       if (NOTIFICATION_STATES.includes(curAgentState)) {
         shouldSpeakRef.current = true;
         logTts("final: state notification", curAgentState);
+        if (shouldSpeakSteps) {
+          logTts("final: stop step tts", {
+            pendingSteps: pendingActionKeysRef.current.size,
+          });
+          ttsQueue.stop();
+          pendingActionKeysRef.current.clear();
+          completedActionKeysRef.current.clear();
+          syncHoldMusic();
+        }
       }
     }
 
@@ -874,21 +996,20 @@ export function useAgentTts(curAgentState: AgentState) {
       chunks: chunks.length,
       textLength: sanitizedText.length,
     });
-    startHoldMusic();
-    chunks.forEach((chunk, index) => {
+    chunks.forEach((chunk) => {
       ttsQueue.enqueue({
         audio,
         endpoint: ttsEndpoint,
         text: chunk,
-        onPlaybackStart: index === 0 ? stopHoldMusic : undefined,
       });
     });
   }, [
     curAgentState,
     uiEvents,
-    isEnabled,
+    isTtsEnabled,
+    shouldSpeakResponses,
+    shouldSpeakSteps,
     ttsEndpoint,
-    startHoldMusic,
-    stopHoldMusic,
+    syncHoldMusic,
   ]);
 }
