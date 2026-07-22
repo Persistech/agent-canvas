@@ -58,20 +58,25 @@ const findTrailingStreamStart = (events: OpenHandsEvent[]): number => {
   return start;
 };
 
-// One past the last delta of the trailing streaming run — where the stream
-// ended, and so where its final event belongs. Equals `events.length` when the
-// tail is not a streaming run.
-const findTrailingStreamEnd = (events: OpenHandsEvent[]): number => {
+// The last delta of the trailing streaming run, or -1 when the tail is not one.
+const findTrailingStreamLastDeltaIndex = (events: OpenHandsEvent[]): number => {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (isStreamingDeltaEvent(event)) {
-      return index + 1;
+      return index;
     }
     if (!isUserMessage(event)) {
       break;
     }
   }
-  return events.length;
+  return -1;
+};
+
+// One past that delta — where the stream ended, and so where its final event
+// belongs. Falls back to the tail when there is no trailing run.
+const findTrailingStreamEnd = (events: OpenHandsEvent[]): number => {
+  const lastDeltaIndex = findTrailingStreamLastDeltaIndex(events);
+  return lastDeltaIndex === -1 ? events.length : lastDeltaIndex + 1;
 };
 
 // The current turn's boundary: the last user message that did *not* arrive
@@ -97,16 +102,13 @@ const findStreamingMergeTargetIndex = (
   uiEvents: OpenHandsEvent[],
   incoming: StreamingDeltaEvent,
 ): number => {
-  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
-    const event = uiEvents[index];
-    if (isStreamingDeltaEvent(event)) {
-      return isSameStreamingSender(incoming, event) ? index : -1;
-    }
-    if (!isUserMessage(event)) {
-      return -1;
-    }
+  const lastDeltaIndex = findTrailingStreamLastDeltaIndex(uiEvents);
+  if (lastDeltaIndex === -1) {
+    return -1;
   }
-  return -1;
+  return isSameStreamingSender(incoming, uiEvents[lastDeltaIndex])
+    ? lastDeltaIndex
+    : -1;
 };
 
 // Join text blocks WITHOUT a separator: streaming deltas concatenate content
