@@ -33,6 +33,7 @@ import {
   initializePostHogClient,
   setTelemetryConsent,
   setTelemetryIdentity,
+  setTelemetryBackendContext,
   subscribeTelemetryConsent,
   isTelemetryEnabled,
   trackInstall,
@@ -55,16 +56,21 @@ describe("Telemetry Service", () => {
     // Clear localStorage before each test
     localStorage.clear();
     sessionStorage.clear();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
     // Reset mock
     vi.clearAllMocks();
     identifiedUserId = undefined;
     mockPosthog.has_opted_out_capturing.mockReturnValue(false);
+    setTelemetryBackendContext({});
   });
 
   afterEach(() => {
     configureTelemetry({});
     localStorage.clear();
     sessionStorage.clear();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   });
 
   describe("PostHog ownership", () => {
@@ -108,6 +114,31 @@ describe("Telemetry Service", () => {
           client_version: expect.any(String),
           package_name: "@openhands/agent-canvas",
           package_version: expect.any(String),
+          backend_kind: null,
+          agent_server_version: "unknown",
+          automation_sdk_version: "unknown",
+          backend_version: "unknown",
+          custom: "value",
+        }),
+      });
+
+      setTelemetryBackendContext({
+        backendKind: "local",
+        agentServerVersion: "1.36.2",
+        automationSdkVersion: "1.36.3",
+      });
+      expect(
+        config.before_send({
+          event: "backend_context_event",
+          properties: { backend_kind: "cloud", custom: "value" },
+        }),
+      ).toEqual({
+        event: "backend_context_event",
+        properties: expect.objectContaining({
+          backend_kind: "cloud",
+          agent_server_version: "1.36.2",
+          automation_sdk_version: "1.36.3",
+          backend_version: "1.36.2",
           custom: "value",
         }),
       });
@@ -180,6 +211,15 @@ describe("Telemetry Service", () => {
       localStorage.setItem("openhands-telemetry-consent", "denied");
       expect(getTelemetryConsent()).toBe("denied");
     });
+
+    it("treats same-origin locked Cloud cookie auth as granted", () => {
+      localStorage.setItem("openhands-telemetry-consent", "denied");
+      (
+        window as unknown as Record<string, unknown>
+      ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = window.location.origin;
+
+      expect(getTelemetryConsent()).toBe("granted");
+    });
   });
 
   describe("setTelemetryConsent", () => {
@@ -234,6 +274,15 @@ describe("Telemetry Service", () => {
       await setTelemetryConsent("granted", { syncToCloud: false });
 
       expect(getPendingCloudTelemetryConsent()).toBeNull();
+    });
+
+    it("does not re-emit PostHog opt-in for unchanged granted consent", async () => {
+      await setTelemetryConsent("granted");
+      vi.clearAllMocks();
+
+      await setTelemetryConsent("granted", { syncToCloud: false });
+
+      expect(mockPosthog.opt_in_capturing).not.toHaveBeenCalled();
     });
 
     it("only clears the pending decision it expects", async () => {
@@ -335,6 +384,17 @@ describe("Telemetry Service", () => {
       expect(mockPosthog.capture).toHaveBeenCalledWith("custom_action", {
         button: "submit",
       });
+    });
+
+    it("does not repair SDK opt-out or capture when consent is denied", async () => {
+      await setTelemetryConsent("denied");
+      vi.clearAllMocks();
+      mockPosthog.has_opted_out_capturing.mockReturnValue(true);
+
+      await trackEvent("custom_action");
+
+      expect(mockPosthog.opt_in_capturing).not.toHaveBeenCalled();
+      expect(mockPosthog.capture).not.toHaveBeenCalled();
     });
 
     it("repairs a stale SDK opt-out before a consented custom event", async () => {
