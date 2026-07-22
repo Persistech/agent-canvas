@@ -35,6 +35,10 @@ type CloudSettingsResponse = {
   enable_proactive_conversation_starters?: boolean;
   enable_solvability_analysis?: boolean;
   enable_sound_notifications?: boolean;
+  enable_tts?: boolean;
+  enable_tts_hold_music?: boolean;
+  enable_tts_steps?: boolean;
+  enable_tts_responses?: boolean;
   language?: string;
   email?: string;
   email_verified?: boolean;

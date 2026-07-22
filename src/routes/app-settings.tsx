@@ -32,6 +32,13 @@ export function AppSettingsScreen() {
     soundNotificationsSwitchHasChanged,
     setSoundNotificationsSwitchHasChanged,
   ] = React.useState(false);
+  const [ttsSwitchHasChanged, setTtsSwitchHasChanged] = React.useState(false);
+  const [ttsHoldMusicSwitchHasChanged, setTtsHoldMusicSwitchHasChanged] =
+    React.useState(false);
+  const [ttsStepsSwitchHasChanged, setTtsStepsSwitchHasChanged] =
+    React.useState(false);
+  const [ttsResponsesSwitchHasChanged, setTtsResponsesSwitchHasChanged] =
+    React.useState(false);
   const [gitUserNameHasChanged, setGitUserNameHasChanged] =
     React.useState(false);
   const [gitUserEmailHasChanged, setGitUserEmailHasChanged] =
@@ -48,6 +55,13 @@ export function AppSettingsScreen() {
       formData.get("enable-analytics-switch")?.toString() === "on";
     const enableSoundNotifications =
       formData.get("enable-sound-notifications-switch")?.toString() === "on";
+    const enableTts = formData.get("enable-tts-switch")?.toString() === "on";
+    const enableTtsHoldMusic =
+      formData.get("enable-tts-hold-music-switch")?.toString() === "on";
+    const enableTtsSteps =
+      formData.get("enable-tts-steps-switch")?.toString() === "on";
+    const enableTtsResponses =
+      formData.get("enable-tts-responses-switch")?.toString() === "on";
 
     const gitUserName =
       formData.get("git-user-name-input")?.toString() ||
@@ -61,6 +75,10 @@ export function AppSettingsScreen() {
         language,
         user_consents_to_analytics: enableAnalytics,
         enable_sound_notifications: enableSoundNotifications,
+        enable_tts: enableTts,
+        enable_tts_hold_music: enableTtsHoldMusic,
+        enable_tts_steps: enableTtsSteps,
+        enable_tts_responses: enableTtsResponses,
         git_user_name: gitUserName,
         git_user_email: gitUserEmail,
       },
@@ -77,11 +95,35 @@ export function AppSettingsScreen() {
           setLanguageInputHasChanged(false);
           setAnalyticsSwitchHasChanged(false);
           setSoundNotificationsSwitchHasChanged(false);
+          setTtsSwitchHasChanged(false);
+          setTtsHoldMusicSwitchHasChanged(false);
+          setTtsStepsSwitchHasChanged(false);
+          setTtsResponsesSwitchHasChanged(false);
           setGitUserNameHasChanged(false);
           setGitUserEmailHasChanged(false);
         },
       },
     );
+  };
+
+  const checkIfTtsSwitchHasChanged = (checked: boolean) => {
+    const currentTts = !!settings?.enable_tts;
+    setTtsSwitchHasChanged(checked !== currentTts);
+  };
+
+  const checkIfTtsHoldMusicSwitchHasChanged = (checked: boolean) => {
+    const currentHoldMusic = !!settings?.enable_tts_hold_music;
+    setTtsHoldMusicSwitchHasChanged(checked !== currentHoldMusic);
+  };
+
+  const checkIfTtsStepsSwitchHasChanged = (checked: boolean) => {
+    const currentSteps = !!settings?.enable_tts_steps;
+    setTtsStepsSwitchHasChanged(checked !== currentSteps);
+  };
+
+  const checkIfTtsResponsesSwitchHasChanged = (checked: boolean) => {
+    const currentResponses = !!settings?.enable_tts_responses;
+    setTtsResponsesSwitchHasChanged(checked !== currentResponses);
   };
 
   const checkIfLanguageInputHasChanged = (value: string) => {
@@ -122,6 +164,10 @@ export function AppSettingsScreen() {
     !languageInputHasChanged &&
     !analyticsSwitchHasChanged &&
     !soundNotificationsSwitchHasChanged &&
+    !ttsSwitchHasChanged &&
+    !ttsHoldMusicSwitchHasChanged &&
+    !ttsStepsSwitchHasChanged &&
+    !ttsResponsesSwitchHasChanged &&
     !gitUserNameHasChanged &&
     !gitUserEmailHasChanged;
 
@@ -160,6 +206,42 @@ export function AppSettingsScreen() {
             onToggle={checkIfSoundNotificationsSwitchHasChanged}
           >
             {t(I18nKey.SETTINGS$SOUND_NOTIFICATIONS)}
+          </SettingsSwitch>
+
+          <SettingsSwitch
+            testId="enable-tts-switch"
+            name="enable-tts-switch"
+            defaultIsToggled={!!settings.enable_tts}
+            onToggle={checkIfTtsSwitchHasChanged}
+          >
+            {t(I18nKey.SETTINGS$TTS_ENABLE)}
+          </SettingsSwitch>
+
+          <SettingsSwitch
+            testId="enable-tts-steps-switch"
+            name="enable-tts-steps-switch"
+            defaultIsToggled={!!settings.enable_tts_steps}
+            onToggle={checkIfTtsStepsSwitchHasChanged}
+          >
+            {t(I18nKey.SETTINGS$TTS_READ_STEPS)}
+          </SettingsSwitch>
+
+          <SettingsSwitch
+            testId="enable-tts-responses-switch"
+            name="enable-tts-responses-switch"
+            defaultIsToggled={!!settings.enable_tts_responses}
+            onToggle={checkIfTtsResponsesSwitchHasChanged}
+          >
+            {t(I18nKey.SETTINGS$TTS_READ_RESPONSES)}
+          </SettingsSwitch>
+
+          <SettingsSwitch
+            testId="enable-tts-hold-music-switch"
+            name="enable-tts-hold-music-switch"
+            defaultIsToggled={!!settings.enable_tts_hold_music}
+            onToggle={checkIfTtsHoldMusicSwitchHasChanged}
+          >
+            {t(I18nKey.SETTINGS$TTS_HOLD_MUSIC)}
           </SettingsSwitch>
 
           <div className="border-t border-[var(--oh-border)] pt-6 mt-2">

@@ -154,6 +154,10 @@ export type Settings = {
   enable_default_condenser: boolean;
   condenser_max_size: number | null;
   enable_sound_notifications: boolean;
+  enable_tts: boolean;
+  enable_tts_hold_music: boolean;
+  enable_tts_steps: boolean;
+  enable_tts_responses: boolean;
   enable_proactive_conversation_starters: boolean;
   enable_solvability_analysis: boolean;
   user_consents_to_analytics: boolean | null;

@@ -92,4 +92,41 @@ describe("AppSettingsScreen", () => {
       );
     });
   });
+
+  it("saves TTS preferences", async () => {
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        enable_tts: false,
+        enable_tts_hold_music: true,
+        enable_tts_steps: true,
+        enable_tts_responses: true,
+      }),
+    );
+
+    renderAppSettingsScreen();
+
+    const user = userEvent.setup();
+    const ttsSwitch = await screen.findByTestId("enable-tts-switch");
+
+    await user.click(ttsSwitch);
+    await user.click(screen.getByTestId("enable-tts-steps-switch"));
+    await user.click(screen.getByTestId("enable-tts-responses-switch"));
+    await user.click(screen.getByTestId("enable-tts-hold-music-switch"));
+    await user.click(screen.getByTestId("submit-button"));
+
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enable_tts: true,
+          enable_tts_hold_music: false,
+          enable_tts_steps: false,
+          enable_tts_responses: false,
+        }),
+      );
+    });
+  });
 });

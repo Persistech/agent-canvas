@@ -25,6 +25,10 @@ export const APP_PREFERENCE_FIELDS = [
   "language",
   "user_consents_to_analytics",
   "enable_sound_notifications",
+  "enable_tts",
+  "enable_tts_hold_music",
+  "enable_tts_steps",
+  "enable_tts_responses",
   "git_user_name",
   "git_user_email",
   "disabled_skills",
@@ -108,6 +112,28 @@ const extractAppPreferences = (
     }
   }
   return { extracted, rest };
+};
+
+const assertAppPreferencesPersisted = (
+  expected: AppPreferences,
+  actual: Record<string, unknown> | null | undefined,
+) => {
+  if (!actual) {
+    throw new Error(
+      "App preferences were not persisted by the backend. Update your agent-server.",
+    );
+  }
+  for (const [key, value] of Object.entries(expected)) {
+    if (value === undefined) {
+      continue;
+    }
+    const actualValue = actual[key];
+    if (JSON.stringify(actualValue) !== JSON.stringify(value)) {
+      throw new Error(
+        "App preferences were not persisted by the backend. Update your agent-server.",
+      );
+    }
+  }
 };
 
 /**
@@ -296,9 +322,7 @@ const transformApiResponse = (
   // 1.27, restructured into the `misc_settings` container in the follow-up
   // refactor). Hoist them onto the flat Settings shape the rest of the
   // frontend already speaks. Older servers omit the `misc_settings` field
-  // entirely; the migration helper invoked from `getSettings` promotes any
-  // leftover localStorage values to the server on first run, so the omitted
-  // case just falls back to defaults.
+  // entirely; in that case the UI falls back to default app preferences.
   const prefs = response.misc_settings?.app_preferences;
   if (prefs) {
     for (const key of APP_PREFERENCE_FIELDS) {
@@ -534,6 +558,7 @@ class SettingsService {
     }
 
     const isCloud = getActiveBackend().backend.kind === "cloud";
+    let localResponse: SettingsApiResponse | null = null;
 
     // The backend applies ``agent_settings_diff`` by deep-merging it into the
     // existing ``agent_settings`` dict (see SDK
@@ -681,11 +706,11 @@ class SettingsService {
         );
       }
       try {
-        await withRetry(() =>
+        localResponse = (await withRetry(() =>
           new SettingsClient(getAgentServerClientOptions()).updateSettings(
             payload,
           ),
-        );
+        )) as SettingsApiResponse;
       } catch (err) {
         if (shouldPreClearMcpConfig && mcpConfigSnapshot) {
           // See cloud branch above for rationale.
@@ -703,6 +728,16 @@ class SettingsService {
         }
         throw err;
       }
+    }
+
+    if (hasAppPreferences && !isCloud) {
+      assertAppPreferencesPersisted(
+        appPreferences,
+        localResponse?.misc_settings?.app_preferences as
+          | Record<string, unknown>
+          | null
+          | undefined,
+      );
     }
 
     // Invalidate cache after successful save
