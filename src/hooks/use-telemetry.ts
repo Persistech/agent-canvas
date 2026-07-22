@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
+  clearPendingCloudTelemetryConsent,
   getTelemetryConsent,
   setTelemetryConsent,
   trackInstall,
@@ -9,6 +10,8 @@ import {
   subscribeTelemetryConsent,
   type TelemetryConsent,
 } from "#/services/telemetry";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isTelemetryConsentRequired } from "#/services/telemetry-policy";
 
 export interface UseTelemetryReturn {
   /** Current consent status */
@@ -59,11 +62,20 @@ export interface UseTelemetryReturn {
  * ```
  */
 export function useTelemetry(): UseTelemetryReturn {
+  const { backend } = useActiveBackend();
+  const telemetryConsentRequired = isTelemetryConsentRequired(backend.kind);
   const consent = useSyncExternalStore<TelemetryConsent>(
     subscribeTelemetryConsent,
     getTelemetryConsent,
     () => "pending",
   );
+
+  useEffect(() => {
+    if (!telemetryConsentRequired) return;
+
+    clearPendingCloudTelemetryConsent();
+    void setTelemetryConsent("granted", { syncToCloud: false });
+  }, [telemetryConsentRequired]);
 
   // Track install immediately on first mount (regardless of consent)
   // This only fires once per installation due to localStorage deduplication
@@ -91,7 +103,13 @@ export function useTelemetry(): UseTelemetryReturn {
 
   const grantConsent = useCallback(() => setTelemetryConsent("granted"), []);
 
-  const denyConsent = useCallback(() => setTelemetryConsent("denied"), []);
+  const denyConsent = useCallback(
+    () =>
+      telemetryConsentRequired
+        ? setTelemetryConsent("granted", { syncToCloud: false })
+        : setTelemetryConsent("denied"),
+    [telemetryConsentRequired],
+  );
 
   const track = useCallback(
     (eventName: string, properties?: Record<string, unknown>) => {
@@ -104,8 +122,8 @@ export function useTelemetry(): UseTelemetryReturn {
 
   return {
     consent,
-    isEnabled: consent === "granted",
-    showConsentPrompt: consent === "pending",
+    isEnabled: telemetryConsentRequired || consent === "granted",
+    showConsentPrompt: !telemetryConsentRequired && consent === "pending",
     grantConsent,
     denyConsent,
     track,

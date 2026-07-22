@@ -17,12 +17,16 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AppSettingsInputsSkeleton } from "#/components/features/settings/app-settings/app-settings-inputs-skeleton";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { isTelemetryConsentRequired } from "#/services/telemetry-policy";
 
 export function AppSettingsScreen() {
   const { t } = useTranslation("openhands");
 
   const { mutate: saveSettings, isPending } = useSaveSettings();
   const { data: settings, isLoading } = useSettings();
+  const { backend } = useActiveBackend();
+  const telemetryConsentRequired = isTelemetryConsentRequired(backend.kind);
 
   const [languageInputHasChanged, setLanguageInputHasChanged] =
     React.useState(false);
@@ -45,6 +49,7 @@ export function AppSettingsScreen() {
     const language = languageValue || DEFAULT_SETTINGS.language;
 
     const enableAnalytics =
+      telemetryConsentRequired ||
       formData.get("enable-analytics-switch")?.toString() === "on";
     const enableSoundNotifications =
       formData.get("enable-sound-notifications-switch")?.toString() === "on";
@@ -96,8 +101,9 @@ export function AppSettingsScreen() {
   };
 
   const checkIfAnalyticsSwitchHasChanged = (checked: boolean) => {
-    // Treat null as true since analytics is opt-in by default
-    const currentAnalytics = settings?.user_consents_to_analytics ?? true;
+    const currentAnalytics =
+      telemetryConsentRequired ||
+      (settings?.user_consents_to_analytics ?? true);
     setAnalyticsSwitchHasChanged(checked !== currentAnalytics);
   };
 
@@ -126,6 +132,8 @@ export function AppSettingsScreen() {
     !gitUserEmailHasChanged;
 
   const shouldBeLoading = !settings || isLoading || isPending;
+  const analyticsSwitchIsToggled =
+    telemetryConsentRequired || (settings?.user_consents_to_analytics ?? true);
 
   return (
     <form
@@ -147,7 +155,9 @@ export function AppSettingsScreen() {
           <SettingsSwitch
             testId="enable-analytics-switch"
             name="enable-analytics-switch"
-            defaultIsToggled={settings.user_consents_to_analytics ?? true}
+            defaultIsToggled={analyticsSwitchIsToggled}
+            isToggled={telemetryConsentRequired ? true : undefined}
+            isDisabled={telemetryConsentRequired}
             onToggle={checkIfAnalyticsSwitchHasChanged}
           >
             {t(I18nKey.ANALYTICS$SEND_ANONYMOUS_DATA)}

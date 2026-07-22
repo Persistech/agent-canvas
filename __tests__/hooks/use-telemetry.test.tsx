@@ -26,11 +26,13 @@ describe("useTelemetry", () => {
     localStorage.clear();
     sessionStorage.clear();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   afterEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    vi.unstubAllEnvs();
   });
 
   it("returns pending consent initially", () => {
@@ -39,6 +41,17 @@ describe("useTelemetry", () => {
     expect(result.current.consent).toBe("pending");
     expect(result.current.isEnabled).toBe(false);
     expect(result.current.showConsentPrompt).toBe(true);
+  });
+
+  it("does not request consent UI in locked cloud deployments", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://openhands.dev");
+
+    const { result } = renderHook(() => useTelemetry());
+
+    expect(result.current.showConsentPrompt).toBe(false);
+    await waitFor(() => {
+      expect(result.current.consent).toBe("granted");
+    });
   });
 
   it("returns granted consent when already granted in localStorage", () => {

@@ -54,7 +54,7 @@ describe("useSyncTelemetryConsent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.backendId = "backend-1";
-    state.backendKind = "cloud";
+    state.backendKind = "local";
     state.pendingConsent = null;
     state.isSavingSettings = false;
     pendingConsentListener = null;
@@ -120,19 +120,22 @@ describe("useSyncTelemetryConsent", () => {
     expect(useSaveSettingsMock).toHaveBeenCalledWith("personal", { retry: 2 });
   });
 
-  it("clears a pending browser choice only after the backend confirms it", () => {
-    state.pendingConsent = "granted";
+  it("requires analytics consent for cloud backends", () => {
+    state.backendKind = "cloud";
+    state.pendingConsent = "denied";
     useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
+      data: { user_consents_to_analytics: false },
     });
 
     renderHook(() => useSyncTelemetryConsent());
 
-    expect(clearPendingCloudTelemetryConsentMock).toHaveBeenCalledWith(
-      "granted",
-    );
-    expect(saveSettingsMock).not.toHaveBeenCalled();
-    expect(setTelemetryConsentMock).not.toHaveBeenCalled();
+    expect(clearPendingCloudTelemetryConsentMock).toHaveBeenCalledWith();
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted", {
+      syncToCloud: false,
+    });
+    expect(saveSettingsMock).toHaveBeenCalledWith({
+      user_consents_to_analytics: true,
+    });
   });
 
   it("keeps the choice pending when only a local backend confirms it", () => {

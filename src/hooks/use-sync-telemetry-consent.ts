@@ -7,6 +7,7 @@ import {
   setTelemetryConsent,
   subscribeTelemetryConsent,
 } from "#/services/telemetry";
+import { isTelemetryConsentRequired } from "#/services/telemetry-policy";
 import { useSettings } from "./query/use-settings";
 
 /**
@@ -33,6 +34,7 @@ export const useSyncTelemetryConsent = () => {
     "personal",
     { retry: 2 },
   );
+  const telemetryConsentRequired = isTelemetryConsentRequired(backend.kind);
   const pendingBrowserConsent = React.useSyncExternalStore(
     subscribeTelemetryConsent,
     getPendingCloudTelemetryConsent,
@@ -42,6 +44,23 @@ export const useSyncTelemetryConsent = () => {
 
   React.useEffect(() => {
     if (settings === undefined) return;
+
+    if (telemetryConsentRequired) {
+      clearPendingCloudTelemetryConsent();
+      void setTelemetryConsent("granted", { syncToCloud: false });
+
+      if (settings.user_consents_to_analytics === true) {
+        attemptedSyncRef.current = null;
+        return;
+      }
+
+      const syncKey = `${backend.id}:required`;
+      if (isSavingSettings || attemptedSyncRef.current === syncKey) return;
+
+      attemptedSyncRef.current = syncKey;
+      saveSettings({ user_consents_to_analytics: true });
+      return;
+    }
 
     if (pendingBrowserConsent !== null) {
       const backendConsent =
@@ -82,5 +101,6 @@ export const useSyncTelemetryConsent = () => {
     pendingBrowserConsent,
     saveSettings,
     settings,
+    telemetryConsentRequired,
   ]);
 };

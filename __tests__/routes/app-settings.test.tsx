@@ -7,6 +7,23 @@ import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 
+const activeBackendMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    backend: {
+      id: "local-backend",
+      name: "Local",
+      host: "http://localhost:8000",
+      apiKey: "session-key",
+      kind: "local" as "local" | "cloud",
+    },
+    orgId: null,
+  })),
+);
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => activeBackendMock(),
+}));
+
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
@@ -26,9 +43,11 @@ function renderAppSettingsScreen() {
   return render(<AppSettingsScreen />, {
     wrapper: ({ children }) => (
       <QueryClientProvider
-        client={new QueryClient({
-          defaultOptions: { queries: { retry: false } },
-        })}
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          })
+        }
       >
         {children}
       </QueryClientProvider>
@@ -39,6 +58,17 @@ function renderAppSettingsScreen() {
 describe("AppSettingsScreen", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    activeBackendMock.mockReturnValue({
+      backend: {
+        id: "local-backend",
+        name: "Local",
+        host: "http://localhost:8000",
+        apiKey: "session-key",
+        kind: "local",
+      },
+      orgId: null,
+    });
   });
 
   it("renders the OSS application settings form", async () => {
@@ -60,6 +90,47 @@ describe("AppSettingsScreen", () => {
     expect(screen.getByTestId("git-user-email-input")).toHaveValue(
       "octocat@example.com",
     );
+  });
+
+  it("forces analytics on and disables the switch for cloud backends", async () => {
+    activeBackendMock.mockReturnValue({
+      backend: {
+        id: "cloud-backend",
+        name: "OpenHands Cloud",
+        host: "https://openhands.dev",
+        apiKey: "cloud-key",
+        kind: "cloud",
+      },
+      orgId: null,
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ user_consents_to_analytics: false }),
+    );
+
+    renderAppSettingsScreen();
+
+    const analyticsSwitch = await screen.findByTestId(
+      "enable-analytics-switch",
+    );
+
+    expect(analyticsSwitch).toBeChecked();
+    expect(analyticsSwitch).toBeDisabled();
+  });
+
+  it("forces analytics on and disables the switch in locked cloud deployments", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://openhands.dev");
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ user_consents_to_analytics: false }),
+    );
+
+    renderAppSettingsScreen();
+
+    const analyticsSwitch = await screen.findByTestId(
+      "enable-analytics-switch",
+    );
+
+    expect(analyticsSwitch).toBeChecked();
+    expect(analyticsSwitch).toBeDisabled();
   });
 
   it("saves updated git author details in OSS mode", async () => {
