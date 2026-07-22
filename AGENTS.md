@@ -17,6 +17,8 @@
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.
 - The UI keeps most OpenHands routes/layout intact, but hosted-only behavior (org, account management, integrations) has been removed via the fabricated OSS config because there is no separate app backend.
 - Verification command: `npm run typecheck && npm run build`.
+- The Vite dev server now hosts a local Kokoro-82M TTS endpoint at `/tts` (Node middleware in `vite.config.ts`). Point `VITE_TTS_ENDPOINT` to `/tts` to use it. Optional server-side env vars: `KOKORO_TTS_MODEL_ID`, `KOKORO_TTS_VOICE`, `KOKORO_TTS_SPEED`, `KOKORO_TTS_DTYPE`, `KOKORO_TTS_DEVICE`.
+
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
 ## PR Description Human Check
