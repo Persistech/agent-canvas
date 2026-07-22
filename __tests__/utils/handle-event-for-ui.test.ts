@@ -503,6 +503,19 @@ describe("handleEventForUI", () => {
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
+      // A turn that ends without a final event (stopped/errored mid-stream)
+      // leaves its delta dangling. What separates that from a message the user
+      // sent mid-stream (#1899) is the status update the server emits when the
+      // agent leaves RUNNING — it terminates the streaming run, so the next
+      // turn's final event cannot reach back past it.
+      const executionStatusUpdate = {
+        id: "execution-status-idle",
+        timestamp: Date.now().toString(),
+        source: "environment",
+        kind: "ConversationStateUpdateEvent",
+        key: "execution_status",
+        value: "idle",
+      } as unknown as OpenHandsEvent;
       const oldUserMessage: MessageEvent = {
         ...mockMessageEvent,
         id: "old-user-message",
@@ -524,6 +537,7 @@ describe("handleEventForUI", () => {
       const result = handleEventForUI(mockFinishActionEvent, [
         oldUserMessage,
         oldDelta,
+        executionStatusUpdate,
         nextUserMessage,
         currentDelta,
       ]);
@@ -531,9 +545,92 @@ describe("handleEventForUI", () => {
       expect(result).toEqual([
         oldUserMessage,
         oldDelta,
+        executionStatusUpdate,
         nextUserMessage,
         mockFinishActionEvent,
       ]);
+    });
+
+    describe("message sent mid-stream (#1899)", () => {
+      const midStreamUserMessage: MessageEvent = {
+        ...mockMessageEvent,
+        id: "mid-stream-user-message",
+        llm_message: {
+          role: "user",
+          content: [{ type: "text", text: "also update the README" }],
+        },
+      };
+
+      const replay = (events: OpenHandsEvent[]): OpenHandsEvent[] =>
+        events.reduce<OpenHandsEvent[]>(
+          (uiEvents, event) => handleEventForUI(event, uiEvents),
+          [],
+        );
+
+      it("keeps the reply in one bubble, with the message below it", () => {
+        const result = replay([
+          mockMessageEvent,
+          makeStreamingDelta("delta-1", "I'll start working on that. "),
+          midStreamUserMessage,
+          makeStreamingDelta("delta-2", "Done."),
+        ]);
+
+        // The deltas either side of the message stay one bubble, and the new
+        // text streams into it above the message rather than starting a second
+        // bubble below.
+        expect(result).toEqual([
+          mockMessageEvent,
+          {
+            ...makeStreamingDelta("delta-1", "I'll start working on that. "),
+            content: "I'll start working on that. Done.",
+            timestamp: expect.any(String),
+          },
+          midStreamUserMessage,
+        ]);
+      });
+
+      it("renders the canonical final message in the stream's place", () => {
+        const result = replay([
+          mockMessageEvent,
+          makeStreamingDelta("delta-1", "I'll start working on that. "),
+          midStreamUserMessage,
+          makeStreamingDelta("delta-2", "Done."),
+          mockAgentMessageEvent,
+        ]);
+
+        // Exactly once, above the message — not duplicated by an orphaned half,
+        // and not jumped below text that was already on screen above it.
+        expect(result).toEqual([
+          mockMessageEvent,
+          mockAgentMessageEvent,
+          midStreamUserMessage,
+        ]);
+      });
+
+      it("reconciles a streamed thought split by the message", () => {
+        const thought = "Let me gather information.";
+        const action: ActionEvent = {
+          ...mockActionEvent,
+          id: "intermediate-1",
+          thought: [{ type: "text", text: thought }],
+        };
+
+        const result = replay([
+          mockMessageEvent,
+          makeStreamingDelta("delta-1", "Let me gather "),
+          midStreamUserMessage,
+          makeStreamingDelta("delta-2", "information."),
+          action,
+        ]);
+
+        // The action's thought is hoisted into its own bubble, so the streamed
+        // copy must still be stripped even though the message split it (#1534).
+        expect(result).toEqual([
+          mockMessageEvent,
+          midStreamUserMessage,
+          action,
+        ]);
+      });
     });
 
     it("appends final message normally when all deltas are reasoning-only", () => {
@@ -762,6 +859,17 @@ describe("handleEventForUI", () => {
     it("only reconciles the current turn's delta (after the last user message)", () => {
       const thought = "Let me gather accurate information.";
       const earlierTurnDelta = makeStreamingDelta("delta-old", thought);
+      // The status update the server emits when the agent left RUNNING ends the
+      // earlier turn's streaming run; without it this sequence would be
+      // indistinguishable from a message sent mid-stream (#1899).
+      const executionStatusUpdate = {
+        id: "execution-status-idle",
+        timestamp: Date.now().toString(),
+        source: "environment",
+        kind: "ConversationStateUpdateEvent",
+        key: "execution_status",
+        value: "idle",
+      } as unknown as OpenHandsEvent;
       const laterUserMessage: MessageEvent = {
         ...mockMessageEvent,
         id: "user-2",
@@ -771,6 +879,7 @@ describe("handleEventForUI", () => {
       const result = handleEventForUI(action, [
         mockMessageEvent,
         earlierTurnDelta,
+        executionStatusUpdate,
         laterUserMessage,
       ]);
 
@@ -779,6 +888,7 @@ describe("handleEventForUI", () => {
       expect(result).toEqual([
         mockMessageEvent,
         earlierTurnDelta,
+        executionStatusUpdate,
         laterUserMessage,
         action,
       ]);

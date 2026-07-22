@@ -36,11 +36,74 @@ export const isSameStreamingSender = (
   b: OpenHandsEvent & { isFromPlanningAgent?: boolean },
 ): boolean => Boolean(a.isFromPlanningAgent) === Boolean(b.isFromPlanningAgent);
 
-const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
+const isUserMessage = (event: OpenHandsEvent): boolean =>
+  isMessageEvent(event) && event.source === "user";
+
+// A message the user sends mid-stream is *interleaved* into the agent's run, it
+// does not start a new turn: the deltas either side of it belong to the same
+// bubble and to the same final event. So every scan of a streaming run treats a
+// user message as transparent (#1899). Any other event — an observation, an
+// action, a conversation-state update — does end the run, which is what still
+// separates this from a genuinely new turn after an interrupted one.
+const findTrailingStreamStart = (events: OpenHandsEvent[]): number => {
+  let start = events.length;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if (isMessageEvent(event) && event.source === "user") {
+    if (isStreamingDeltaEvent(event)) {
+      start = index;
+    } else if (!isUserMessage(event)) {
+      break;
+    }
+  }
+  return start;
+};
+
+// One past the last delta of the trailing streaming run — where the stream
+// ended, and so where its final event belongs. Equals `events.length` when the
+// tail is not a streaming run.
+const findTrailingStreamEnd = (events: OpenHandsEvent[]): number => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (isStreamingDeltaEvent(event)) {
+      return index + 1;
+    }
+    if (!isUserMessage(event)) {
+      break;
+    }
+  }
+  return events.length;
+};
+
+// The current turn's boundary: the last user message that did *not* arrive
+// mid-stream.
+const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
+  for (
+    let index = findTrailingStreamStart(events) - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    if (isUserMessage(events[index])) {
       return index;
+    }
+  }
+  return -1;
+};
+
+// The delta bubble an incoming delta belongs to: the last delta of the trailing
+// run, looking past any user message sent mid-stream (#1899). Without this the
+// user's bubble breaks the run and the rest of the response starts a second
+// bubble below it, splitting the reply in two.
+const findStreamingMergeTargetIndex = (
+  uiEvents: OpenHandsEvent[],
+  incoming: StreamingDeltaEvent,
+): number => {
+  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
+    const event = uiEvents[index];
+    if (isStreamingDeltaEvent(event)) {
+      return isSameStreamingSender(incoming, event) ? index : -1;
+    }
+    if (!isUserMessage(event)) {
+      return -1;
     }
   }
   return -1;
@@ -108,6 +171,10 @@ const getTrailingDeltas = (
   for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
     const event = uiEvents[index];
     if (!isStreamingDeltaEvent(event)) {
+      // A mid-stream user message doesn't end the run (#1899).
+      if (isUserMessage(event)) {
+        continue;
+      }
       break;
     }
     if (selects(event)) {
@@ -224,13 +291,19 @@ const finalizeStreamingDeltasInPlace = (
     return null;
   }
 
+  // Render the final event where the stream ended rather than at the tail: a
+  // message the user sent mid-stream sits below those deltas, and pushing would
+  // jump the reply underneath it — text that was already on screen above
+  // (#1899). Anchor on the trailing run's last delta, not the last superseded
+  // one, which may belong to an earlier step of this turn.
+  const streamEnd = findTrailingStreamEnd(uiEvents);
   const nextUiEvents = supersedeStreamingContent(
-    uiEvents,
+    uiEvents.slice(0, streamEnd),
     contentStreamingDeltas,
     eventRendersReasoning(finalEvent),
   );
   nextUiEvents.push(finalEvent);
-  return nextUiEvents;
+  return [...nextUiEvents, ...uiEvents.slice(streamEnd)];
 };
 
 /**
@@ -335,14 +408,12 @@ export const handleEventForUI = (
       return newUiEvents;
     }
 
-    const lastIndex = newUiEvents.length - 1;
-    const lastEvent = newUiEvents[lastIndex];
-    if (
-      lastEvent &&
-      isStreamingDeltaEvent(lastEvent) &&
-      isSameStreamingSender(event, lastEvent)
-    ) {
-      newUiEvents[lastIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+    const mergeIndex = findStreamingMergeTargetIndex(newUiEvents, event);
+    if (mergeIndex !== -1) {
+      newUiEvents[mergeIndex] = mergeStreamingDeltaEvent(
+        event,
+        newUiEvents[mergeIndex] as StreamingDeltaEvent,
+      );
       return newUiEvents;
     }
 
