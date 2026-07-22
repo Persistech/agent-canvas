@@ -49,15 +49,21 @@ const readJsonBody = async (req: IncomingMessage) => {
   }
 };
 
+type KokoroDtype = "fp16" | "q8" | "fp32" | "q4" | "q4f16";
+type KokoroDevice = "cpu" | "wasm" | "webgpu";
+
+
 const createKokoroTtsMiddleware = () => {
   const modelId =
     process.env.KOKORO_TTS_MODEL_ID ?? "onnx-community/Kokoro-82M-v1.0-ONNX";
   const defaultVoice = process.env.KOKORO_TTS_VOICE ?? "af_heart";
   const parsedSpeed = Number.parseFloat(process.env.KOKORO_TTS_SPEED ?? "1");
   const defaultSpeed = Number.isFinite(parsedSpeed) ? parsedSpeed : 1;
-  const dtype =
-    process.env.KOKORO_TTS_DTYPE ?? (process.env.KOKORO_TTS_DEVICE ? "fp16" : "q8");
-  const device = process.env.KOKORO_TTS_DEVICE ?? "cpu";
+  const dtype: KokoroDtype =
+    (process.env.KOKORO_TTS_DTYPE as KokoroDtype | undefined) ??
+    (process.env.KOKORO_TTS_DEVICE ? "fp16" : "q8");
+  const device: KokoroDevice =
+    (process.env.KOKORO_TTS_DEVICE as KokoroDevice | undefined) ?? "cpu";
 
   let ttsPromise: Promise<import("kokoro-js").KokoroTTS> | null = null;
 
