@@ -49,14 +49,14 @@ describe("useTelemetryIdentity", () => {
     });
   });
 
-  it("falls back to the git email and omits an absent email", () => {
+  it("uses only the Cloud account email for Cloud context", () => {
     useSettingsMock.mockReturnValue({
       data: { email: "", git_user_email: "git@example.com" },
     });
     const { rerender } = renderHook(() => useTelemetryIdentity());
     expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
       userId: "user-123",
-      email: "git@example.com",
+      email: undefined,
     });
 
     useSettingsMock.mockReturnValue({ data: {} });
@@ -67,14 +67,14 @@ describe("useTelemetryIdentity", () => {
     });
   });
 
-  it("clears stale Cloud user context while the identity query loads", () => {
+  it("preserves Cloud user context while the identity query loads", () => {
     useCloudCurrentUserIdMock.mockReturnValue({
       [BACKEND_ID]: { userId: null, isLoading: true },
     });
 
     renderHook(() => useTelemetryIdentity());
 
-    expect(setTelemetryCloudContextMock).toHaveBeenCalledWith(null);
+    expect(setTelemetryCloudContextMock).not.toHaveBeenCalled();
   });
 
   it("declares logout only after the Cloud identity query settles", () => {

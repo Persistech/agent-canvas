@@ -103,6 +103,7 @@ describe("Telemetry Service", () => {
           ui_host: "https://posthog.example.com",
           persistence_name: "agent-canvas",
           consent_persistence_name: "agent-canvas-consent",
+          person_profiles: "always",
         }),
         "agent-canvas",
       );
@@ -195,16 +196,6 @@ describe("Telemetry Service", () => {
           cloud_user_email: null,
         }),
       });
-    });
-
-    it("clears a legacy identified user without replacing it with Cloud identity", async () => {
-      identifiedUserId = "legacy-cloud-user";
-
-      await setTelemetryConsent("granted");
-
-      expect(mockPosthog.reset).toHaveBeenCalledWith(false);
-      expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
-      expect(mockPosthog.identify).not.toHaveBeenCalled();
     });
   });
 

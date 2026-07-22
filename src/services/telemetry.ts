@@ -176,7 +176,6 @@ export function configureTelemetry(config: TelemetryConfiguration): void {
   if (wasDisabled) {
     if (posthogInstance) {
       restorePostHogConsent(posthogInstance);
-      clearLegacyIdentifiedUser(posthogInstance);
     }
     notifyTelemetryConsentListeners();
   }
@@ -294,6 +293,7 @@ export async function initializePostHogClient(
 
     // A named instance isolates Canvas configuration, consent, identity, and
     // persistence from a host application's default PostHog singleton.
+    const bootstrap = pendingBootstrap;
     const initializedPostHog = posthog.init(
       config.apiKey,
       {
@@ -305,9 +305,9 @@ export async function initializePostHogClient(
         persistence: "localStorage",
         persistence_name: POSTHOG_INSTANCE_NAME,
         consent_persistence_name: `${POSTHOG_INSTANCE_NAME}-consent`,
-        person_profiles: "identified_only",
+        person_profiles: "always",
         disable_session_recording: true,
-        bootstrap: pendingBootstrap,
+        bootstrap,
         before_send: addCanvasEventProperties,
       },
       POSTHOG_INSTANCE_NAME,
@@ -316,13 +316,14 @@ export async function initializePostHogClient(
 
     posthogInstance = initializedPostHog;
     pendingBootstrap = undefined;
-    clearLegacyIdentifiedUser(posthogInstance);
+    if (!bootstrap) {
+      clearLegacyIdentifiedUser(posthogInstance);
+    }
 
     if (telemetryDisabled) {
       posthogInstance.opt_out_capturing();
     } else if (getTelemetryConsent() === "granted") {
       posthogInstance.opt_in_capturing();
-      clearLegacyIdentifiedUser(posthogInstance);
     } else if (!enableCapturing) {
       posthogInstance.opt_out_capturing();
     }
@@ -469,9 +470,8 @@ export async function setTelemetryConsent(
 
     if (consent === "granted") {
       posthog.opt_in_capturing();
-      clearLegacyIdentifiedUser(posthog);
     } else {
-      if (posthog.get_property("$user_id") != null) {
+      if (posthog.get_property?.("$user_id") != null) {
         resetPostHogIdentity(posthog);
       } else {
         posthog.opt_out_capturing();
@@ -631,8 +631,6 @@ async function getPostHogForConsentedCapture(): Promise<PostHog | null> {
   if (posthog.has_opted_out_capturing?.()) {
     posthog.opt_in_capturing();
   }
-
-  clearLegacyIdentifiedUser(posthog);
 
   return posthog;
 }
