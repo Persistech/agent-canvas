@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { resolve, dirname, relative, isAbsolute } from "node:path";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
@@ -32,6 +33,98 @@ const normalizeBasePath = (value?: string) => {
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   return `${withLeadingSlash.replace(/\/+$/, "")}/`;
 };
+
+const readJsonBody = async (req: IncomingMessage) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  if (chunks.length === 0) {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  } catch {
+    return null;
+  }
+};
+
+const createKokoroTtsMiddleware = () => {
+  const modelId =
+    process.env.KOKORO_TTS_MODEL_ID ?? "onnx-community/Kokoro-82M-v1.0-ONNX";
+  const defaultVoice = process.env.KOKORO_TTS_VOICE ?? "af_heart";
+  const parsedSpeed = Number.parseFloat(process.env.KOKORO_TTS_SPEED ?? "1");
+  const defaultSpeed = Number.isFinite(parsedSpeed) ? parsedSpeed : 1;
+  const dtype =
+    process.env.KOKORO_TTS_DTYPE ?? (process.env.KOKORO_TTS_DEVICE ? "fp16" : "q8");
+  const device = process.env.KOKORO_TTS_DEVICE ?? "cpu";
+
+  let ttsPromise: Promise<import("kokoro-js").KokoroTTS> | null = null;
+
+  const loadTts = async () => {
+    if (!ttsPromise) {
+      console.info("[KokoroTTS] loading", { modelId, dtype, device });
+      ttsPromise = import("kokoro-js").then(({ KokoroTTS }) =>
+        KokoroTTS.from_pretrained(modelId, {
+          dtype,
+          device,
+        }),
+      );
+    }
+    return ttsPromise;
+  };
+
+  return async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    next: (error?: unknown) => void,
+  ) => {
+    if (req.method === "GET") {
+      if (!req.url || req.url === "/" || req.url === "") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", modelId }));
+        return;
+      }
+    }
+
+    if (req.method !== "POST") {
+      next();
+      return;
+    }
+
+    const payload = await readJsonBody(req);
+    const text =
+      payload && typeof payload.text === "string" ? payload.text.trim() : "";
+    if (!text) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "text is required" }));
+      return;
+    }
+
+    const voice =
+      payload && typeof payload.voice === "string" ? payload.voice : defaultVoice;
+    const speed =
+      payload && typeof payload.speed === "number" ? payload.speed : defaultSpeed;
+
+    try {
+      const tts = await loadTts();
+      const audio = await tts.generate(text, { voice, speed });
+      const wav = audio.toWav();
+      const buffer = Buffer.from(wav);
+      res.writeHead(200, {
+        "Content-Type": "audio/wav",
+        "Cache-Control": "no-store",
+        "Content-Length": buffer.length,
+      });
+      res.end(buffer);
+    } catch (error) {
+      console.error("[KokoroTTS] failed", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "tts generation failed" }));
+    }
+  };
+};
+
 
 // Absolute path to the bundled extensions skills directory in node_modules.
 // Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
@@ -160,6 +253,14 @@ export default defineConfig(({ mode }) => {
               next();
             }
           });
+        },
+      },
+      {
+        name: "serve-kokoro-tts",
+        apply: "serve",
+        configureServer(server) {
+          const ttsMiddleware = createKokoroTtsMiddleware();
+          server.middlewares.use("/tts", ttsMiddleware);
         },
       },
       !process.env.VITEST && !isLibraryBuild && reactRouter(),
