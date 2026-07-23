@@ -122,6 +122,17 @@ Useful targeted verification for the isolated dev launcher:
 npm run test -- __tests__/api/agent-server-config.test.ts __tests__/scripts/dev-safe.test.ts
 ```
 
+## Desktop app (Electron)
+
+```sh
+npm run desktop        # dev mode: build the frontend, launch Electron against it
+npm run build:desktop  # package the installer for the host OS into dist-electron/
+```
+
+`build:desktop` produces a DMG on macOS (`Agent-Canvas-<version>-arm64.dmg` on Apple Silicon) and an NSIS installer on Windows (`Agent-Canvas-Setup-<version>.exe`). The `Desktop (macOS)` and `Desktop (Windows)` workflows build the same installers on desktop-touching PRs and manual dispatch (as CI artifacts) and attach them to the GitHub Release on publish.
+
+Install instructions live in the README ([Option 4](../README.md#option-4-desktop-app-macos--windows)) and [README.windows.md](../README.windows.md) — including the `xattr -d com.apple.quarantine` step required for **downloaded** macOS builds (the app is ad-hoc signed; locally built apps are unaffected).
+
 ## CSS isolation and host-app customization
 
 The standalone app and the exported provider/root wrapper now scope all bundled CSS under a dedicated shell element with the `data-agent-server-ui` attribute. That means Tailwind utilities, HeroUI component styles, xterm styles, and local CSS only apply inside the OpenHands UI subtree instead of leaking into a host app.
