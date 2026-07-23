@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SettingsNavigation } from "#/components/features/settings/settings-navigation";
 import { SettingsDesktopSidebar } from "#/components/features/settings/settings-desktop-sidebar";
-import { SettingsMobileDrawer } from "#/components/features/settings/settings-mobile-drawer";
+import { SettingsMobileHub } from "#/components/features/settings/settings-mobile-hub";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -142,17 +142,13 @@ describe("SettingsDesktopSidebar", () => {
   });
 });
 
-describe("SettingsMobileDrawer", () => {
-  it("keeps ACP-accessible settings clickable in the mobile drawer", () => {
+describe("SettingsMobileHub", () => {
+  it("keeps ACP-accessible settings clickable in the mobile settings hub", () => {
     renderSettingsNavigation(
-      <SettingsMobileDrawer
-        isMobileMenuOpen
-        onCloseMobileMenu={vi.fn()}
-        navigationItems={acpAccessibleItems}
-      />,
+      <SettingsMobileHub navigationItems={acpAccessibleItems} />,
     );
 
-    const mobileNav = screen.getByTestId("settings-navbar");
+    const mobileNav = screen.getByTestId("settings-mobile-hub");
     for (const item of [llmItem, condenserItem, verificationItem]) {
       const link = within(mobileNav).getByRole("link", {
         name: item.text,
