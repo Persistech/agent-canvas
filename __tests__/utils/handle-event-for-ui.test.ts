@@ -503,11 +503,8 @@ describe("handleEventForUI", () => {
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
-      // A turn that ends without a final event (stopped/errored mid-stream)
-      // leaves its delta dangling. What separates that from a message the user
-      // sent mid-stream (#1899) is the status update the server emits when the
-      // agent leaves RUNNING — it terminates the streaming run, so the next
-      // turn's final event cannot reach back past it.
+      // The status update on leaving RUNNING ends the old turn's dangling delta,
+      // distinguishing it from a mid-stream message (#1899).
       const executionStatusUpdate = {
         id: "execution-status-idle",
         timestamp: Date.now().toString(),
@@ -567,10 +564,7 @@ describe("handleEventForUI", () => {
           [],
         );
 
-      // The agent-server publishes a state snapshot whenever state changes,
-      // including immediately after it accepts the mid-stream message. Captured
-      // live: delta -> user MessageEvent -> this -> delta, ~13ms apart, with the
-      // agent still RUNNING.
+      // Captured live between the two deltas, agent still RUNNING.
       const runningStateSnapshot = {
         id: "state-running",
         timestamp: Date.now().toString(),
@@ -588,9 +582,7 @@ describe("handleEventForUI", () => {
           makeStreamingDelta("delta-2", "Done."),
         ]);
 
-        // The deltas either side of the message stay one bubble, and the new
-        // text streams into it above the message rather than starting a second
-        // bubble below.
+        // Both deltas in one bubble, message below it.
         expect(result).toEqual([
           mockMessageEvent,
           {
@@ -611,8 +603,7 @@ describe("handleEventForUI", () => {
           mockAgentMessageEvent,
         ]);
 
-        // Exactly once, above the message — not duplicated by an orphaned half,
-        // and not jumped below text that was already on screen above it.
+        // Once, above the message — no orphaned half.
         expect(result).toEqual([
           mockMessageEvent,
           mockAgentMessageEvent,
@@ -621,9 +612,8 @@ describe("handleEventForUI", () => {
       });
 
       it("survives the state snapshot the server emits after the message", () => {
-        // The exact frame order captured against a real agent-server. Without
-        // treating a still-RUNNING snapshot as transparent, it breaks the run
-        // and the reply re-splits exactly as it did before the fix.
+        // Exact frame order captured live; the still-RUNNING snapshot must not
+        // break the run.
         const result = replay([
           mockMessageEvent,
           makeStreamingDelta("delta-1", "I'll start working on that. "),
@@ -642,8 +632,7 @@ describe("handleEventForUI", () => {
       });
 
       it("still treats a snapshot that leaves RUNNING as a turn boundary", () => {
-        // The agent was interrupted mid-stream, so its dangling delta belongs to
-        // the old turn and must survive the next turn's final message.
+        // An interrupted turn's dangling delta must survive the next turn.
         const idleStateSnapshot = {
           ...(runningStateSnapshot as unknown as Record<string, unknown>),
           id: "state-idle",
@@ -685,8 +674,7 @@ describe("handleEventForUI", () => {
           action,
         ]);
 
-        // The action's thought is hoisted into its own bubble, so the streamed
-        // copy must still be stripped even though the message split it (#1534).
+        // Streamed thought still stripped even though the message split it (#1534).
         expect(result).toEqual([
           mockMessageEvent,
           midStreamUserMessage,
@@ -921,9 +909,7 @@ describe("handleEventForUI", () => {
     it("only reconciles the current turn's delta (after the last user message)", () => {
       const thought = "Let me gather accurate information.";
       const earlierTurnDelta = makeStreamingDelta("delta-old", thought);
-      // The status update the server emits when the agent left RUNNING ends the
-      // earlier turn's streaming run; without it this sequence would be
-      // indistinguishable from a message sent mid-stream (#1899).
+      // The status update on leaving RUNNING ends the earlier turn's run (#1899).
       const executionStatusUpdate = {
         id: "execution-status-idle",
         timestamp: Date.now().toString(),

@@ -44,9 +44,6 @@ export const isSameStreamingSender = (
 const isUserMessage = (event: OpenHandsEvent): boolean =>
   isMessageEvent(event) && event.source === "user";
 
-// Whether a conversation-state snapshot reports the agent has left RUNNING.
-// The server publishes a snapshot on every state change, including right after
-// it accepts a message sent mid-stream, so only the status carries meaning here.
 const reportsAgentLeftRunning = (
   event: ConversationStateUpdateEvent,
 ): boolean => {
@@ -56,20 +53,12 @@ const reportsAgentLeftRunning = (
   if (isAgentStatusConversationStateUpdateEvent(event)) {
     return event.value !== ExecutionStatus.RUNNING;
   }
-  // stats / goal snapshots are pure bookkeeping.
-  return false;
+  return false; // stats / goal snapshots are bookkeeping
 };
 
-// Whether an event terminates the agent's streaming run.
-//
-// A message the user sends mid-stream is *interleaved* into the run, it does not
-// start a new turn: the deltas either side of it belong to the same bubble and
-// to the same final event, so it is transparent (#1899). So is a state snapshot
-// that still reports RUNNING — the server emits one immediately after accepting
-// that message, and treating it as a boundary re-splits the reply.
-//
-// A snapshot reporting the agent has left RUNNING *is* a boundary, and it is
-// what keeps an interrupted turn's dangling deltas out of the next turn's reach.
+// A mid-stream user message and a still-RUNNING state snapshot are transparent:
+// the deltas either side of them are one bubble. A snapshot that left RUNNING
+// ends the run, keeping an interrupted turn's deltas out of the next turn (#1899).
 const endsStreamingRun = (event: OpenHandsEvent): boolean => {
   if (isUserMessage(event)) {
     return false;
@@ -107,15 +96,13 @@ const findTrailingStreamLastDeltaIndex = (events: OpenHandsEvent[]): number => {
   return -1;
 };
 
-// One past that delta — where the stream ended, and so where its final event
-// belongs. Falls back to the tail when there is no trailing run.
+// One past the trailing run's last delta — where its final event belongs.
 const findTrailingStreamEnd = (events: OpenHandsEvent[]): number => {
   const lastDeltaIndex = findTrailingStreamLastDeltaIndex(events);
   return lastDeltaIndex === -1 ? events.length : lastDeltaIndex + 1;
 };
 
-// The current turn's boundary: the last user message that did *not* arrive
-// mid-stream.
+// The current turn's boundary: the last user message not sent mid-stream.
 const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
   for (
     let index = findTrailingStreamStart(events) - 1;
@@ -129,10 +116,8 @@ const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
   return -1;
 };
 
-// The delta bubble an incoming delta belongs to: the last delta of the trailing
-// run, looking past any user message sent mid-stream (#1899). Without this the
-// user's bubble breaks the run and the rest of the response starts a second
-// bubble below it, splitting the reply in two.
+// The delta bubble an incoming delta merges into: the trailing run's last delta,
+// looking past a mid-stream user message so it doesn't split the reply (#1899).
 const findStreamingMergeTargetIndex = (
   uiEvents: OpenHandsEvent[],
   incoming: StreamingDeltaEvent,
@@ -328,11 +313,8 @@ const finalizeStreamingDeltasInPlace = (
     return null;
   }
 
-  // Render the final event where the stream ended rather than at the tail: a
-  // message the user sent mid-stream sits below those deltas, and pushing would
-  // jump the reply underneath it — text that was already on screen above
-  // (#1899). Anchor on the trailing run's last delta, not the last superseded
-  // one, which may belong to an earlier step of this turn.
+  // Render the final event where the stream ended, not at the tail, so it stays
+  // above a message the user sent mid-stream instead of jumping below it (#1899).
   const streamEnd = findTrailingStreamEnd(uiEvents);
   const nextUiEvents = supersedeStreamingContent(
     uiEvents.slice(0, streamEnd),

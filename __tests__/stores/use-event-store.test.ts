@@ -202,9 +202,7 @@ describe("useEventStore", () => {
 
   it("keeps the streamed reply in one uiEvents bubble across a mid-stream message (#1899)", () => {
     const { result } = renderHook(() => useEventStore());
-    // Uniform-precision timestamps, as the server emits them: the message lands
-    // between the two deltas, so this also covers the sorting path in
-    // `applyAddEvent`.
+    // Uniform-precision timestamps also cover applyAddEvent's sorting path.
     const first = {
       ...makeStreamingDeltaEvent("delta-1", "hello "),
       timestamp: "2024-03-01T00:00:01.000Z",
@@ -221,8 +219,7 @@ describe("useEventStore", () => {
       result.current.addEvent(second);
     });
 
-    // One bubble holding the whole reply, with the message below it — the
-    // second delta must not start a new bubble underneath the message.
+    // One bubble for the whole reply, message below it.
     expect(result.current.uiEvents).toEqual([
       { ...first, content: "hello world" },
       midStream,
