@@ -117,26 +117,9 @@ npm install
 npm run dev
 ```
 
-### Option 4: Desktop App (macOS & Windows)
-
-> [!WARNING]
-> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
-
-No Node.js, Docker, or uv required — everything is bundled. First launch downloads the agent server from PyPI (needs internet, can take minutes; the loading screen streams progress).
-
-**macOS (Apple Silicon):** Download `Agent-Canvas-<version>-arm64.dmg` from the [latest release](https://github.com/OpenHands/agent-canvas/releases/latest), open it, and drag **Agent Canvas** to Applications. The app is not code-signed yet, so macOS quarantines downloaded copies — clear the quarantine before first launch or macOS reports the app "damaged":
-
-```sh
-xattr -d com.apple.quarantine "/Applications/Agent Canvas.app"
-```
-
-Intel Macs: build from source instead — `npm ci && npm run build:desktop` on an Intel host produces an x64 DMG (locally built apps need no `xattr` step).
-
-**Windows:** Download `Agent-Canvas-Setup-<version>.exe` from the [latest release](https://github.com/OpenHands/agent-canvas/releases/latest) and run it. See [README.windows.md](./README.windows.md#option-4-windows-desktop-app-native-installer) for the SmartScreen note and how to build the installer from source.
-
 ---
 
-Access the UI at [http://localhost:8000](http://localhost:8000) for the npm/source launchers, or [http://localhost:8000/canvas](http://localhost:8000/canvas) for the Docker image. The desktop app opens its own window automatically. You can add additional backends directly from the UI.
+Access the UI at [http://localhost:8000](http://localhost:8000) for the npm/source launchers, or [http://localhost:8000/canvas](http://localhost:8000/canvas) for the Docker image. You can add additional backends directly from the UI.
 
 # Architecture
 
